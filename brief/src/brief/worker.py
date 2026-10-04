@@ -17,6 +17,7 @@ from brief.config import ConfigError, config_file, load_mapping
 from brief.ignore import IgnoreRules
 from brief.ingest import CycleResult, Pipeline
 from brief.jsonlog import log
+from brief.netinfo import network_info
 from brief.publish import Publisher, load_registry
 from brief.settings import Settings
 from brief.signatures import Signatures
@@ -107,6 +108,7 @@ class Worker:
             self.settings.interval,
             time.monotonic() - self.started,
             self.env,
+            network=network_info(self.settings),
         )
         write_status(status, self.out_dir)
         values = metric_values(status)

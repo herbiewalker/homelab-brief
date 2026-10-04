@@ -112,6 +112,7 @@ def build_status(
     uptime_s: float,
     env=None,
     now: datetime | None = None,
+    network: dict | None = None,
 ) -> dict:
     now = now or datetime.now(UTC)
     report = health.check_health(store, syslog_port, interval, uptime_s, now)
@@ -151,6 +152,7 @@ def build_status(
             "hosts_checked": numbers["hosts_checked"],
         },
         "silent_hosts": silent[:MAX_LISTED_SILENT],
+        "network": network,
     }
 
 

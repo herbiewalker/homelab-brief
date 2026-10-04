@@ -34,6 +34,7 @@ class Settings:
     syslog_port: int = 514
     interval: float = 60.0
     advertised: str = ""
+    network_mode: str = "auto"
     extra_names: tuple[str, ...] = ()
     announce_setup: bool = True
 
@@ -51,5 +52,6 @@ class Settings:
             syslog_port=syslog_port(network, env),
             interval=float(env.get("BRIEF_INGEST_INTERVAL", "60")),
             advertised=str(network.get("advertised_address") or "").strip(),
+            network_mode=str(network.get("mode") or "auto").strip().lower(),
             extra_names=tuple(str(n) for n in (network.get("tls_extra_names") or [])),
         )

@@ -31,6 +31,7 @@ from brief.auth import Auth, AuthError, BadCredentials, Session, Throttled
 from brief.config import ConfigError, config_file
 from brief.jsonlog import log
 from brief.learning import learning_status
+from brief.netinfo import network_info, with_detected_address
 from brief.settings import Settings
 from brief.status import build_status
 from brief.store import Store
@@ -202,7 +203,9 @@ def create_app(
         except (ConfigError, OSError):
             systems = Systems()
         uptime = time.monotonic() - app.state.started
-        doc = build_status(store, systems, settings.syslog_port, settings.interval, uptime)
+        doc = build_status(
+            store, systems, settings.syslog_port, settings.interval, uptime, network=network_info(settings)
+        )
         return JSONResponse(doc, headers={"Cache-Control": "no-cache"})
 
     @app.get("/", response_class=HTMLResponse)
@@ -409,7 +412,7 @@ def create_app(
 
 
 def _from_env(mode: str) -> FastAPI:
-    return create_app(mode, Settings.from_env())
+    return create_app(mode, with_detected_address(Settings.from_env()))
 
 
 def create_http_app() -> FastAPI:

@@ -5,6 +5,7 @@ import sys
 import uvicorn
 
 from brief.jsonlog import log, uvicorn_log_config
+from brief.netinfo import network_info, with_detected_address
 from brief.settings import Settings
 from brief.tlscert import resolve_certificate
 
@@ -18,6 +19,9 @@ def main(argv: list[str] | None = None) -> int:
     settings = Settings.from_env()
     options: dict = {}
     if mode == "https":
+        net = network_info(settings)
+        log("network", **net)
+        settings = with_detected_address(settings, net)  # the certificate then covers the LAN address
         cert, key, generated = resolve_certificate(settings)
         options = {"ssl_certfile": str(cert), "ssl_keyfile": str(key)}
         log(
