@@ -6,52 +6,40 @@ Goal: received lines become normalized events, events become stable signatures, 
 
 The repo file `vector/vector.yaml` is authoritative; this sketch shows the shape. Confirm field names against the docs for the pinned Vector version.
 
-```yaml
-data_dir: /state/vector
+The authoritative files are `vector/vector.yaml` (receive, gate, archive, events), `vector/parse.vrl` (the parser, shared with `vector/backfill.yaml`), and the unit tests in `vector/tests/`. They ship in the image at `/app/vector/`. When the container starts, `python -m brief.vectorcfg` renders the listen port and the sender allowlist from `brief/network.yaml` into `/run/vector/vector.yaml`.
 
-sources:
-  syslog_udp:
-    type: socket
-    mode: udp
-    address: 0.0.0.0:514
-    host_key: source_ip        # sender's IP becomes the host
-  syslog_tcp:
-    type: socket
-    mode: tcp
-    address: 0.0.0.0:514
-    host_key: source_ip
+Flow: the UDP and TCP sources go to a **gate** (it flags or drops senders outside `allowed_senders`), then to the **archive** (the raw line, one file per sender per UTC day) and to the **parser** (a normalized event), which writes **events** as NDJSON, one file per day.
 
-transforms:
-  parse:
-    type: remap
-    inputs: [syslog_udp, syslog_tcp]
-    source: |
-      .raw = string!(.message)
-      .ingest_ts = now()
-      # priority <PRI> -> facility and severity when present; otherwise keyword fallback
-      # branches: CEF (Protect), duplicated gateway hostnames, <mac>,<model>-<firmware> tokens,
-      # NVR header with spaces and pipes, coredns JSON; parse_failed kept for the rest
+### Event fields
 
-sinks:
-  archive:
-    type: file
-    inputs: [syslog_udp, syslog_tcp]
-    path: /archive/%Y-%m-%d/{{ source_ip }}.log
-    encoding: { codec: text }
-  events:
-    type: file
-    inputs: [parse]
-    path: /state/events/%Y-%m-%d.ndjson
-    encoding: { codec: json }
-```
+| Field | Meaning |
+| --- | --- |
+| `source_ip` | The sender's address (live) or the address in the file name (backfill). This is the host identity |
+| `timestamp` | When Vector received the line (UTC). For operations only; never used for bucketing |
+| `format` | `bsd` or `rfc5424` |
+| `ts` | The header time exactly as sent ("Sep 26 13:22:33"), with no year or timezone; Python normalizes it |
+| `epoch_ms` | Precise UTC time in milliseconds when the line carries one (CEF `timestamp=`, coredns JSON, a UniFi OS ISO prefix) |
+| `pri`, `facility`, `severity` | From the priority field when present. `severity` is the syslog level 0-7 |
+| `severity_inferred` | `false` when the severity came from the wire, `true` when it came from keywords or CEF |
+| `header_host`, `header_host_dup` | The host named in the header; `header_host_dup` is true when a gateway repeated it |
+| `device_mac`, `model`, `firmware` | From the `<mac>,<model>-<firmware>:` token that switches, APs, and the PDU add |
+| `app`, `pid`, `msg` | Program tag, process id (a string), and the message |
+| `cef` | The parsed CEF object (Protect, Network, OS); `app` is the product name |
+| `dns` | The parsed coredns JSON object |
+| `parse_failed`, `raw` | Set when a line could not be parsed; the raw text is kept and nothing is dropped |
+| `unknown_sender` | Set to true by the gate for a sender outside `allowed_senders` (policy `flag`) |
+| `imported` | True for events from the backfill import |
+
+Optional fields are absent when they do not apply, never null.
 
 Notes:
 
 - **Host identity** is the sender's IP; `systems.yaml` maps IPs and header names to systems.
-- **Severity:** lines received over the network usually carry the priority field, so severity comes from it. Lines without it (and the backfill, whose files dropped it) use the keyword fallback (crit, error, fail, warn) with `severity_inferred: true`.
-- **CEF:** the NVR wraps CEF in a syslog header, so the CEF branch starts at `CEF:` and uses its `timestamp=` field (epoch milliseconds, UTC).
-- **Event time:** keep the parsed timestamp in `.ts`; classic headers have no year or timezone, so Python normalizes them (2d) using `source_tz` from `systems.yaml`. Counts are bucketed by event time, never by receive time.
-- **Firmware:** keep the `<model>-<firmware>` token as fields; Phase 2 inventory uses it as a fallback source.
+- **Sender allowlist:** `allowed_senders` (addresses or subnets) and `unknown_senders` (`flag` or `drop`) in `brief/network.yaml`. An empty list allows everyone. `flag` keeps the line and marks it; `drop` discards it before anything is written. A bad entry stops the container at start with a message, instead of silently weakening the list.
+- **Severity:** lines received over the network usually carry the priority field, so severity comes from it. Lines without it (and the backfill, whose files dropped it) use the keyword fallback (crit, error, fail, warn) with `severity_inferred: true`. For CEF lines without a priority the CEF severity is mapped: 9 and up is `err`, 7-8 `warning`, 4-6 `notice`, below that `info`.
+- **CEF:** the header can hold spaces and pipes (Protect) or an ISO timestamp (UniFi OS), so the CEF branch starts at `CEF:` and uses its `timestamp=` field (epoch milliseconds, UTC).
+- **Event time:** `ts` keeps the header text; classic headers have no year or timezone, so Python normalizes them (2d) using `source_tz` from `systems.yaml`. Counts are bucketed by event time, never by receive time.
+- **Firmware:** the `<model>-<firmware>` token becomes fields; Phase 2 inventory uses it as a fallback source.
 - Keep normalized event files for about 7 days. The archive is the source of truth.
 
 ## 2b. Baseline database

@@ -19,7 +19,7 @@ services:
       - "8443:443"            # admin GUI (HTTPS)
     volumes:
       - ./brief:/config/brief:ro      # dev: config templates (the GUI writes to /config in prod)
-      - ./vector:/config/vector:ro
+      - ./vector:/app/vector:ro        # dev: edit the parser without rebuilding
       - ./.dev/state:/state
       - ./.dev/archive:/archive
       - ./.dev/out:/out

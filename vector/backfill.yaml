@@ -1,6 +1,7 @@
 # One-off backfill import (run by `brief import --from /import`), never part of the live config.
-# Reads the old syslog-<ip>.log files read-only and feeds the same parse transform shape
-# (Task 3 shares the VRL between both configs). The host comes from the file name.
+# Reads the old syslog-<ip>.log files read-only and runs the same parser as the live receiver.
+# The sender comes from the file name. These files dropped the priority field, so severity is
+# inferred from keywords (severity_inferred: true on every imported event).
 data_dir: /state/vector-import
 
 sources:
@@ -15,10 +16,16 @@ transforms:
     type: remap
     inputs: [old_files]
     source: |
-      parts = parse_regex!(string!(.file), r'syslog-(?P<ip>[0-9.]+)\.log$')
+      parts = parse_regex!(string!(.file), r'syslog-(?P<ip>[0-9a-fA-F.:]+)\.log$')
       .source_ip = parts.ip
       .imported = true
-      # TODO (Task 3): reuse the live parse logic here (shared VRL file).
+      del(.file)
+      del(.host)
+
+  parse:
+    type: remap
+    inputs: [host_from_file]
+    file: /app/vector/parse.vrl
 
 sinks:
   archive:
@@ -29,6 +36,6 @@ sinks:
 
   events:
     type: file
-    inputs: [host_from_file]
+    inputs: [parse]
     path: /state/events/import.ndjson
     encoding: { codec: json }

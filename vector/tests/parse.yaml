@@ -1,0 +1,430 @@
+# Unit tests for parse.vrl, run with scripts/test-vector.sh (or `vector test` inside the image):
+#   vector test /app/vector/vector.yaml /app/vector/tests/parse.yaml
+# Every line below is invented or taken from the sanitized samples; none is real.
+tests:
+  - name: priority gives a real severity and facility
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: |-
+            <134>Sep 26 12:32:20 host-01 earlyoom[1699]: mem avail:  1194 of  2947 MiB (40.51%)
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.format, "bsd")
+              assert_eq!(.pri, 134)
+              assert_eq!(.facility, 16)
+              assert_eq!(.severity, 6)
+              assert_eq!(.severity_inferred, false)
+              assert_eq!(.ts, "Sep 26 12:32:20")
+              assert_eq!(.header_host, "host-01")
+              assert_eq!(.app, "earlyoom")
+              assert_eq!(.pid, "1699")
+              assert_eq!(.msg, "mem avail:  1194 of  2947 MiB (40.51%)")
+              assert_eq!(.source_ip, "198.51.100.9")
+              assert!(!exists(.message))
+              assert!(!exists(.parse_failed))
+
+  - name: priority splits into facility and severity
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: "<11>Sep 26 12:32:20 host-01 app: boom"
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.facility, 1)
+              assert_eq!(.severity, 3)
+              assert_eq!(.severity_inferred, false)
+
+  - name: no priority infers severity from keywords
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "Sep 26 12:32:20 host-01 app: Failed to start the thing" }
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "Sep 26 12:32:20 host-01 app: Warning: disk is hot" }
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "Sep 26 12:32:20 host-01 kernel: kernel panic - not syncing" }
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "Sep 26 12:32:20 host-01 app: all good here" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.severity_inferred, true)
+              assert!(!exists(.pri))
+              assert!(includes([2, 3, 4, 6], .severity))
+
+  - name: keyword fallback picks the right level for an error line
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "Sep 26 12:32:20 host-01 app: Failed to start the thing" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.severity, 3)
+              assert_eq!(.severity_inferred, true)
+
+  - name: keyword fallback picks warning and critical and defaults to info
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "Sep 26 12:32:20 host-01 app: Warning: disk is hot" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.severity, 4)
+
+  - name: critical keyword
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "Sep 26 12:32:20 host-01 kernel: kernel panic - not syncing" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.severity, 2)
+
+  - name: a plain line with no keyword is info
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "Sep 26 12:32:20 host-01 app: all good here" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.severity, 6)
+              assert_eq!(.severity_inferred, true)
+
+  - name: gateways repeat the hostname
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: "<134>Sep 26 13:22:33 host-13 host-13 earlyoom[1593]: mem avail:  1464 of  3946 MiB"
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.header_host, "host-13")
+              assert_eq!(.header_host_dup, true)
+              assert_eq!(.app, "earlyoom")
+              assert_eq!(.msg, "mem avail:  1464 of  3946 MiB")
+
+  - name: device token keeps mac, model, and firmware
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: "<134>Sep  9 03:14:10 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): is_default: false"
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.device_mac, "00005e005301")
+              assert_eq!(.model, "USW-Flex")
+              assert_eq!(.firmware, "7.5.10+17129")
+              assert_eq!(.app, "mcad")
+              assert_eq!(.pid, "27565")
+              assert_eq!(.msg, "ace_reporter.reporter_save_config(): is_default: false")
+              assert_eq!(.ts, "Sep  9 03:14:10")
+
+  - name: device token with a hyphenated model and an extra colon
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: "<134>Sep 25 16:09:20 host-05 00005E005302,USW-Pro-Max-24-PoE-7.5.15+17146: : ubnt-fanctrl[938]: fanctrl.fanctrl_log(): Fan speed 25%"
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.device_mac, "00005e005302")
+              assert_eq!(.model, "USW-Pro-Max-24-PoE")
+              assert_eq!(.firmware, "7.5.15+17146")
+              assert_eq!(.app, "ubnt-fanctrl")
+              assert_eq!(.pid, "938")
+              assert_eq!(.msg, "fanctrl.fanctrl_log(): Fan speed 25%")
+
+  - name: a tag with a path and two pids
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "<134>Sep 25 16:09:20 host-05 /usr/bin/unifi-mq-broker[321]: MEM usage flows=1" }
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "<134>Sep 25 16:09:21 host-05 syswrapper[8219][8220]: skip scan-rrm" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert!(includes(["unifi-mq-broker", "syswrapper"], .app))
+              assert!(is_string(.pid))
+
+  - name: Title Case tags with spaces are kept whole
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "<134>Sep 26 03:00:01 host-01 Docker Auto Update: Checking for available updates" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.app, "Docker Auto Update")
+              assert_eq!(.msg, "Checking for available updates")
+              assert!(!exists(.pid))
+
+  - name: an untagged message with a colon is not mistaken for a tag
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "<134>Sep 26 03:00:01 host-01 starting pid 1341, tty '': '/etc/rc.d/rc ministop'" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert!(!exists(.app))
+              assert_eq!(.msg, "starting pid 1341, tty '': '/etc/rc.d/rc ministop'")
+
+  - name: a bracketed kernel firewall tag is not a program
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "<134>Sep 26 13:17:05 host-13 host-13 [PREROUTING-DNAT-6] DESCR=\"PortForward DNAT [rule-1]\" IN=eth7 OUT=" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert!(!exists(.app))
+              assert_eq!(.header_host_dup, true)
+              assert!(starts_with!(.msg, "[PREROUTING-DNAT-6] DESCR="))
+
+  - name: a leading colon without a tag is dropped from the message
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "<134>Sep 26 03:00:01 host-01 : The system is going down NOW!" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.msg, "The system is going down NOW!")
+
+  - name: kernel lines keep the timestamp bracket in the message
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "<134>Sep 17 12:59:31 host-05 kernel: [725939.020000] TenGigabitEthernet2 link up at 10G" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.app, "kernel")
+              assert!(!exists(.pid))
+              assert_eq!(.msg, "[725939.020000] TenGigabitEthernet2 link up at 10G")
+
+  - name: the NVR header has spaces and pipes, and CEF carries the event time
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: |-
+            <134>Sep 26 13:10:39 SITE | SITE | NVR CEF:0|Ubiquiti|UniFi Protect|7.2.105|2161|smartAudioDetect|7|UNIFIcategory=detection eventId=00000000-0000-4000-8000-000000000005 eventType=smartAudioDetect category=detection severity=7 timestamp=1790442597425 msg="SITE camera-1 (AI 360) detected someone speaking."
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.header_host, "SITE | SITE | NVR")
+              assert_eq!(.app, "UniFi Protect")
+              assert_eq!(.cef.deviceVendor, "Ubiquiti")
+              assert_eq!(.cef.deviceProduct, "UniFi Protect")
+              assert_eq!(.cef.eventType, "smartAudioDetect")
+              assert_eq!(.epoch_ms, 1790442597425)
+              assert_eq!(.msg, "SITE camera-1 (AI 360) detected someone speaking.")
+              assert_eq!(.severity, 6)
+              assert_eq!(.severity_inferred, false)
+              assert!(!exists(.parse_failed))
+
+  - name: CEF severity is mapped when there is no priority
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: |-
+            Sep 26 13:10:39 SITE | SITE | NVR CEF:0|Ubiquiti|UniFi Protect|7.2.105|2161|smartAudioDetect|7|eventType=x severity=7 timestamp=1790442597425 msg="detected"
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.severity, 4)
+              assert_eq!(.severity_inferred, true)
+
+  - name: network CEF with a space after the colon keeps a spaced extension
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: |-
+            <134>Sep 26 13:17:32 host-13 CEF: 0|Ubiquiti|UniFi Network|10.6.101|403|Wired Client Connected|1|UNIFIcategory=Client Devices UNIFIhost=SITE SITE | SITE | UDMPro UNIFIclientIp=198.51.100.7 msg=Client connected
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.header_host, "host-13")
+              assert_eq!(.app, "UniFi Network")
+              assert_eq!(.cef.name, "Wired Client Connected")
+              assert!(!exists(.parse_failed))
+
+  - name: UniFi OS CEF has a UTC ISO time before the host
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: |-
+            <134>Sep 26 17:09:45 2026-09-26T17:09:45.123Z SITE SITE | SITE | UDMPro CEF:0|Ubiquiti|UniFi OS|4.1.13|1|Admin Accessed UniFi OS|3|UNIFIadmin=admin-1 msg=Admin accessed
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.app, "UniFi OS")
+              assert_eq!(.epoch_ms, 1790442585123)
+              assert!(!exists(.parse_failed))
+
+  - name: coredns JSON lines expose the query and epoch milliseconds
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: |-
+            <134>Sep 26 13:15:39 host-13 host-13 coredns[4650]: {"timestamp":"2026-09-26T13:15:39-04:00","unix_milli_timestamp":1790442939894,"type":"dnsAdBlock","domain":"domain-1.example","ip":"198.51.100.7","mac":"00:00:5e:00:53:01","dst_port":1053,"protocol":"udp"}
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.app, "coredns")
+              assert_eq!(.dns.domain, "domain-1.example")
+              assert_eq!(.dns.type, "dnsAdBlock")
+              assert_eq!(.epoch_ms, 1790442939894)
+              assert!(!exists(.parse_failed))
+
+  - name: broken coredns JSON is kept as text, not dropped
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: "<134>Sep 26 13:15:39 host-13 host-13 coredns[4650]: {\"timestamp\":\"2026-09-26T13:15:39-04:00\","
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.app, "coredns")
+              assert!(!exists(.dns))
+              assert!(starts_with!(.msg, "{"))
+
+  - name: RFC 5424 lines are understood
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: "<165>1 2026-09-26T13:22:33Z host-07 myapp 4242 ID47 - Something happened"
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.format, "rfc5424")
+              assert_eq!(.header_host, "host-07")
+              assert_eq!(.app, "myapp")
+              assert_eq!(.severity, 5)
+              assert_eq!(.msg, "Something happened")
+
+  - name: lines that do not parse are kept with the raw text
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "this is not syslog at all" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.parse_failed, true)
+              assert_eq!(.raw, "this is not syslog at all")
+              assert_eq!(.msg, "this is not syslog at all")
+              assert_eq!(.severity_inferred, true)
+
+  - name: a priority outside the valid range is not trusted
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "<999>Sep 26 12:32:20 host-01 app: odd" }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.severity_inferred, true)
+              assert!(!exists(.pri))
+
+  - name: optional fields are absent, not null
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields: { source_ip: 198.51.100.9, message: "<134>Sep 26 12:32:20 host-01 sshd: Server listening on 0.0.0.0 port 22." }
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert!(!exists(.pid))
+              assert!(!exists(.header_host_dup))
+              assert!(!exists(.device_mac))
+              assert!(!exists(.cef))
+              assert!(!exists(.dns))

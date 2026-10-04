@@ -1,0 +1,180 @@
+# Normalize one raw syslog line into an event. Shared by the live receiver (vector.yaml) and the
+# backfill import (backfill.yaml); fields are documented in docs/guide/02-baseline.md.
+#
+# Input:  .message (the raw line, possibly starting with <PRI>) and .source_ip (the sender).
+# Event time stays as the header text in .ts (it has no year or timezone); Python normalizes it
+# and buckets by event time. Lines that do not parse are kept with .parse_failed and the raw text.
+
+raw = string!(.message)
+del(.message)
+del(.source_type)
+
+line = raw
+msg = ""
+.severity_inferred = true
+
+# Priority <PRI>: facility and severity from the wire when present.
+pri_match, err = parse_regex(line, r'^<(?P<pri>\d{1,3})>')
+if err == null {
+  pri = to_int!(pri_match.pri)
+  if pri <= 191 {
+    facility = to_int(floor(pri / 8))
+    .pri = pri
+    .facility = facility
+    .severity = pri - facility * 8
+    .severity_inferred = false
+    line = replace(line, r'^<\d{1,3}>', "")
+  }
+}
+
+# Classic BSD header: "Mon dd hh:mm:ss <rest>". No year, no timezone.
+rest = ""
+parsed = false
+header, err = parse_regex(line, r'^(?P<ts>[A-Z][a-z]{2} [ \d]\d \d\d:\d\d:\d\d) (?P<rest>.*)$')
+if err == null {
+  .format = "bsd"
+  .ts = header.ts
+  rest = string!(header.rest)
+  parsed = true
+} else {
+  # RFC 5424 ("<PRI>1 2026-09-26T13:22:33Z host app pid msgid - message"), kept simple.
+  _, err5 = parse_regex(line, r'^\d \d{4}-\d\d-\d\dT')
+  if err5 == null {
+    syslog, errs = parse_syslog(raw)
+    if errs == null {
+      .format = "rfc5424"
+      .header_host = syslog.hostname
+      .app = syslog.appname
+      .pid = syslog.procid
+      msg = string(syslog.message) ?? ""
+      .ts = format_timestamp!(syslog.timestamp, format: "%Y-%m-%dT%H:%M:%S%z")
+      parsed = true
+    }
+  }
+}
+
+if !parsed {
+  .parse_failed = true
+  .raw = raw
+  msg = raw
+} else if rest != "" {
+  cef_match, err = parse_regex(rest, r'^(?P<host>.*?) (?P<cef>CEF:\s*\d\|.*)$')
+  if err == null {
+    # UniFi Protect, Network, and OS send CEF. The Protect header holds spaces and pipes, and
+    # UniFi OS puts a UTC ISO timestamp in front of the host.
+    cef_host = string!(cef_match.host)
+    iso, err = parse_regex(cef_host, r'^(?P<iso>\d{4}-\d\d-\d\dT\S+) (?P<host>.*)$')
+    if err == null {
+      cef_host = string!(iso.host)
+      iso_time, iso_err = parse_timestamp(string!(iso.iso), "%Y-%m-%dT%H:%M:%S%.fZ")
+      if iso_err == null {
+        .epoch_ms = to_unix_timestamp(iso_time, unit: "milliseconds")
+      }
+    }
+    .header_host = cef_host
+    cef, cef_err = parse_cef(replace(string!(cef_match.cef), r'^CEF:\s*', "CEF:"))
+    if cef_err == null {
+      .cef = cef
+      product = string(cef.deviceProduct) ?? ""
+      .app = if product != "" { product } else { "cef" }
+      cef_msg = string(cef.msg) ?? ""
+      msg = if cef_msg != "" { cef_msg } else { string(cef.name) ?? "" }
+      # to_int(null) is 0 in VRL, so only convert fields that are really there.
+      if exists(cef.timestamp) {
+        ts_ms, ts_err = to_int(cef.timestamp)
+        if ts_err == null && ts_ms > 0 {
+          .epoch_ms = ts_ms
+        }
+      }
+      if .severity_inferred == true && exists(cef.severity) {
+        cef_sev, sev_err = to_int(cef.severity)
+        if sev_err == null {
+          # CEF 0-10 mapped to syslog levels: 9+ err, 7-8 warning, 4-6 notice, else info.
+          .severity = if cef_sev >= 9 { 3 } else if cef_sev >= 7 { 4 } else if cef_sev >= 4 { 5 } else { 6 }
+        }
+      }
+    } else {
+      .parse_failed = true
+      .cef_parse_failed = true
+      .raw = raw
+      msg = rest
+    }
+  } else {
+    host_match, err = parse_regex(rest, r'^(?P<host>\S+) (?P<tail>.*)$')
+    if err == null {
+      host = string!(host_match.host)
+      tail = string!(host_match.tail)
+      .header_host = host
+      msg = tail
+
+      # Gateways repeat the hostname: "host host program[pid]: message".
+      if starts_with(tail, host + " ") {
+        .header_host_dup = true
+        tail = slice!(tail, length(host) + 1)
+        msg = tail
+      }
+
+      # Switches, APs, and the PDU add "<mac>,<model>-<firmware>:" before the program.
+      device, err = parse_regex(tail, r'^(?P<mac>[0-9a-fA-F]{12}),(?P<model>[A-Za-z0-9-]+?)-(?P<fw>\d+\.\d+\.\d+\S*?):\s*(?P<after>.*)$')
+      if err == null {
+        .device_mac = downcase(string!(device.mac))
+        .model = device.model
+        .firmware = device.fw
+        tail = string!(device.after)
+        msg = tail
+      }
+
+      # Program tag: "program[pid]: message". A tag may be a path (/usr/bin/x), carry two pids
+      # (x[1][2]), or be Title Case words as Unraid's are ("Docker Auto Update"). Some devices
+      # print the tag twice ("mcad: mcad[1461]: ...") or start with an extra ": ".
+      tag, err = parse_regex(tail, r'^(?::\s)?(?P<app>[A-Z][A-Za-z]*(?: [A-Z][A-Za-z]*)+|[A-Za-z_/][\w./+-]*)(?:\[(?P<pid>\d+)\])?(?:\[\d+\])*: ?(?P<msg>.*)$')
+      if err == null {
+        .app = replace(string!(tag.app), r'^.*/', "")
+        .pid = tag.pid
+        msg = string!(tag.msg)
+        again, err = parse_regex(msg, r'^(?P<app>[A-Za-z_/][\w./+-]*)\[(?P<pid>\d+)\]: ?(?P<msg>.*)$')
+        if err == null && replace(string!(again.app), r'^.*/', "") == .app {
+          .pid = again.pid
+          msg = string!(again.msg)
+        }
+      } else {
+        msg = replace(tail, r'^:\s*', "")
+      }
+    } else {
+      msg = rest
+    }
+  }
+
+  # Gateway DNS lines carry JSON with a full timestamp and epoch milliseconds.
+  if .app == "coredns" && starts_with(msg, "{") {
+    dns, dns_err = parse_json(msg)
+    if dns_err == null && is_object(dns) {
+      .dns = dns
+      if exists(dns.unix_milli_timestamp) {
+        dns_ms, ms_err = to_int(dns.unix_milli_timestamp)
+        if ms_err == null && dns_ms > 0 {
+          .epoch_ms = dns_ms
+        }
+      }
+    }
+  }
+}
+
+.msg = msg
+
+# No priority on the wire (the old file archive, odd senders): infer severity from keywords.
+if .severity_inferred == true && !exists(.severity) {
+  text = downcase(msg)
+  .severity = if match(text, r'\b(emerg|panic|fatal|crit|critical)\b') {
+    2
+  } else if match(text, r'\b(error|err|fail|failed|failure|denied|refused|unable|cannot)\b') {
+    3
+  } else if match(text, r'\b(warn|warning|timeout|timed out)\b') {
+    4
+  } else {
+    6
+  }
+}
+
+# Drop empty optional fields (an unmatched pid group, for example) to keep events small.
+. = compact(., recursive: false, null: true)

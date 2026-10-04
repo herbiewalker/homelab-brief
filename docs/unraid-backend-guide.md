@@ -62,7 +62,7 @@ On Unraid, a container with its own IP can be unreachable from its own host unle
 
 | Path in the container | Host path | Contents |
 | --- | --- | --- |
-| `/config` | `/mnt/user/appdata/homelab-brief/config` | `brief/*.yaml`, Vector config, TLS certificate, SSH keys, config history |
+| `/config` | `/mnt/user/appdata/homelab-brief/config` | `brief/*.yaml` (yours), TLS certificate, SSH keys, config history. The Vector config and parser ship in the image (`/app/vector`) and are not edited here |
 | `/state` | `/mnt/<pool>/appdata/homelab-brief/state` | SQLite database, Drain3 state, offsets (pool path, not `/mnt/user`) |
 | `/archive` | `/mnt/<pool>/syslog-archive` (or a share of your choice) | Raw syslog, one file per host per day, compressed after the day ends |
 | `/out` | `/mnt/user/<share>/brief` | Digests and exports for Claude (its own Filesystem MCP entry) |

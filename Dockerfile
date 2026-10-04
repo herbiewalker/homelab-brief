@@ -38,6 +38,7 @@ RUN /opt/venv/bin/pip install -r /tmp/requirements-dev.txt
 ENV PATH=/opt/venv/bin:$PATH PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 COPY brief/ /app/
+COPY vector/ /vector/
 CMD ["pytest", "-q"]
 
 # ---- Runtime image (default target) ----
@@ -53,6 +54,7 @@ RUN useradd --uid 99 --gid 100 --no-create-home --shell /usr/sbin/nologin brief 
 
 COPY docker/rootfs/ /
 COPY brief/src/ /app/
+COPY vector/ /app/vector/
 RUN chmod +x /etc/s6-overlay/scripts/* /etc/s6-overlay/s6-rc.d/*/run
 
 ENV PATH=/opt/venv/bin:/command:$PATH \
