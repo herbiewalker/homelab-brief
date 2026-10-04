@@ -84,7 +84,7 @@ Update this file as decisions are made. Do not decide an open item silently; ask
 | Item | Options | Notes |
 | --- | --- | --- |
 | Raw log retention | 30, 60, or 90 days | Plan assumes 60 to start |
-| Cache pool name | Per install | Replaces `<pool>` in paths |
+| Cache pool name | Default `cache`, changeable in the template like any Unraid container | Paths use /mnt/cache; settled for the first deploy |
 | Where live logs are written | Array share vs pool-only live share | Decide after the Step 1 audit |
 | Mosquitto long-term home | Unraid, or HA's broker once Home Assistant is set up | Switch is a `MQTT_HOST` change |
 | E-reader model | Kindle, Kobo, or e-paper display | Decides the e-reader output route |

@@ -1,7 +1,7 @@
 # Reference deployment for the host server: one container with its own LAN IP on br0.
 # The Unraid template (deploy/unraid-template.xml, Task 17) is the primary install path;
 # this compose file mirrors it for Compose Manager users.
-# Replace <pin>, <pool>, and <container-ip>. Secrets come from template variables or an
+# Replace <pin> and <container-ip>. The pool is Unraid's default, cache; change /mnt/cache if yours is named differently. Secrets come from template variables or an
 # env file in appdata (mode 600), never from a Filesystem MCP folder.
 services:
   homelab-brief:
@@ -14,8 +14,8 @@ services:
     env_file: /mnt/user/appdata/homelab-brief/homelab-brief.env
     volumes:
       - /mnt/user/appdata/homelab-brief/config:/config
-      - /mnt/<pool>/appdata/homelab-brief/state:/state
-      - /mnt/<pool>/syslog-archive:/archive
+      - /mnt/cache/appdata/homelab-brief/state:/state
+      - /mnt/cache/syslog-archive:/archive
       - /mnt/user/<share>/brief:/out
       # one-off backfill import (Task 7); remove after `brief import` completes
       - /mnt/user/<share>/syslog:/import:ro
