@@ -1,4 +1,5 @@
 # Reference deployment for the host server: one container with its own LAN IP on br0.
+# Network: br0 is the default (Unraid already provides it). To use a dedicated network such as syslog-net, define it as an external or macvlan/ipvlan network and rename it below.
 # The Unraid template (deploy/unraid-template.xml, Task 17) is the primary install path;
 # this compose file mirrors it for Compose Manager users.
 # Replace <pin> and <container-ip>. The pool is Unraid's default, cache; change /mnt/cache if yours is named differently. Secrets come from template variables or an
