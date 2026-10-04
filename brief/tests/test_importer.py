@@ -11,7 +11,7 @@ class FakeProc:
     def __init__(self, state: Path, archive: Path, lines: int, alive=True):
         events = state / "events"
         events.mkdir(parents=True, exist_ok=True)
-        (events / "import.ndjson").write_text("{}\n" * lines, encoding="utf-8")
+        (events / "import.ndjson.partial").write_text("{}\n" * lines, encoding="utf-8")
         (archive / "import").mkdir(parents=True, exist_ok=True)
         (archive / "import" / "198.51.100.1.log").write_text("x\n" * lines, encoding="utf-8")
         self.alive, self.terminated, self.returncode = alive, False, 3
@@ -61,6 +61,62 @@ def test_a_good_import_waits_for_output_to_settle_then_stops_vector(tmp_path):
     assert run(tmp_path, src, spawn, said.append) == 0
     assert procs[0].terminated
     assert any("4 of 4" in m for m in said) and any("Importing 4 lines from 1 files" in m for m in said)
+    events = tmp_path / "state" / "events"
+    assert (events / "import.ndjson").exists() and not (events / "import.ndjson.partial").exists()
+
+
+def test_the_worker_never_sees_the_partial_file():
+    # the ingest reads *.ndjson; the partial file must not match that pattern
+    assert not "import.ndjson.partial".endswith(".ndjson")
+
+
+def test_a_killed_vector_leaves_nothing_behind_and_the_hint_mentions_memory(tmp_path):
+    src = sources(tmp_path)
+
+    class Dies(FakeProc):
+        polls = 0
+
+        def poll(self):
+            Dies.polls += 1
+            if Dies.polls > 1:
+                self.returncode = -9  # what Popen reports for a process killed by SIGKILL
+                return -9
+            return None
+
+    def spawn_dies(cmd, **kw):
+        return Dies(tmp_path / "state", tmp_path / "archive", 3)
+
+    with pytest.raises(importer.ImportFailed, match="memory"):
+        run(tmp_path, src, spawn_dies)
+    events = tmp_path / "state" / "events"
+    assert not (events / "import.ndjson").exists() and not (events / "import.ndjson.partial").exists()
+    assert not list((tmp_path / "archive" / "import").glob("*.log"))  # the raw copies are removed too
+
+
+def test_a_cut_off_import_fails_and_counts_nothing(tmp_path):
+    src = sources(tmp_path, n=1000)
+    with pytest.raises(importer.ImportFailed, match="cut off"):
+        run(tmp_path, src, fake(tmp_path, lines=400))  # far fewer lines than the source
+    assert not (tmp_path / "state" / "events" / "import.ndjson").exists()
+
+
+def test_a_few_missing_lines_are_tolerated(tmp_path):
+    src = sources(tmp_path, n=2000)
+    assert run(tmp_path, src, fake(tmp_path, lines=1999)) == 0  # blank or oversize lines are skipped
+
+
+def test_leftovers_of_an_unfinished_import_are_removed_before_a_new_run(tmp_path):
+    src = sources(tmp_path)
+    events = tmp_path / "state" / "events"
+    events.mkdir(parents=True)
+    (events / "import.ndjson.partial").write_text("stale\n" * 50, encoding="utf-8")
+    (tmp_path / "archive" / "import").mkdir(parents=True)
+    (tmp_path / "archive" / "import" / "198.51.100.9.log").write_text("stale\n", encoding="utf-8")
+    said = []
+    assert run(tmp_path, src, fake(tmp_path), said.append) == 0
+    assert any("did not finish" in m for m in said)
+    assert not (tmp_path / "archive" / "import" / "198.51.100.9.log").exists()
+    assert (events / "import.ndjson").read_text(encoding="utf-8").count("\n") == 4  # fresh, not the stale 50
 
 
 def test_the_source_folder_is_never_written(tmp_path):

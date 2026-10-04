@@ -63,7 +63,7 @@ def wait_for_port(port, name, timeout=60):
 
 def event_lines(state: Path) -> list[str]:
     out = []
-    for f in sorted((state / "events").glob("*.ndjson")) if (state / "events").is_dir() else []:
+    for f in sorted((state / "events").glob("*.ndjson*")) if (state / "events").is_dir() else []:
         out += [ln for ln in f.read_text(encoding="utf-8").splitlines() if ln.strip()]
     return out
 

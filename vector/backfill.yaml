@@ -32,10 +32,12 @@ sinks:
     type: file
     inputs: [host_from_file]
     path: /archive/import/{{ source_ip }}.log
+    buffer: { type: memory, max_events: 200 }
     encoding: { codec: text }
 
   events:
     type: file
     inputs: [parse]
-    path: /state/events/import.ndjson
+    path: /state/events/import.ndjson.partial  # renamed to import.ndjson by `brief import` when complete
+    buffer: { type: memory, max_events: 200 }
     encoding: { codec: json }

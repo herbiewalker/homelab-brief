@@ -2,12 +2,14 @@
 
 It runs Vector with vector/backfill.yaml (same parser as the live receiver; the sender comes from the
 file name and severity is inferred) and stops it once the output has stopped growing, because
-Vector's file source never exits on its own. The source folder is only ever read. The worker picks
-up /state/events/import.ndjson like any other event file, bucketing by event time, so history lands
-in its own hours and does not start the learning period.
+Vector's file source never exits on its own. The source folder is only ever read.
 
-Running it twice would count every line twice, so it refuses when an earlier import left its output
-behind. To redo an import, start from a fresh /state.
+Vector writes /state/events/import.ndjson.partial, which the worker ignores. Only when the import is
+complete and checked against the source line count is it renamed to import.ndjson, which the worker
+then reads like any other event file (bucketing by event time, so history lands in its own hours and
+does not start the learning period). A failed or killed import therefore leaves nothing counted, and
+the next run starts clean (it removes the leftover partial file and the raw copies under
+/archive/import that it wrote). A finished import is never repeated: that would count every line twice.
 """
 
 import os
@@ -22,6 +24,7 @@ VECTOR_CONFIG = Path("/app/vector/backfill.yaml")
 DEFAULT_SOURCE = "/import"
 GLOB = "syslog-*.log"
 CHUNK = 1 << 20
+TOLERANCE = 0.001  # fraction of lines that may be missing (blank or oversize lines are skipped)
 
 
 class ImportFailed(Exception):
@@ -37,15 +40,21 @@ def count_lines(paths) -> int:
     return total
 
 
-def output_size(state: Path, archive: Path) -> int:
-    total = 0
-    events = state / "events" / "import.ndjson"
-    if events.exists():
-        total += events.stat().st_size
+def output_size(partial: Path, archive: Path) -> int:
+    total = partial.stat().st_size if partial.exists() else 0
     folder = archive / "import"
     if folder.is_dir():
         total += sum(p.stat().st_size for p in folder.glob("*.log"))
     return total
+
+
+def clean_partial(partial: Path, archive: Path) -> None:
+    """Remove what an unfinished import wrote: the partial event file and the raw copies it made."""
+    partial.unlink(missing_ok=True)
+    folder = archive / "import"
+    if folder.is_dir():
+        for p in folder.glob("*.log"):
+            p.unlink(missing_ok=True)
 
 
 def run_import(
@@ -62,14 +71,18 @@ def run_import(
     files = sorted(source.glob(GLOB)) if source.is_dir() else []
     if not files:
         raise ImportFailed(f"No {GLOB} files in {source}. Mount the old syslog folder there (read-only).")
-    previous = state / "events" / "import.ndjson"
-    if previous.exists():
+    final = state / "events" / "import.ndjson"
+    partial = state / "events" / "import.ndjson.partial"
+    if final.exists():
         raise ImportFailed(
-            f"{previous} exists, so an import already ran, and importing again would count every "
+            f"{final} exists, so an import already ran, and importing again would count every "
             "line twice. To redo it, start again from an empty state folder."
         )
     (state / "events").mkdir(parents=True, exist_ok=True)
     (state / "vector-import").mkdir(parents=True, exist_ok=True)
+    if partial.exists():
+        say("An earlier import did not finish; removing its leftovers and starting again.")
+    clean_partial(partial, archive)
 
     text = config.read_text(encoding="utf-8")
     run_config = config
@@ -84,13 +97,20 @@ def run_import(
     total = count_lines(files)
     say(f"Importing {total:,} lines from {len(files)} files in {source} (read-only).")
     proc = spawn([vector, "--config", str(run_config)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ok = False
     try:
         last, still_since, started = -1, time.monotonic(), time.monotonic()
         while True:
             time.sleep(poll_seconds)
             if proc.poll() is not None:
-                raise ImportFailed(f"Vector stopped early (exit code {proc.returncode}).")
-            size = output_size(state, archive)
+                hint = ""
+                if proc.returncode in (-9, 137):
+                    hint = (
+                        " It was almost certainly killed for lack of memory: raise the container's memory "
+                        "limit (for example to 1 GB) for the import, then lower it again."
+                    )
+                raise ImportFailed(f"Vector stopped early (exit code {proc.returncode}).{hint}")
+            size = output_size(partial, archive)
             if size != last:
                 last, still_since = size, time.monotonic()
                 say(f"  written so far: {size / 1e6:,.1f} MB")
@@ -98,21 +118,33 @@ def run_import(
                 break
             elif size == 0 and time.monotonic() - started >= max(idle_seconds * 3, 60):
                 raise ImportFailed("Vector wrote nothing. Check that the files are readable.")
-    finally:
-        proc.terminate()
+        proc.terminate()  # a graceful stop lets Vector flush its last buffers
         try:
-            proc.wait(timeout=15)
+            proc.wait(timeout=30)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait()
+        imported = count_lines([partial]) if partial.exists() else 0
+        say(f"Read back {imported:,} of {total:,} lines.")
+        if total - imported > max(TOLERANCE * total, 10):
+            raise ImportFailed(
+                f"Only {imported:,} of {total:,} lines were written, so the import was cut off. "
+                "Nothing was counted. Check the container log, then run it again."
+            )
+        os.replace(partial, final)
+        ok = True
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                proc.kill()
         if run_config != config:
             run_config.unlink(missing_ok=True)
-
-    imported = count_lines((state / "events").glob("import.ndjson"))
-    say(f"Done: {imported:,} of {total:,} lines written to the event stream.")
-    if imported < total:
-        say("  Fewer than the source: blank lines are skipped. A large gap means the import was cut off; "
-            "check the source files and the container log.")  # fmt: skip
-    say("The worker now reads them in the background; watch the container log or /status.json.")
+        if not ok:
+            clean_partial(partial, archive)
+    say("Done. The worker now reads the imported events in the background (see the container log).")
     return 0
 
 

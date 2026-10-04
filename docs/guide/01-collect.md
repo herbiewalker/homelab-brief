@@ -25,7 +25,7 @@ The old files at `\\<host>\<share>\syslog` (one ever-growing `syslog-<ip>.log` p
 3. Because counts are bucketed by event time, imported lines land in their own days and hours, and the baselines start with weeks of history instead of none.
 4. Remove the mount afterwards. The old files are never modified.
 
-Until `brief import` exists (Task 16), the same import runs as `docker exec homelab-brief vector --config /app/vector/backfill.yaml` with the old folder mounted at `/import`. Vector keeps watching files, so stop it once the event count stops growing. Events go to `/state/events/import.ndjson` (every one has `imported: true` and an inferred severity) and the raw lines to `/archive/import/`.
+`brief import` runs a one-off Vector config over the files. Events go to `/state/events/import.ndjson.partial`, which the worker ignores, and are renamed to `import.ndjson` (every event has `imported: true` and an inferred severity) only once the line count checks out against the source, so a killed or cut-off import counts nothing and can simply be run again. The raw lines go to `/archive/import/`. Give the container about 1 GB of memory for a large import (the import Vector uses about 225 MB on top of the running services), then lower it again.
 
 ## 1d. Repoint every source
 
