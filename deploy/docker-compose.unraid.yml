@@ -20,6 +20,9 @@ services:
       - /mnt/user/<share>/brief:/out
       # one-off backfill import (Task 7); remove after `brief import` completes
       - /mnt/user/<share>/syslog:/import:ro
+    labels:
+      net.unraid.docker.webui: https://[IP]:[PORT:443]/admin  # the Unraid UI opens the admin page
+      net.unraid.docker.managed: 'composeman'
     mem_limit: 768m
     logging: { driver: json-file, options: { max-size: 10m, max-file: "2" } }
     # Ports 514/udp, 514/tcp, 80, 443 (and 22 if SSH_ENABLED) are reachable on <container-ip>.
