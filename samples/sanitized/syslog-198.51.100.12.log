@@ -1,0 +1,30 @@
+Sep  9 03:09:48 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.10+17129: kernel: [1878076.140000] sh (7194): drop_caches: 3
+Aug 25 02:29:34 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: : upathmond[950]: upathmond-gw.handle_route_msg(): default v4 route: 198.51.100.3
+Aug 25 02:29:34 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: syswrapper[1294]: ipready.eth0 changed to 198.51.100.12
+Aug 25 02:29:35 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: dropbear[1215]: set system.ssh false
+Aug 25 02:29:35 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: dropbear[1215]: Early exit: Terminated by signal
+Aug 25 02:29:35 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: : process '/bin/dropbear -F  -r /var/run/dropbear_rsa_host_key -p eth0:22' (pid 1215) exited. Scheduling for restart.
+Aug 25 02:29:35 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: : starting pid 1341, tty '/dev/null': '/bin/dropbear -F  -r /var/run/dropbear_rsa_host_key -p eth0:22'
+Aug 25 02:29:35 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: dropbear[1341]: Not backgrounding
+Aug 25 02:29:35 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: dropbear[1341]: set system.ssh true
+Aug 25 02:29:36 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: : upathmond[950]: upathmond-uplink.uplink_poll(): uplink iface=- port=18 neighbor mgmt-ip: 198.51.100.6
+Sep  9 03:11:13 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_handle_response_json(): [setparam] cfgtimeout=0, persist=1
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.ace_reporter_set_state(): [STATE] transition Unknown -> Managed
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_handle_response_json(): cfgversion: 07d866d8753bfffe -> d26b70689e3ad224
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_handle_response_json(): stun_url(stun://198.51.100.3:3478/) (stun://198.51.100.3:3478/)
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): is_default: false
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): led_enabled: true
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): is_setup_completed: false
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): report_crash: true
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): cfgversion: d26b70689e3ad224
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): cfgversion_effective: 2ec90ff8b71b6605
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): cfgversion_saved: 2ec90ff8b71b6605
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): cfgtimeout: 0
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): selfrun_guest_mode: true
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): capability: notif,fastapply-bg,notif-assoc-stat
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): use_aes_gcm: true
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): inform_url: http://198.51.100.3:8080/inform
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): ipv6_ll_inform_url: (null)
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): stun_url: stun://198.51.100.3/
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): mgmt_url: https://198.51.100.3:8443/manage/site/default
+Sep  9 03:11:14 host-09 00005e00530f,USW-Pro-Max-16-PoE-7.5.15+17146: mcad: mcad[946]: ace_reporter.reporter_save_config(): default_url: http://unifi:8080/inform

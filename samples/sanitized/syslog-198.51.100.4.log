@@ -1,0 +1,30 @@
+Sep 24 19:19:14 host-12 emhttpd: read SMART /dev/sdf
+Sep 24 19:35:20 host-12 emhttpd: read SMART /dev/sdc
+Sep 24 19:49:43 host-12 emhttpd: spinning down /dev/sdh
+Sep 24 19:49:45 host-12 emhttpd: spinning down /dev/sdg
+Sep 24 19:49:51 host-12 emhttpd: spinning down /dev/sdf
+Sep 24 19:59:18 host-12 emhttpd: spinning down /dev/sdb
+Sep 24 19:59:20 host-12 emhttpd: spinning down /dev/sda
+Sep 24 20:11:55 host-12 emhttpd: spinning down /dev/sdc
+Sep 24 20:40:17 host-12 emhttpd: read SMART /dev/sdc
+Sep 24 21:16:54 host-12 emhttpd: spinning down /dev/sdc
+Sep 24 21:31:15 host-12 emhttpd: read SMART /dev/sdf
+Sep 24 21:31:25 host-12 emhttpd: read SMART /dev/sda
+Sep 24 22:01:27 host-12 emhttpd: spinning down /dev/sdf
+Sep 24 22:01:55 host-12 emhttpd: spinning down /dev/sda
+Sep 24 23:07:48 host-12 emhttpd: read SMART /dev/sdb
+Sep 24 23:37:49 host-12 emhttpd: spinning down /dev/sdb
+Sep 25 00:06:52 host-12 emhttpd: read SMART /dev/sda
+Sep 25 00:50:14 host-12 emhttpd: read SMART /dev/sdg
+Sep 25 01:00:01 host-12 Docker Auto Update: Community Applications Docker Autoupdate running
+Sep 25 01:00:01 host-12 Docker Auto Update: Checking for available updates
+Sep 25 01:00:32 host-12 kernel: docker0: port 7(veth0ea9a12) entered disabled state
+Sep 25 01:00:32 host-12 kernel: vethc6b4ded: renamed from eth0
+Sep 25 01:00:34 host-12 kernel: docker0: port 7(veth0ea9a12) entered disabled state
+Sep 25 01:00:34 host-12 kernel: veth0ea9a12 (unregistering): left allmulticast mode
+Sep 25 01:00:34 host-12 kernel: veth0ea9a12 (unregistering): left promiscuous mode
+Sep 25 01:00:57 host-12 kernel: docker0: port 7(veth13d1d42) entered blocking state
+Sep 25 01:00:57 host-12 kernel: docker0: port 7(veth13d1d42) entered disabled state
+Sep 25 01:00:57 host-12 kernel: veth13d1d42: entered allmulticast mode
+Sep 25 01:00:57 host-12 kernel: veth13d1d42: entered promiscuous mode
+Sep 25 01:00:59 host-12 kernel: eth0: renamed from veth4c502f4

@@ -1,0 +1,18 @@
+# Known noise. Hostnames and patterns are placeholders: fill them in against real
+# sanitized samples (Task 5). Ignored events are still counted in per-rule
+# "suppressed" counters so a sudden volume change stays visible.
+ignore:
+  - name: flex-switch-gaming-sleep-wake
+    host: "<flex-switch-host>"
+    match: "(?i)link (up|down)"
+    note: Xbox and Steam Deck sleep/wake port flaps are normal
+
+  - name: doorbell-low-memory
+    host: "<front-doorbell-host>"
+    match: "(?i)low memory"
+    note: Known camera-local bug; reboot the camera if audio detection pauses
+
+  - name: ucg-face-sync
+    host: "<ucg-max-host>"
+    match: "ubnt_ai_daemon.*(fail|error)"
+    note: Known recurring failure

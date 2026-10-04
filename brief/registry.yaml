@@ -1,0 +1,50 @@
+# Metric registry, schema version 1.
+# Each entry becomes a Home Assistant sensor via MQTT discovery.
+# Adding a metric = a collector (or derived query) + one entry here.
+# kind: number | state (green, yellow, red) | text
+# expire_after is derived by the publisher (about twice the interval).
+schema: 1
+metrics:
+  - id: events_24h
+    name: Log events, last 24h
+    group: pipeline
+    kind: number
+    unit: events
+    interval: hourly
+
+  - id: new_signatures_24h
+    name: New signatures, last 24h
+    group: findings
+    kind: number
+    interval: hourly
+
+  - id: hosts_silent
+    name: Silent hosts
+    group: findings
+    kind: number
+    interval: hourly
+    thresholds: { warn: 1, crit: 3, direction: high }
+
+  - id: parse_failed_24h
+    name: Parse failures, last 24h
+    group: pipeline
+    kind: number
+    interval: hourly
+
+  - id: ingest_lag_s
+    name: Ingest lag
+    group: pipeline
+    kind: number
+    unit: s
+    interval: hourly
+    thresholds: { warn: 300, crit: 1800, direction: high }
+
+  - id: db_mb
+    name: Baseline database size
+    group: pipeline
+    kind: number
+    unit: MB
+    interval: daily
+
+  # Per-system state sensors (system_<id>) are generated from brief/systems.yaml in Task 13,
+  # so adding a system there adds its sensor and tile with no change here.

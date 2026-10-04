@@ -1,0 +1,6 @@
+Sep 23 17:43:12 host-06 00005e005304,USW-Pro-Max-24-PoE-7.5.15+17146: : ubnt-fanctrl[938]: fanctrl.fanctrl_log(): Fan speed 25% | pwm: 64 (set) / 64 (actual) | fan rpm: 2213 | sensor PSU temp: 49°C 
+Sep 23 18:18:57 host-06 00005e005304,USW-Pro-Max-24-PoE-7.5.15+17146: : ubnt-fanctrl[938]: fanctrl.fanctrl_log(): Fan speed 25% | pwm: 64 (set) / 64 (actual) | fan rpm: 2213 | sensor PSU temp: 47°C 
+Sep 24 03:05:30 host-06 00005e005304,USW-Pro-Max-24-PoE-7.5.15+17146: udhcpc[944]: sending renew
+Sep 24 03:05:30 host-06 00005e005304,USW-Pro-Max-24-PoE-7.5.15+17146: udhcpc[944]: lease of 198.51.100.7 obtained, lease time 86400
+Sep 24 15:05:30 host-06 00005e005304,USW-Pro-Max-24-PoE-7.5.15+17146: udhcpc[944]: sending renew
+Sep 24 15:05:30 host-06 00005e005304,USW-Pro-Max-24-PoE-7.5.15+17146: udhcpc[944]: lease of 198.51.100.7 obtained, lease time 86400

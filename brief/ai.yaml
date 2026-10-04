@@ -1,0 +1,76 @@
+# AI settings. Everything here is editable on the admin GUI's AI page, which shows the
+# master switch, every feature toggle, and every guardrail in one place.
+# Model-agnostic: any backend that speaks the OpenAI-compatible Chat Completions API works
+# (Ollama, llama.cpp server, vLLM, LM Studio, LocalAI, a LiteLLM gateway, hosted services),
+# plus an optional native Anthropic adapter. See docs/guide/09-ai-integration.md.
+schema: 1
+
+# Master switch. false = no AI anywhere: no model calls, agents stopped, MCP server off.
+# The product works fully without AI (template brief, rules-based findings).
+enabled: false
+
+# Per-feature switches (only take effect when enabled: true).
+features:
+  morning_brief: false      # AI rewrite of the daily brief
+  explain_finding: false    # "Explain" button on findings
+  weekly_summary: false     # AI rewrite of the weekly report
+  agents: false             # Phase 3 agents (each agent also has its own switch in agents.yaml)
+  ask_the_lab: false        # chat box in the admin GUI
+  mcp_server: false         # read-only MCP endpoint for outside AI clients (Home Assistant, others)
+
+providers:
+  - id: local
+    type: openai_compatible       # openai_compatible | anthropic
+    base_url: "http://<model-server-ip>:11434/v1"   # for example Ollama on the GPU server's GPU
+    api_key_var: AI_LOCAL_API_KEY  # empty if the server needs none (use a firewall rule or gateway)
+    model: ""                     # suggested for the GPU server's RTX 3060 Ti (8 GB): qwen3.5:9b (Apache-2.0);
+                                  # lighter: phi4-mini (MIT). Confirm with "List models" in the GUI.
+    locality: lan                 # lan | cloud
+    timeout_s: 120
+    max_output_tokens: 1200
+    context_tokens: 8192          # match OLLAMA_CONTEXT_LENGTH on the GPU server; keeps the KV cache inside 8 GB
+    disable_thinking: true        # turn off a model's separate reasoning mode, if it has one
+    supports_tools: true          # needed for agents; verified by "Test connection"
+    enabled: false
+
+  - id: cloud
+    type: openai_compatible       # or anthropic for the native API
+    base_url: ""                  # any hosted OpenAI-compatible endpoint or a LiteLLM gateway
+    api_key_var: AI_CLOUD_API_KEY
+    model: ""
+    locality: cloud
+    timeout_s: 60
+    max_output_tokens: 1200
+    context_tokens: 32000
+    supports_tools: true
+    enabled: false
+
+# Each task lists providers to try in order; "template" means no AI.
+tasks:
+  morning_brief:   { chain: [local, template], prompt: prompts/morning_brief.md }
+  explain_finding: { chain: [local, template], prompt: prompts/explain_finding.md }
+  weekly_summary:  { chain: [local, template], prompt: prompts/weekly_summary.md }
+  ask_the_lab:     { chain: [local], prompt: prompts/ask_the_lab.md }
+
+# Adjustable guardrails (shown on the AI page with their current values).
+guardrails:
+  max_calls_per_day: 50             # across all features; extra requests use the template or wait
+  max_cloud_tokens_per_day: 200000
+  allow_cloud_for: []               # features allowed to use cloud providers at all, for example [ask_the_lab]
+  output_validation: strict         # strict | lenient (lenient only drops unknown ids instead of rejecting)
+  run_agents_only_when_gpu_idle: true
+  quiet_hours_no_agents: true       # no agent runs during quiet hours in priorities.yaml
+
+# Locked guardrails (always on; listed so the AI page can show them; not settable here):
+# - The pipeline never waits on AI; every chain ends in the template.
+# - AI never decides findings, severity, or routing, and never takes actions.
+# - Cloud providers never receive device-level detail, raw log lines, DNS data, or devices.yaml.
+# - Agents and MCP clients get read-only tools; changes are proposals that need your approval.
+# - Every claim in agent output must cite a tool result; uncited claims are dropped.
+# - Every model call, agent run, MCP call, and proposal decision is logged.
+
+mcp:
+  default_scope: [status, findings, history, systems, map]   # device detail, DNS, and raw logs need explicit scopes
+
+logging:
+  record_calls: true                # provider, model, feature, latency, tokens, outcome (no content)

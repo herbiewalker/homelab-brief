@@ -1,0 +1,29 @@
+# Template. Copy to brief/systems.yaml (gitignored) and fill in real names there.
+# A system is one dashboard tile and one status sensor (system_<id>).
+# hosts: every name the system appears under in logs or file paths (devices often use several).
+# source_tz: timezone of the device's syslog timestamps when the line itself has none.
+# expected: true means absence detection applies (alert if the system goes quiet).
+schema: 1
+default_system: other      # unlisted hosts roll up here and are flagged in the brief
+
+systems:
+  - id: udm
+    label: "UDM Pro"
+    kind: gateway
+    hosts: ["<udm-hostname>", "<udm-alternate-name>"]
+    source_tz: "UTC"
+    expected: true
+
+  - id: server-1
+    label: "the host server"
+    kind: server
+    hosts: ["<server-1-hostname>"]
+    source_tz: "UTC"
+    expected: true
+
+  - id: switches
+    label: "Switches"
+    kind: switch
+    hosts: ["<switch-1-hostname>", "<switch-2-hostname>"]
+    source_tz: "UTC"
+    expected: true

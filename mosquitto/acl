@@ -1,0 +1,11 @@
+user brief
+topic readwrite homelab/#
+topic readwrite homeassistant/#
+
+# Home Assistant reads everything, writes feedback (ack, snooze) from notification buttons,
+# and publishes chosen entity states (power, energy) under homelab/ha/ via mqtt_statestream.
+user ha
+topic read homelab/#
+topic read homeassistant/#
+topic write homelab/brief/feedback/#
+topic write homelab/ha/#

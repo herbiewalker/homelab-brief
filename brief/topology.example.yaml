@@ -1,0 +1,31 @@
+# Template. Copy to brief/topology.yaml (gitignored) and fill in real values there.
+# Manual nodes and edges for things the collectors cannot discover (ISP modem, UPS,
+# Home Assistant, tablets), plus overrides for discovered nodes. Manual entries win.
+# node kinds: internet, gateway, switch, ap, server, vm, container, service, camera,
+#             iot_group, client_group, ups, display, other
+# edge kinds: uplink, hosts, depends, power
+schema: 1
+
+nodes:
+  - id: isp
+    kind: internet
+    label: "ISP"
+  - id: ups-rack
+    kind: ups
+    label: "Rack UPS"
+  - id: home-assistant
+    kind: server
+    label: "Home Assistant"
+  - id: kitchen-tablet
+    kind: display
+    label: "Kitchen tablet"
+
+edges:
+  - { from: isp, to: udm, kind: uplink }
+  - { from: ups-rack, to: server-1, kind: power }
+  - { from: home-assistant, to: server-1, kind: depends, label: "MQTT" }
+
+overrides:
+  - id: "<discovered-node-id>"
+    label: "Office switch"
+    hide: false

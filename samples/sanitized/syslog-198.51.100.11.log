@@ -1,0 +1,8 @@
+Sep 10 15:16:48 host-08 00005e00530e,USW-Flex-7.5.15+17146: udhcpc[1457]: sending renew
+Sep 10 15:16:48 host-08 00005e00530e,USW-Flex-7.5.15+17146: udhcpc[1457]: lease of 198.51.100.11 obtained, lease time 86400
+Sep 11 02:11:51 host-08 00005e00530e,USW-Flex-7.5.15+17146: kernel: RAETH_DRV 1e100000.ethernet eth0: port 0 link up
+Sep 11 02:11:53 host-08 00005e00530e,USW-Flex-7.5.15+17146: kernel: RAETH_DRV 1e100000.ethernet eth0: port 0 link down
+Sep 11 02:11:57 host-08 00005e00530e,USW-Flex-7.5.15+17146: kernel: RAETH_DRV 1e100000.ethernet eth0: port 0 link up
+Sep 11 02:16:20 host-08 00005e00530e,USW-Flex-7.5.15+17146: kernel: RAETH_DRV 1e100000.ethernet eth0: port 0 link down
+Sep 11 03:16:48 host-08 00005e00530e,USW-Flex-7.5.15+17146: udhcpc[1457]: sending renew
+Sep 11 03:16:48 host-08 00005e00530e,USW-Flex-7.5.15+17146: udhcpc[1457]: lease of 198.51.100.11 obtained, lease time 86400

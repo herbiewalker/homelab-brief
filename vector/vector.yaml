@@ -1,0 +1,60 @@
+# Live receiver: syslog over UDP and TCP 514 -> raw archive + normalized events.
+# Adapt the parsing to the sanitized samples in Task 3, and confirm option and field names
+# against the docs for the pinned Vector version.
+data_dir: /state/vector
+
+sources:
+  syslog_udp:
+    type: socket
+    mode: udp
+    address: "0.0.0.0:${SYSLOG_PORT:-514}"   # 5514 in local dev, 514 on the container's own IP
+    host_key: source_ip          # sender's IP becomes the host (matches systems.yaml)
+  syslog_tcp:
+    type: socket
+    mode: tcp
+    address: "0.0.0.0:${SYSLOG_PORT:-514}"
+    host_key: source_ip
+
+transforms:
+  parse:
+    type: remap
+    inputs: [syslog_udp, syslog_tcp]
+    source: |
+      .raw = string!(.message)
+      .ingest_ts = now()
+      parsed, err = parse_syslog(.raw)
+      if err == null {
+        .header_host = parsed.hostname
+        .app = parsed.appname
+        .severity = parsed.severity
+        .ts = parsed.timestamp
+        .msg = parsed.message
+      } else {
+        .parse_failed = true
+        .msg = .raw
+      }
+      del(.message)
+      # TODO (Task 3):
+      # - priority field present -> keep .severity; missing -> keyword fallback
+      #   (crit, error, fail, warn) and .severity_inferred = true
+      # - CEF branch for the NVR: start at "CEF:", use its timestamp= (epoch ms, UTC)
+      # - gateways repeat the hostname; switches/APs/PDU add "<mac>,<model>-<firmware>"
+      #   (keep .device_mac, .model, .firmware)
+      # - NVR header contains spaces and pipes before "CEF:"
+      # - coredns lines carry JSON with a full timestamp
+      # Event time (.ts) is passed through; Python normalizes year and timezone and
+      # buckets by event time, not by .ingest_ts.
+
+sinks:
+  archive:
+    type: file
+    inputs: [syslog_udp, syslog_tcp]
+    path: /archive/%Y-%m-%d/{{ source_ip }}.log
+    encoding: { codec: text }
+
+  events:
+    type: file
+    inputs: [parse]
+    path: /state/events/%Y-%m-%d.ndjson
+    encoding: { codec: json }
+    idle_timeout_secs: 300

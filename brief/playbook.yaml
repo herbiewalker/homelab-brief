@@ -1,0 +1,104 @@
+# Findings become recommendations through plain templating; no model needed.
+# Conditions are structured (field, op, value). Nothing in this file is executed as code.
+# Operators: eq, ne, gt, gte, lt, lte, in, contains, regex
+# Thresholds and wording are starting values to tune against real data.
+# bucket: watch (recheck in a week) | plan (replace within roughly 4-8 weeks) | act_now
+# Disk guidance is rule-based, not a predicted failure date: SMART is a useful warning
+# but a weak predictor.
+schema: 1
+
+thresholds:
+  novelty: { quiet_days_before_return: 7 }
+  deviation: { window_days: 14, min_count: 20, mad_multiple: 4 }
+  off_hours: { window_days: 14, min_count: 3 }
+  absence: { gap_multiple: 3, min_minutes: 30, max_hours: 24 }
+  metric_drift: { recent_days: 7, baseline_days: 21, min_change_pct: 20 }
+  traffic_spike: { multiple: 5, floor_gb: 2, window_days: 14 }
+  odd_hours: { min_online_min: 30 }
+  disk_temp_hdd_c: { warn: 50, days: 3 }
+  version_behind_days: 30
+  parity_slow: { floor_mb_s: 40, drop_vs_previous_pct: 50 }
+  clock_skew: { max_minutes: 3 }
+  storage_low: { min_free_pct: 15, min_days_until_full: 14 }
+
+rules:
+  smart_failing:
+    kind: smart_failing
+    bucket: act_now
+    advice: >
+      {disk} reports a failed SMART status. Back up anything not already protected, confirm
+      parity is healthy, and replace the drive.
+
+  smart_pending_nonzero:
+    kind: smart_trend
+    match:
+      - { field: attr, op: in, value: ["197:Current_Pending_Sector", "198:Offline_Uncorrectable"] }
+      - { field: raw, op: gt, value: 0 }
+    bucket: act_now
+    advice: >
+      {disk} reports {raw} unreadable sectors. Confirm a current backup and that parity is
+      healthy, then replace the drive. Do not wait for the count to grow.
+
+  smart_realloc_rising:
+    kind: smart_trend
+    match:
+      - { field: attr, op: eq, value: "5:Reallocated_Sector_Ct" }
+      - { field: delta_14d, op: gt, value: 0 }
+    bucket: plan
+    advice: >
+      {disk} remapped {delta_14d} sectors in 14 days. Plan a replacement within a few weeks
+      and check again weekly.
+
+  crc_rising:
+    kind: crc_rising
+    bucket: watch
+    advice: >
+      {disk} CRC errors rose by {delta_14d}. This usually points at the cable or backplane
+      rather than the disk. Reseat or swap the cable and recheck.
+
+  firmware_pending:
+    kind: firmware_pending
+    advice: >
+      {name} ({model}) has firmware {available_version} available (running {current_version}).
+      Schedule the update for a maintenance window.
+
+  new_infrastructure:
+    kind: new_infrastructure
+    advice: >
+      A new {kind} ({label}) appeared on the network map. Confirm it is yours and give it a
+      label in topology.yaml.
+
+  parity_slow:
+    kind: parity_slow
+    bucket: watch
+    advice: >
+      {server}'s parity check took {duration} at {speed} MB/s (previous: {previous_speed} MB/s).
+      Check whether a tuning plugin paused it or heavy jobs overlapped it; if not, review each
+      array disk's SMART data and the controller or cables.
+
+  clock_skew:
+    kind: clock_skew
+    bucket: watch
+    advice: >
+      {system}'s clock is about {minutes} minutes off from the receiver. Point it at a working
+      NTP server; time-based findings for this source are unreliable until it is fixed.
+
+  storage_low:
+    kind: storage_low
+    bucket: plan
+    advice: >
+      {path} has {free_pct}% free, about {days} days at the current rate. Shorten the archive
+      retention or free space before collection stops.
+
+  traffic_spike_generic:
+    kind: traffic_spike
+    advice: >
+      {device} moved {gb} GB today, about {multiple}x its normal. Check the top destinations.
+      A game or OS update is a likely benign cause; if it repeats without a release, look for a
+      background upload.
+
+  new_device_generic:
+    kind: new_device
+    advice: >
+      A new device ({label}) joined {vlan}. Confirm it is yours; if not, block it and review
+      the network.

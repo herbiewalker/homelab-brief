@@ -1,0 +1,46 @@
+# Phase 2 collectors. Everything starts disabled. Enable one at a time, in any order,
+# here or on the admin GUI's Collectors page (which also offers "Test connection").
+# Credentials come from template variables (see secrets.env.example), never from this file.
+schema: 1
+collectors:
+  unraid:
+    enabled: false
+    interval: hourly            # parity history, notifications, and inventory refresh daily
+    servers:
+      - { id: server-1,     url: "https://<server-1-ip>/graphql",   key_var: UNRAID_SERVER_1_API_KEY }
+      - { id: server-2,     url: "https://<server-2-ip>/graphql", key_var: UNRAID_SERVER_2_API_KEY }
+      - { id: server-3,     url: "https://<model-server-ip>/graphql",        key_var: UNRAID_SERVER_3_API_KEY }
+    smart_source: api           # api | smartctl_files (fallback if the API lacks attributes)
+    smart_files_path: /import-smart
+
+  unifi:
+    enabled: false
+    interval: hourly            # clients and traffic hourly; inventory and firmware daily
+    url_var: UNIFI_URL
+    key_var: UNIFI_API_KEY
+
+  snmp:
+    enabled: false
+    interval: hourly
+    version: v3                 # v3 preferred; v2c allowed on the LAN
+    targets: []                 # for example { host: "<switch-ip>", profile: switch }
+
+  idrac:
+    enabled: false
+    interval: hourly
+    protocol: redfish           # redfish | ipmi (whichever the iDRAC firmware supports)
+    host_var: IDRAC_HOST
+    user_var: IDRAC_USER
+    password_var: IDRAC_PASSWORD
+
+  ha_statestream:
+    enabled: false
+    base_topic: "homelab/ha"    # must match mqtt_statestream base_topic in Home Assistant
+    entities: []                # for example { entity: sensor.server_2_power, system: server-2 }
+
+  dns_filter:
+    enabled: false              # only if the gateway's coredns logs are not enough
+    interval: hourly
+    source: adguard_home        # adguard_home | pihole
+    url_var: DNS_FILTER_URL
+    token_var: DNS_FILTER_TOKEN

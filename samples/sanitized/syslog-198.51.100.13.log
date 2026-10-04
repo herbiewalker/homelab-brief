@@ -1,0 +1,30 @@
+Sep 26 11:29:15 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 IEEE 802.11: disassociated
+Sep 26 11:29:15 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: AP-STA-DISCONNECTED 00:00:5e:00:53:09
+Sep 26 11:29:15 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wpa_driver_nl80211_set_key: ifindex=26 (wifi1ap6) alg=0 addr=0x76967578 key_idx=0 set_tx=1 seq_len=0 key_len=0 key_flag=0x20 link_id=-1
+Sep 26 11:29:15 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: stahtd[7483]: [STA-TRACKER].stahtd_dump_event(): {"op":"event","message_type":"STA_ASSOC_TRACKER","event_type":"sta_leave","mac":"00:00:5e:00:53:09","vap":"wifi1ap6","assoc_status":"0","event_id": "6","sta_dc_reason": "excessive retries","avg_rssi": "-84"}
+Sep 26 11:29:15 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: wevent[7482]: wevent.ubnt_custom_event(): EVENT_STA_LEAVE wifi1ap6: 00:00:5e:00:53:09 / 6
+Sep 26 11:54:19 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: syswrapper[22067][7482]: skip scan-rrm
+Sep 26 11:54:19 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: wevent[7482]: wevent.neighbor_monitor_arm(): BCN: next pass in 3656s (base=3600, jitter=+56)
+Sep 26 12:01:58 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: kernel: [DHCP-SM] 00:00:5e:00:53:11: r-10-a-43199880-r-20-a-43200620-r-20-a-43199430-r-20-a-43200730-r-20-a-43200240-r-10-a-43199990-r-10-a-43200600-r-10-a-43199730-r-20-a-43200490-r-20-a-43200170-r-20-a-21601090-r-10-a-43200640-r-20-a-43200380-r-10-a-43200400-r-20-a-43199430-r-10-a
+Sep 26 12:07:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wpa_driver_nl80211_set_key: ifindex=24 (wifi0ap4) alg=3 addr=0x770554 key_idx=2 set_tx=1 seq_len=0 key_len=16 key_flag=0x1a link_id=-1
+Sep 26 12:07:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wpa_driver_nl80211_set_key: ifindex=24 (wifi0ap4) alg=4 addr=0x770554 key_idx=5 set_tx=1 seq_len=0 key_len=16 key_flag=0x1a link_id=-1
+Sep 26 12:48:28 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: ubnt-fanctrl[671]: fanctrl.fanctrl_log(): Fan speed 100% | pwm: 136 (set) / 128 (actual) | fan rpm: 4354 | sensor wifi0 temp: 91°C | actively cooling
+Sep 26 12:55:15 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: syswrapper[6943][7482]: skip scan-rrm
+Sep 26 12:55:15 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: wevent[7482]: wevent.neighbor_monitor_arm(): BCN: next pass in 3463s (base=3600, jitter=-137)
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: kernel: wlan: [0:I:ANY] [UNSPECIFIED] vap-0(wifi1ap6): [00:00:5e:00:53:09]recv auth frame with algorithm 0 seq 1 rssi:50 minrssi:0
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 IEEE 802.11: authenticated
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: kernel: wlan: [0:I:ANY] [UNSPECIFIED] vap-0(wifi1ap6): [00:00:5e:00:53:09]station associated at aid 5: short preamble, long slot time, QoSHE40 cap 0x1111
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 IEEE 802.11: associated (aid 5)
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wpa_driver_nl80211_set_key: ifindex=26 (wifi1ap6) alg=0 addr=0x76967598 key_idx=0 set_tx=1 seq_len=0 key_len=0 key_flag=0x20 link_id=-1
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 WPA: sending 1/4 msg of 4-Way Handshake
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 WPA: received EAPOL-Key frame (2/4 Pairwise)
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: kernel: node_vid: program hw vlan peer=00:00:5e:00:53:09 vid=160 ecm_flags=0x1
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: kernel: wlan: [7492:I:ANY] [UNSPECIFIED] vap-0(wifi1ap6):node[00:00:5e:00:53:09] set hw append vlan 160
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 WPA: sending 3/4 msg of 4-Way Handshake
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 WPA: received EAPOL-Key frame (4/4 Pairwise)
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wpa_driver_nl80211_set_key: ifindex=26 (wifi1ap6) alg=3 addr=0x76967598 key_idx=0 set_tx=1 seq_len=0 key_len=16 key_flag=0x2c link_id=-1
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: stahtd[7483]: [STA-TRACKER].stahtd_dump_event(): {"op":"event","message_type":"STA_ASSOC_TRACKER","event_type":"association","mac":"00:00:5e:00:53:09","vap":"wifi1ap6","assoc_status":"0","event_id": "1","assoc_delta": "10000","auth_utc": "1790441896.294603","auth_algo": "open","auth_rssi": "-46"}
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: AP-STA-CONNECTED 00:00:5e:00:53:09
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 WPA: wifi1ap6: UBNT_ROAM: STA=00:00:5e:00:53:09 associated_ap=00:00:5e:00:53:08, broadcasting roam=1
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 WPA: authorized
+Sep 26 12:58:16 host-10 00005e005310,U7-Pro-Max-8.7.11+19419: hostapd[7492]: wifi1ap6: STA 00:00:5e:00:53:09 RADIUS: starting accounting session 788300DC9D638C22

@@ -1,0 +1,7 @@
+# Never commit raw logs or secrets, even here.
+samples/raw/
+.state/
+secrets.env
+*.env
+!*.env.example
+*.bundle

@@ -1,0 +1,30 @@
+Sep  9 03:18:18 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29727]: cfgmtd.cfgmtd_do_write(): Phase2: Verify OK on slot[1]
+Sep  9 03:18:18 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29727]: cfgmtd.cfgmtd_do_write(): Phase3: Promote slot[1] to Active
+Sep  9 03:18:18 host-05 00005e005303,USW-Aggregation-7.5.10+17129: kernel: [1883434.990000] sh (29772): drop_caches: 3
+Sep  9 03:18:20 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29727]: cfgmtd.cfgmtd_do_write(): Phase4: Demote slot[2] Active->Backup
+Sep  9 03:18:21 host-05 00005e005303,USW-Aggregation-7.5.10+17129: kernel: [1883437.400000] sh (29774): drop_caches: 3
+Sep  9 03:18:26 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : fwupdate.real[29780]: fwupdate._write_parts(): Writing 'u-boot.rtl930x' to /dev/mtd0(u-boot)
+Sep  9 03:18:26 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : fwupdate.real[29780]: fwupdate._write_parts(): Writing 'kernel0' to /dev/mtd2(kernel0)
+Sep  9 03:18:38 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : mca-monitor[30852]: mca-proto.service_json(): failed to contact mcad
+Sep  9 03:18:51 host-05 00005e005303,USW-Aggregation-7.5.10+17129: syswrapper[29788]: [busy] skipping: cfg_save_check
+Sep  9 03:19:00 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : lcmd[435]: lcmd.lcm_command_read(): Select() timeout from LCM fd 8, count 0
+Sep  9 03:19:09 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : mca-monitor[30852]: mca-proto.service_json(): failed to contact mcad
+Sep  9 03:19:22 host-05 00005e005303,USW-Aggregation-7.5.10+17129: syswrapper[29839]: [busy] skipping: cfg_save_check
+Sep  9 03:19:24 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : fwupdate.real[29780]: fwupdate.fwupdate_main(): Done
+Sep  9 03:19:26 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : starting pid 29919, tty '': '/etc/rc.d/rc ministop'
+Sep  9 03:19:27 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29927]: cfgmtd.cfgmtd_do_write(): Found  Active on[1]
+Sep  9 03:19:27 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29927]: cfgmtd.cfgmtd_do_write(): Found Backup1 on[2]
+Sep  9 03:19:27 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29927]: cfgmtd.cfgmtd_do_write(): Phase1: Write new cfg to slot[2] as BACKUP
+Sep  9 03:19:30 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29927]: cfgmtd.cfgmtd_do_write(): Phase2: Verify OK on slot[2]
+Sep  9 03:19:30 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29927]: cfgmtd.cfgmtd_do_write(): Phase3: Promote slot[2] to Active
+Sep  9 03:19:33 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29927]: cfgmtd.cfgmtd_do_write(): Phase4: Demote slot[1] Active->Backup
+Sep  9 03:19:37 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29941]: cfgmtd.cfgmtd_do_write(): Found Backup2 on[1]
+Sep  9 03:19:37 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29941]: cfgmtd.cfgmtd_do_write(): Phase1: Write new cfg to slot[1] as BACKUP
+Sep  9 03:19:41 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : cfgmtd[29941]: cfgmtd.cfgmtd_do_write(): Phase3: Promote slot[1] to Backup
+Sep  9 03:19:43 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : starting pid 29955, tty '': '/bin/umount -a -r'
+Sep  9 03:19:43 host-05 00005e005303,USW-Aggregation-7.5.10+17129: : The system is going down NOW!
+Aug 25 02:29:39 host-05 00005e005303,USW-Aggregation-7.5.15+17146: : upathmond[440]: upathmond-gw.handle_route_msg(): default v4 route: 198.51.100.3
+Aug 25 02:29:39 host-05 00005e005303,USW-Aggregation-7.5.15+17146: mcad: mcad[436]: ace_reporter.reporter_handle_response_json(): [setparam] cfgtimeout=0, persist=1
+Aug 25 02:29:39 host-05 00005e005303,USW-Aggregation-7.5.15+17146: mcad: mcad[436]: ace_reporter.ace_reporter_set_state(): [STATE] transition Unknown -> Managed
+Aug 25 02:29:39 host-05 00005e005303,USW-Aggregation-7.5.15+17146: mcad: mcad[436]: ace_reporter.reporter_handle_response_json(): cfgversion: d849054af16799aa -> 183cce85855a5b47
+Aug 25 02:29:39 host-05 00005e005303,USW-Aggregation-7.5.15+17146: mcad: mcad[436]: ace_reporter.reporter_handle_response_json(): stun_url(stun://198.51.100.3:3478/) (stun://198.51.100.3:3478/)

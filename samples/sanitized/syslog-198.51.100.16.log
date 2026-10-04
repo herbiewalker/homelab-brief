@@ -1,0 +1,30 @@
+Sep 26 13:20:56 host-11 kernel: BTRFS info (device sdd1 state M): turning on async discard
+Sep 26 13:20:56 host-11 emhttpd: update_pool_cfg: 30 cache 0
+Sep 26 13:20:56 host-11 emhttpd: shcmd (58): /usr/sbin/zfs mount -a
+Sep 26 13:20:56 host-11 emhttpd: shcmd (59): sync
+Sep 26 13:20:56 host-11 emhttpd: shcmd (60): mkdir /mnt/user0
+Sep 26 13:20:56 host-11 emhttpd: shcmd (61): /usr/libexec/unraid/shfs /mnt/user0 -disks 30 -o default_permissions,allow_other,noatime 
+Sep 26 13:20:56 host-11 emhttpd: shcmd (62): mkdir /mnt/user
+Sep 26 13:20:56 host-11 emhttpd: shcmd (63): /usr/libexec/unraid/shfs /mnt/user -disks 31 -o default_permissions,allow_other,noatime -o remember=0 
+Sep 26 13:20:57 host-11 emhttpd: shcmd (66): /usr/local/sbin/update_cron
+Sep 26 13:20:57 host-11 root: Starting CA Auto Turbo Mode
+Sep 26 13:20:57 host-11 compose.manager: [INFO] [cron] Syncing cron entries after boot
+Sep 26 13:20:57 host-11 kernel: mdcmd (36): set md_write_method 1
+Sep 26 13:20:57 host-11 kernel: 
+Sep 26 13:20:57 host-11 root: Delaying execution of fix common problems scan for 10 minutes
+Sep 26 13:20:57 host-11 unassigned.devices: Mounting 'Auto Mount' Devices...
+Sep 26 13:20:57 host-11 emhttpd: /usr/local/emhttp/plugins/user.scripts/backgroundScript.sh "/tmp/user.scripts/tmpScripts/vm.max_map_count/script" >/dev/null 2>&1
+Sep 26 13:20:57 host-11 emhttpd: Starting services...
+Sep 26 13:20:58 host-11 emhttpd: shcmd (69): /etc/rc.d/rc.samba reload
+Sep 26 13:20:58 host-11 emhttpd: shcmd (73): /etc/rc.d/rc.avahidaemon reload
+Sep 26 13:20:58 host-11 avahi-daemon[2752]: Got SIGHUP, reloading.
+Sep 26 13:20:58 host-11 unassigned.devices: Updating share settings...
+Sep 26 13:20:58 host-11 unassigned.devices: Share settings updated.
+Sep 26 13:20:59 host-11 emhttpd: shcmd (76): /usr/local/sbin/mount_image '/mnt/user/system/docker/docker.img' /var/lib/docker 40
+Sep 26 13:21:00 host-11 kernel: loop2: detected capacity change from 0 to 83886080
+Sep 26 13:21:00 host-11 kernel: BTRFS: device fsid 00000000-0000-4000-8000-000000000099 devid 1 transid 999860 /dev/loop2 (7:2) scanned by mount (13642)
+Sep 26 13:21:00 host-11 kernel: BTRFS info (device loop2): first mount of filesystem 00000000-0000-4000-8000-000000000099
+Sep 26 13:21:00 host-11 kernel: BTRFS info (device loop2): using crc32c (crc32c-lib) checksum algorithm
+Sep 26 13:21:00 host-11 nfsrahead[13650]: skipping non-NFS device btrfs-2
+Sep 26 13:21:00 host-11 kernel: BTRFS info (device loop2): enabling ssd optimizations
+Sep 26 13:21:00 host-11 kernel: BTRFS info (device loop2): turning on async discard

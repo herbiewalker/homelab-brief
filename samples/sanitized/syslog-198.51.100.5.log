@@ -1,0 +1,30 @@
+Sep  2 20:44:03 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: dropbear[9940]: Password auth succeeded for 'user-01' from 198.51.100.3:52410
+Sep  2 20:44:03 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: dropbear[9940]: Exit (user-01) from <198.51.100.3:52410>: Disconnect received
+Sep  2 20:45:12 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: dropbear[10081]: Child connection from 198.51.100.3:52788
+Sep  2 20:45:12 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: dropbear[10081]: Password auth succeeded for 'user-01' from 198.51.100.3:52788
+Sep  2 20:45:13 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: dropbear[10081]: Exit (user-01) from <198.51.100.3:52788>: Disconnect received
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.ace_reporter_set_state(): [STATE] transition Selfrun -> Managed
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): is_default: false
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): led_enabled: true
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): is_setup_completed: false
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): report_crash: true
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): cfgversion: d7995f084289e937
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): selfrun_guest_mode: true
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): capability: notif,fastapply-bg,notif-assoc-stat
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): use_aes_gcm: true
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): inform_url: http://198.51.100.3:8080/inform
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): ipv6_ll_inform_url: (null)
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): stun_url: stun://198.51.100.3/
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): mgmt_url: https://198.51.100.3:8443/manage/site/default
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_save_config(): default_url: http://unifi:8080/inform
+Sep  2 20:46:00 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: syswrapper[10218]: Creating /var/run/need_cfg_save
+Sep  2 20:46:08 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: : cfgmtd[10351]: cfgmtd.cfgmtd_do_write(): Found Backup1 on[1]
+Sep  2 20:46:08 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: : cfgmtd[10351]: cfgmtd.cfgmtd_do_write(): Found  Active on[2]
+Sep  2 20:46:08 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: : cfgmtd[10351]: cfgmtd.cfgmtd_do_write(): Storing Active[1]
+Sep  2 20:46:09 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: : cfgmtd[10351]: cfgmtd.cfgmtd_do_write(): Active->Backup[2]
+Sep  3 08:38:02 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: udhcpc[1304]: sending renew
+Sep  3 08:38:02 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: udhcpc[1304]: lease of 198.51.100.5 obtained, lease time 86400
+Sep  3 20:38:02 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: udhcpc[1304]: sending renew
+Sep  3 20:38:02 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: udhcpc[1304]: lease of 198.51.100.5 obtained, lease time 86400
+Sep  6 21:06:13 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_handle_response_json(): cfgversion: d7995f084289e937 -> b6c29edd735ca29e
+Sep  6 21:06:13 host-04 00005e005302,USP-PDU-Pro-7.2.123+16565: mcad: mcad[9637]: ace_reporter.reporter_handle_response_json(): stun_url(stun://198.51.100.3:3478/) (stun://198.51.100.3:3478/)

@@ -1,0 +1,7 @@
+# Values the private-name guard lets through for everyone, one per line, case-insensitive,
+# # for comments. Only generic, public values belong here: never a real hostname, IP, or person,
+# room, device, or service name. Install-specific exceptions go in your instance's guard/allow.txt.
+# This file is committed.
+
+# Docker's default bridge gateway, used as an example in the docs
+172.17.0.1

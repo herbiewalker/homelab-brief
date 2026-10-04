@@ -1,0 +1,30 @@
+Sep 26 11:26:54 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: kernel: wlan: [0:I:ANY] [UNSPECIFIED] vap-6(wifi2ap12): [00:00:5e:00:53:06]recv auth frame with algorithm 3 seq 1 rssi:19 minrssi:0
+Sep 26 11:26:54 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: kernel: wlan: [0:I:ANY] [UNSPECIFIED] vap-6(wifi2ap12): [00:00:5e:00:53:06]recv auth frame with algorithm 3 seq 2 rssi:20 minrssi:0
+Sep 26 11:26:54 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: kernel: wlan: [0:I:ANY] [UNSPECIFIED] vap-6(wifi2ap12): [00:00:5e:00:53:06]station associated at aid 1: short preamble, long slot time, QoSHE cap 0x1111
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 IEEE 802.11: associated (aid 1)
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wpa_driver_nl80211_set_key: ifindex=32 (wifi2ap12) alg=0 addr=0x769fa0c8 key_idx=0 set_tx=1 seq_len=0 key_len=0 key_flag=0x20 link_id=-1
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: sending 1/4 msg of 4-Way Handshake
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: kernel: node_vid: program hw vlan peer=00:00:5e:00:53:06 vid=160 ecm_flags=0x1
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: kernel: wlan: [7499:I:ANY] [UNSPECIFIED] vap-6(wifi2ap12):node[00:00:5e:00:53:06] set hw append vlan 160
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: received EAPOL-Key frame (2/4 Pairwise)
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: sending 3/4 msg of 4-Way Handshake
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: received EAPOL-Key frame (4/4 Pairwise)
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wpa_driver_nl80211_set_key: ifindex=32 (wifi2ap12) alg=3 addr=0x769fa0c8 key_idx=0 set_tx=1 seq_len=0 key_len=16 key_flag=0x2c link_id=-1
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: stahtd[7490]: [STA-TRACKER].stahtd_dump_event(): {"op":"event","message_type":"STA_ASSOC_TRACKER","event_type":"association","mac":"00:00:5e:00:53:06","vap":"wifi2ap12","assoc_status":"0","event_id": "1","assoc_delta": "10000","auth_utc": "1790436414.903507","auth_algo": "sae","auth_rssi": "-76"}
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: AP-STA-CONNECTED 00:00:5e:00:53:06
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: wifi2ap12: UBNT_ROAM: STA=00:00:5e:00:53:06 associated_ap=00:00:5e:00:53:07, broadcasting roam=1
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: authorized
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 RADIUS: starting accounting session 6E1FA020E5A90ACC
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: pairwise key handshake completed (RSN)
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: EAPOL-4WAY-HS-COMPLETED 00:00:5e:00:53:06
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: wevent[7489]: wevent.sta_join(): unset vport_down
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: wevent[7489]: wevent.ubnt_custom_event(): EVENT_STA_JOIN wifi2ap12: 00:00:5e:00:53:06 / 1
+Sep 26 11:26:55 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: wevent[7489]: wevent.ubnt_custom_event(): EVENT_STA_IP wifi2ap12: 00:00:5e:00:53:06 / 198.51.100.9
+Sep 26 11:27:05 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 RADIUS: starting accounting session 6E1FA020E5A90ACC
+Sep 26 11:27:05 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: stahtd[7490]: [STA-TRACKER].stahtd_dump_event(): {"op":"event","message_type":"STA_ASSOC_TRACKER","event_type":"success","mac":"00:00:5e:00:53:06","vap":"wifi2ap12","assoc_status":"0","traffic_delta": "10980000","dns_responses": "1","dns_timeouts": "0","ip_delta": "459300960","ip_assign_type": "N/A","wpa_auth_delta": "60000","assoc_delta": "10000","auth_delta": "0","event_id": "2","auth_ts": "2190312.388415","auth_utc": "1790436414.903507","dns_resp_seen": "yes","sta_dc_reason": "sta left","disassoc_reason": "1","auth_rssi": "-76","auth_algo": "sae"}
+Sep 26 11:27:22 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi1ap6: STA 00:00:5e:00:53:06 WPA: UBNT_ROAM received: STA roamed to peer AP 00:00:5e:00:53:08
+Sep 26 11:27:22 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: wifi2ap12: immediate disassoc for 00:00:5e:00:53:06 (roamed)
+Sep 26 11:27:22 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: nl80211(QCA): wifi2ap12[32]: i802_sta_disassoc(00:00:5e:00:53:06)
+Sep 26 11:27:22 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: stahtd[7490]: [STA-TRACKER].stahtd_dump_event(): {"op":"event","message_type":"STA_ASSOC_TRACKER","event_type":"sta_roam","mac":"00:00:5e:00:53:06","vap":"wifi2ap12","assoc_status":"0","event_id": "2","avg_rssi": "-70"}
+Sep 26 11:27:22 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: UBNT_ROAM received: STA roamed to peer AP 00:00:5e:00:53:08
+Sep 26 11:27:22 host-07 00005e005305,U7-Pro-Max-8.7.11+19419: hostapd[7499]: wifi2ap12: STA 00:00:5e:00:53:06 WPA: wifi2ap12: immediate disassoc for 00:00:5e:00:53:06 (roamed)

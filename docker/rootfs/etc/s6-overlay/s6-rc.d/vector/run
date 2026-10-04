@@ -1,0 +1,3 @@
+#!/command/with-contenv sh
+# Minimal environment (no MQTT, API, or AI secrets): Vector only needs the rendered config.
+exec s6-setuidgid brief env -i PATH="$PATH" /usr/local/bin/vector --config /run/vector/vector.yaml

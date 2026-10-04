@@ -1,0 +1,15 @@
+#!/bin/sh
+# Copied to .git/hooks/pre-commit by scripts/setup-dev-tools.sh. The tools live in a venv inside
+# WSL, so from Windows Git Bash this hands the work to WSL; from Linux or WSL it runs directly.
+root=$(git rev-parse --show-toplevel) || exit 1
+case "$(uname -s)" in
+  Linux*)
+    cd "$root" || exit 1
+    exec sh scripts/run-checks.sh
+    ;;
+  *)
+    command -v wsl.exe >/dev/null 2>&1 || { echo "need WSL or Linux to run the commit checks" >&2; exit 1; }
+    win=$(cygpath -w "$root")
+    MSYS_NO_PATHCONV=1 exec wsl.exe -e sh -c 'cd "$(wslpath -a "$1")" && exec sh scripts/run-checks.sh' _ "$win"
+    ;;
+esac

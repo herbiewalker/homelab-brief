@@ -1,0 +1,211 @@
+# Build backlog
+
+Status: `[ ]` open, `[~]` in progress, `[x]` done. Mark a task done only when its acceptance criteria pass.
+
+The product is **one container** on the host server with its own LAN IP. It receives syslog directly, polls APIs, runs the analysis, serves the web admin GUI and read-only views, and publishes to Home Assistant and other dashboards through standard interfaces. The MQTT broker stays outside (HA's Mosquitto add-on long term).
+
+Phase 1 runs in order. Ingestion is deployed early (Task 7) so real history accumulates while the rest is built. In Phase 2, Task 18 comes first and the rest can go in any order.
+
+# Phase 1: Core product
+
+## Task 0: Scaffold, single image, dev stack
+- [x] Look up and pin current stable versions (Python base image, Vector, process supervisor, Python dependencies, vendored web assets). Record versions and licenses in `docs/DECISIONS.md`.
+- [x] Multi-stage `Dockerfile` producing one image: Python service, the Vector binary, and a process supervisor (s6-overlay or supervisord; pick one and record why) running Vector, the worker, and the web server.
+- [x] Docker `HEALTHCHECK` against the app's `/healthz`.
+- [x] Pinned `brief/requirements.txt`, pytest scaffold, `scripts/dev-init.ps1` run once.
+- [x] Code quality and leak guards: `ruff` for lint and format, `pre-commit` hooks, `gitleaks` for secrets, and a private-name guard that reads the gitignored `systems.yaml`, `devices.yaml`, and `topology.yaml` and blocks any commit containing those hostnames, IPs, or MACs. The same checks run in GitHub Actions on every push.
+- [x] `docker-compose.yml` runs the app plus a dev Mosquitto, with syslog on a high local port and outputs under `.dev/`.
+- Accept: `docker compose up` builds and starts with a healthy status; `pytest` runs; `git ls-files --eol` shows LF for shell, YAML, and Python files.
+- Status 2026-10-03: **Task 0 done locally.** Acceptance verified in WSL2 Docker Engine: image builds, `docker compose up` reaches healthy, `pytest` passes (3 tests, in the test stage), `git ls-files --eol` shows LF everywhere except the `.ps1` files (CRLF by design). Vector 0.58 listens on 5514 as uid 99; the web app answers `/healthz`. Leak guards: ruff (lint and format, Python only), gitleaks, and a stdlib private-name guard (`scripts/private_name_guard.py`, 9 tests in `scripts/tests/`) run through pre-commit; the hook is proven to block a staged real hostname from Windows Git Bash (it hands off to WSL). `scripts/setup-dev-tools.sh` sets it all up. **CI verified 2026-10-03** (`.github/workflows/checks.yml`, green on `fdb70b9`; the first run caught a gitleaks false positive, now in `.gitleaksignore`). Follow-ups: `/healthz` and the Docker health check only see the web process, so a crashed Vector still shows healthy (fold into Task 6 and Task 14); starlette deprecates `httpx` for its TestClient (switch to what it recommends when pinning).
+
+## Task 1: Audit your syslog share and pull samples
+- [x] Audit the existing syslog share read-only: sources, formats, volume, top talkers. Findings that apply to everyone are in `docs/DECISIONS.md` ("What real logs look like"); your own go in your instance folder (`docs/INSTANCE.md`).
+- [x] `scripts/pull-samples.ps1 -Share <path>` copies the last N lines per source into the instance's `samples/raw/` (read-only against the share).
+- [x] `scripts/audit-syslog.ps1 -Path <file> -Out <file>` counts lines per program per day on the largest file (read-only); record the result in the instance.
+- Accept: samples exist in the instance's `samples/raw/` for every source; the top-talkers result is recorded.
+- Note: chatty sources cover only an hour or two in their last 200 lines, sparse ones cover weeks, and a busy server's last lines can be boot-time noise, so Tasks 2 and 3 may want `-Lines 1000` or a hand-picked slice.
+
+## Task 2: Sample sanitizer
+- [x] Convert the instance's `samples/raw/` to its `samples/sanitized/`, replacing hostnames, IPs (private and public), MACs, camera, device, client, and rule names, site prefixes in hostnames, and domains in DNS lines with stable placeholders, and flag anything that looks like a credential or token.
+- [x] Test that no raw value survives in the output of a fixture file.
+- [x] `scripts/trim_samples.py` writes a small public set (a few lines per message shape per source) into this repository's `samples/sanitized/`; the full set stays in the instance.
+- Accept: sanitized samples exist for every device type and pass the test; the repository holds only the trimmed set and no instance data.
+- Status: `scripts/sanitize_samples.py` (stdlib, with a self-check that writes nothing if a replaced value survives), `scripts/trim_samples.py`, and the guard changes they needed are done, with tests in `scripts/tests/`. Real data exposed gaps that invented fixtures missed; all are fixed. Read the output before publishing it: the check cannot find a private name it was never taught.
+
+## Task 3: Syslog receiver, archive, and parsing (Vector)
+- [ ] Receive syslog over UDP and TCP (raw line `socket` sources, so the wire format including the priority field is kept). The sender's IP is the host.
+- [ ] Write the raw archive: one file per host per day under `/archive`, compressed after the day ends.
+- [ ] Parse into normalized events: priority-derived severity when present (keyword fallback otherwise), CEF branch for Protect, duplicated gateway hostnames, `<mac>,<model>-<firmware>` tokens (keep firmware as a field), the NVR header with spaces and pipes, coredns JSON lines, `parse_failed` kept.
+- [ ] Backfill import: a separate Vector config that reads the old `syslog-<ip>.log` files once (read-only) into the same archive and event stream.
+- [ ] Sender allowlist in `brief/network.yaml` (subnets or addresses): lines from unknown senders are kept but flagged (`unknown_sender` finding), or dropped if you choose. Syslog over UDP can be spoofed by anything on the LAN.
+- Accept: replaying the sanitized samples over UDP and TCP produces archive files and events; a script reports parse-failure rate and real versus inferred severity.
+
+## Task 4: Store
+- [ ] SQLite schema from the guide, WAL mode, simple migrations, single-writer helper; our own `sig_id` mapped from `(miner_generation, cluster_id)`; `prev_last_seen`; `alert`, `feedback`, and `audit_log` tables.
+- Accept: tests cover create, upsert of hourly counts, first/last-seen updates, and that a reset miner never collides with existing signatures.
+
+## Task 5: Ingest, signatures, ignore rules, systems, learning period
+- [ ] Offset-tracked NDJSON reader that consumes only complete lines, survives restarts, and handles midnight rollover.
+- [ ] Bucket counts by event time normalized to UTC (`source_tz` from `systems.yaml`, missing year inferred), with fallback to receive time flagged.
+- [ ] Drain3 wrapper with persistence, masking, template updates, and generation mapping.
+- [ ] `systems.yaml` loader; unknown hosts roll up to `default_system` and are flagged.
+- [ ] Ignore rules with `suppressed` counters; learning-period flag; one batched flush per cycle.
+- Accept: replaying a sample twice does not double count; partial lines wait; backfilled events land in their own hours; tests for restart, rollover, and unknown hosts.
+
+## Task 6: Web app foundation and security
+- [ ] FastAPI app served by Uvicorn inside the container: read-only views on HTTP (brief, status board, map, `status.json`) and `/admin` on HTTPS only.
+- [ ] Local admin account: first-run setup through the CLI (`brief admin set-password`) or a one-time setup token printed to the container log; passwords hashed with Argon2; no default credentials.
+- [ ] Sessions with Secure, HttpOnly, SameSite=Strict cookies; CSRF protection on every write; login rate limiting; an `audit_log` row for every admin change.
+- [ ] TLS: self-signed certificate generated on first start, replaceable with your own; HTTP to HTTPS redirect for `/admin` only.
+- [ ] Listen ports come from `brief/network.yaml` (with environment overrides for first start), so the same image runs in own-IP, host, and bridge modes.
+- [ ] `/healthz` and a minimal status page (version, uptime, ingest rate, last runs, errors). Structured JSON logs to stdout.
+- Accept: `/admin` is unreachable without login; a write without a CSRF token is rejected; repeated failed logins are throttled; the read-only views work without login on old tablets.
+
+## Task 7: Thin slice and early deploy
+- [ ] Minimal `status.json` (run_ok, events_24h, new_signatures_24h, hosts_silent) and a minimal MQTT publisher for two sensors with availability.
+- [ ] First deploy pass in `deploy/README.md`: run the container on the host server with its own IP, import the backfill, then repoint every device and server's syslog to the container IP.
+- Accept: the user has deployed the first pass; every source arrives at the container; `hourly` grows on the server; the two sensors appear in MQTT.
+
+## Task 8: Detectors
+- [ ] Novelty (first seen, or seen again after 7+ quiet days), deviation (daily total against the 14-day median plus MAD), off-hours, absence. Thresholds come from config. Absence runs hourly; the others daily.
+- [ ] Clock skew: compare each source's event time with receive time; flag a source drifting more than a few minutes (`clock_skew`), because bad device clocks quietly break every time-based detector.
+- Accept: each detector has tests for a positive case, a negative case, and learning-period suppression.
+
+## Task 9: Replay mode and golden-day test
+- [ ] `brief replay --from --to [--dry-run]` and a golden-day fixture with an expected digest snapshot.
+- Accept: replay reproduces live findings; the golden test fails loudly when output changes.
+
+## Task 10: Digest, status files, exports, weekly report
+- [ ] `status.json` (schema 1), digests, host files, `state.json`, the failure path ("no data today"), `brief export`, and `brief weekly`.
+- Accept: a test enforces the 150-line limit; a failed run never says "all quiet"; export and weekly have fixture tests.
+
+## Task 11: Routing, alert lifecycle, and feedback
+- [ ] Routing (rule, then kind, then default; urgent bypasses quiet hours), dedupe, re-notify interval, escalation, resolved message, daily budget, and feedback from `homelab/brief/feedback/<finding_id>`.
+- Accept: tests prove an unchanged finding pushes once per interval, a worse one escalates, a cleared one resolves, the budget holds, and an ack stops repeats.
+
+## Task 12: Rendering and brief writer
+- [ ] Template brief (Jinja2); static tablet views with no JavaScript; Pillow PNG status board; an AI provider interface (`brief/ai.yaml`, prompts in `brief/prompts/`) whose chains always end in the template.
+- Accept: outputs render from the samples; a failing prose layer still publishes the template brief.
+
+## Task 13: Outputs (standard interfaces)
+- [ ] MQTT: registry-driven HA discovery, retained states, availability with last-will, per-system state sensors from `systems.yaml`.
+- [ ] Prometheus/OpenMetrics `/metrics` endpoint for any scraper (Grafana and others).
+- [ ] Versioned REST JSON API (`/api/v1/...`) for status, findings, systems, and the map; read-only without login, writes only through `/admin`.
+- [ ] Optional notifications through Apprise (ntfy, Gotify, email, and others), configured in `notify.yaml`.
+- Accept: MQTT topics, `/metrics`, and the API all reflect the same run; Apprise is off by default and sends a test message when enabled.
+
+## Task 14: Scheduler, config reload, self-monitoring
+- [ ] Hourly, daily, and weekly runs; config reload every run with validation and last-good fallback (`config_error` finding); self-metrics (memory, database size, ingest lag, parse failures, receive rate per source).
+- [ ] Storage guard: archive and database size metrics, a projected days-until-full figure, and a `storage_low` finding before the pool fills.
+- Accept: a simulated stall makes sensors expire and the brief say "no data today"; a broken config keeps the pipeline running and reports the error.
+
+## Task 15: Admin GUI
+- [ ] Modern, responsive web GUI (server-rendered pages with htmx and Alpine.js, vendored and pinned, no build step), dark and light themes.
+- [ ] Pages: overview (health, ingest rate per source, last runs, errors), sources (last seen per host, receive rate), network (see below), collectors (enable or disable, test connection, last success), findings and alerts (acknowledge, snooze, ignore this signature), replay and tuning (run a replay and see the findings and pushes it would produce), config editor, systems/devices/topology editors, log search over the archive (host, time range, text), network map, backups and export.
+- [ ] Network page (`brief/network.yaml`): detect the Docker network mode (own IP on br0, host, default or user-defined bridge), addresses, and listening ports; edit the advertised address and listen ports (restarting only the affected processes, regenerating the TLS certificate when the address changes); warnings for lost sender IPs, host-mode port clashes, and missing host access; a live syslog test; per-source repointing status; copyable Unraid template settings for each mode. The container never changes its own Docker network.
+- [ ] Config editor: schema validation before save, a diff view, versioned history with one-click rollback, reload on save, and an audit-log entry per change.
+- Accept: every config file can be edited, validated, saved, and rolled back from the GUI; an invalid edit cannot be saved; every change appears in the audit log; in each of the three network modes the Network page reports the mode correctly, the syslog test turns green, and a simulated bridge that hides sender IPs raises the warning.
+
+## Task 16: Command line and SSH access
+- [ ] A complete `brief` CLI (status, replay, export, weekly, config validate, config rollback, collector test, admin set-password, backup).
+- [ ] Default access path documented: SSH to the Unraid host, then `docker exec -it homelab-brief brief ...` (or Unraid's container console).
+- [ ] Optional built-in SSH server, disabled by default: key-only (`authorized_keys` in appdata), no passwords, no root login, a dedicated `brief` user, listening only on the container IP.
+- Accept: every admin GUI action has a CLI equivalent; with SSH enabled, password login is refused and key login lands in a shell where `brief` works.
+
+## Task 16a: Instance setup and discovery
+- [ ] `docs/INSTANCE.md` and `instance-template/` describe and seed an instance folder (normally its own private repository): config, notes, guard word lists, samples, deploy values. The container itself reads only `/config` and template variables, never this repository.
+- [ ] `brief init` and an admin GUI first-run wizard: list the syslog senders seen (flagging unknown ones), group them into systems, name them, and write a validated `systems.yaml`; optional discovery through the Unraid and UniFi APIs for servers, devices, and topology; write `devices.yaml` and `topology.yaml` with the same validation, audit log, and rollback as the config editor.
+- [ ] Safe by construction: nothing from an instance appears in logs or shareable output unless the user asks; `brief support-bundle` produces a diagnostics file with names, IPs, and MACs redacted by the sanitizer's rules.
+- Accept: starting from only the generic repository and an empty `/config`, a new user reaches a configured install (systems named, collectors enabled) with the wizard alone; a support bundle contains no hostnames, IPs, or MACs.
+
+## Task 17: Packaging, release, and deployment
+- [ ] GitHub Actions builds the image from the private repo and pushes versioned tags to a private registry; never `latest`. Semantic versioning with a `CHANGELOG.md` entry per release.
+- [ ] Unraid template (XML) and a compose reference supporting all three network modes (own IP on br0 as the default, host, bridge with port mappings), with appdata paths, variables, and the health check.
+- [ ] Config schema migrations on upgrade; backup and restore of the appdata folder (CLI and GUI).
+- [ ] `deploy/README.md`: install, set the IP, enable host access to custom networks if the host server must reach the container, repoint devices, verify.
+- Accept: a clean install from the template on the host server reaches a healthy state by following only `deploy/README.md`; an upgrade from the previous tag keeps config and history.
+
+# Phase 2: More data, smarter brief
+
+Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.md`, `docs/guide/09-ai-integration.md`. Task 18 first; the rest in any order. Everything is switched on and tuned in config (`collectors.yaml` and the other `brief/*.yaml` files) and from the admin GUI.
+
+## Task 18: Collector framework, config loaders, playbook engine
+- [ ] Collector contract, loader from `collectors.yaml`, failure isolation, connection-test hook for the GUI; migrations for `disk`, `smart_reading`, `inventory`, `client`, `client_hourly`, `dns_hourly`, `topo_node`, `topo_edge`, `power_reading`.
+- [ ] Loaders and validation for all config files; structured playbook conditions (no `eval`); metric drift detector.
+- Accept: enabling or disabling a collector adds or removes its metrics with no other code changes; a failing collector does not break the run.
+
+## Task 19: Unraid collector (all three servers, GraphQL API)
+- [ ] Read-only API key per server. Array and parity state, parity history (duration and speed), disks and temperatures, SMART data as exposed, containers and VMs (for the map), notifications, OS and plugin versions.
+- [ ] If the API does not expose the SMART attributes needed, fall back to a per-server User Script writing `smartctl --json` files to a share.
+- [ ] Detectors: `smart_trend`, `smart_failing`, `disk_temp`, `crc_rising`, `parity_slow`, `unraid_warning`, `version_behind`.
+- Accept: fixture responses for each server produce findings, metrics, inventory, and topology rows.
+
+## Task 20: UniFi collector (inventory, firmware, topology)
+- [ ] UniFi Network API with an API key (verify what the installed version offers): devices, models, firmware and update availability, uplinks for the map. Firmware is also read from log headers as a fallback.
+- [ ] Detectors: `firmware_pending`, `new_infrastructure`.
+- Accept: fixture responses produce inventory, topology rows, and findings.
+
+## Task 21: Clients, traffic, and DNS activity
+- [ ] Client presence and hourly traffic (UniFi API, plus AP join/leave events from logs); per-client DNS activity from the gateway's coredns log lines (an AdGuard Home or Pi-hole adapter only if wanted).
+- [ ] Detectors: `new_device`, `traffic_spike`, `odd_hours`; all profile-aware via `devices.yaml`.
+- Accept: a spike is judged against the device's own baseline; `security_only` suppresses activity detail; `ignore` stores nothing.
+
+## Task 22: SNMP and iDRAC (optional)
+- [ ] SNMP polling (v3 preferred, v2c allowed on the LAN) for switches, the PDU, and the UPS where useful.
+- [ ] iDRAC on a Dell server through IPMI or Redfish (whichever its firmware supports): power draw, temperatures, fans, hardware event log.
+- Accept: fixture responses produce metrics; both are off by default.
+
+## Task 23: Home Assistant as a data source (power and energy)
+- [ ] Subscribe to HA's MQTT statestream for the entities you choose (power, energy, UPS, smart plugs); no HA token in the container.
+- [ ] Power metrics per device and system, daily and weekly energy, and a `power_drift` finding.
+- Accept: published fixture states become metrics and appear in the brief and the weekly report.
+
+## Task 24: AI provider layer (any model, any host)
+- [ ] OpenAI-compatible Chat Completions client (any base URL; `/v1/models` listing) and an optional native Anthropic adapter, configured only through `brief/ai.yaml`.
+- [ ] Per-task fallback chains ending in the template; context fitting to each provider's size; `disable_thinking` support and stripping of any reasoning block before validation; output validation (every host, device, and finding id must exist in the input); daily call and cloud-token budgets; a call log without content.
+- [ ] Locality enforcement: `cloud` providers never receive device-level detail, raw lines, DNS data, or `devices.yaml` content.
+- [ ] Admin GUI AI page laid out as in `docs/guide/09-ai-integration.md`: master switch, feature switches, providers (test connection, list models, latency, tool-calling check), guardrails split into locked and adjustable, prompt editor with history and rollback, a side-by-side preview of template versus provider output, and the call log.
+- [ ] Deployment notes for an Ollama container on the GPU server (NVIDIA runtime, context cap, short keep-alive, one loaded model, firewall rule or key gateway).
+- Accept: with `enabled: false` no model is called anywhere; each feature switch works independently; the same task runs against two different OpenAI-compatible servers by changing only `ai.yaml`; with every provider down the template publishes; a fixture with device detail never reaches a cloud provider; output naming an unknown host falls through.
+
+## Task 25: Network map
+- [ ] `map.json` from topology, systems, status, and findings; interactive page (vendored Cytoscape.js) with drag, compound server nodes, layers, detail panel, saved and exportable layouts; static SVG; optional draw.io export. Integrated into the admin GUI and also available read-only.
+- Accept: the "Done when" list in `docs/guide/07-network-map.md` passes.
+
+## Task 26: MCP server and Home Assistant AI integration
+- [ ] MCP server over Streamable HTTP at `/mcp` (HTTPS) and stdio through `brief mcp`; read-only tools (`get_status`, `list_findings`, `explain_finding`, `get_history`, `list_systems`, `get_map`, `search_logs`) and resources (latest digest, weekly report, systems).
+- [ ] Per-client bearer tokens with scopes, created and revoked on the AI page, stored hashed; device detail, DNS data, and raw logs only for explicitly scoped tokens; every call in the audit log.
+- [ ] Documentation for Home Assistant: pointing HA's AI integration at the same model server, exposing this product's sensors to Assist, and connecting HA's MCP client to `/mcp` (verify integration names against the installed HA version).
+- Accept: an MCP client with a default-scope token can list findings and history but cannot reach device detail or raw logs; HA, pointed at the same model server, answers a homelab question from the exposed sensors.
+
+# Phase 3: Agents
+
+Spec: `docs/guide/10-agents.md`. Starts after Tasks 19, 20, 24, and 26, because agents use the same tools, provider layer, and switches. Everything stays off until enabled on the AI page.
+
+## Task 27: Tool registry and agent runtime
+- [ ] One registry of read-only tools shared by the MCP server and the agent loop (status, findings, a finding, history, signature, log search, inventory, Unraid notifications, systems, map, replay).
+- [ ] A small agent loop over OpenAI-compatible tool calling: per-run limits (steps, tool calls, tokens, time), a background queue, GPU-idle and quiet-hours rules, citation checking that drops uncited statements, and privacy filtering that withholds device-level tools from cloud-only chains.
+- [ ] Agents defined in `brief/agents.yaml`; master and feature switches from `ai.yaml` respected.
+- Accept: with AI disabled nothing runs; a fixture run stays within every limit; uncited claims are removed; a cloud-only agent never receives device-level tools.
+
+## Task 28: Proposals workflow
+- [ ] Proposal objects (file, diff, reason, evidence) created only by agents or a `propose`-scoped MCP token; shown on the AI page; approve or reject; approval applies through the normal config path (validation, versioning, rollback, audit log).
+- Accept: a proposal changes nothing until approved; approval and rejection are both logged; an invalid proposal cannot be approved.
+
+## Task 29: Investigator, triage, tuner, ask the lab
+- [ ] The four agents and their prompts, with structured outputs; the investigator's note attaches to the finding in the GUI, the brief's detail page, and MCP.
+- [ ] Locked safety rules: triage never proposes ignoring disk, authentication, or security events; the tuner never proposes changes that would hide an acknowledged or urgent finding, and every tuner proposal carries replay evidence.
+- Accept: each agent produces a valid output on its fixtures; the safety rules are enforced in code, not only in prompts.
+
+## Task 30: Agent evaluation
+- [ ] Agent fixtures from real cases (slow parity check, hot access point, collection outage, a noisy new signature) with expected outcomes; scores per agent shown on the AI page (citation rate, dropped claims, proposal acceptance, steps, latency).
+- [ ] Changing an agent's model or prompt runs the fixtures first and flags a lower score before the change takes effect.
+- Accept: a deliberately worse prompt is flagged; scores are visible on the AI page.
+
+## Later (not in the first build)
+- PDF/EPUB e-reader edition (Pandoc) once the e-reader model is known.
+- Network novelty extractors: DHCP leases, MACs, firewall destinations.
+- Embeddings and semantic search over findings and history (OpenAI-compatible `/v1/embeddings`), if keyword search proves too limited.
+- HA dashboards, the retro theme, and actionable-notification automations (separate guide).
+- Single sign-on for the admin GUI (OIDC) and optional TOTP second factor.
+- Optional tier 2 or 3 backends fed from the same normalized stream.

@@ -1,0 +1,31 @@
+# Network settings. Editable here or on the admin GUI's Network page.
+# Docker (the Unraid template) decides the container's network mode and IP; the container
+# cannot change those itself. This file sets everything that depends on them.
+schema: 1
+
+# auto detects the mode from inside the container (custom br0/ipvlan/macvlan, host, bridge,
+# user-defined bridge). Set it explicitly only if detection is wrong.
+mode: auto                    # auto | own_ip | host | bridge
+
+# The address devices send syslog to and dashboards use (HA discovery links, alert links,
+# map links, TLS certificate names). Empty = use the detected address.
+#   own_ip: the container's IP        host/bridge: the Unraid host's IP
+advertised_address: ""
+
+# Ports the processes inside the container listen on. In host mode these must not clash with
+# Unraid's own services (web UI on 80/443, its syslog server on 514 if enabled), so the GUI
+# suggests 8480 / 8443 / 5514 there. In bridge mode the template must map the same ports.
+ports:
+  syslog: 514
+  http: 80
+  https: 443
+  ssh: 22
+
+# Extra names or IPs to include in the self-signed certificate.
+tls_extra_names: []
+
+# Syslog senders you expect. Lines from anything else are kept but flagged with an
+# unknown_sender finding (syslog over UDP can be spoofed by any device on the LAN).
+# Set unknown_senders: drop to discard them instead. Real ranges go only in the server's copy.
+allowed_senders: []           # for example ["<management-subnet>/24", "<server-subnet>/24"]
+unknown_senders: flag         # flag | drop

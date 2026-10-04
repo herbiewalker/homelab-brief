@@ -1,0 +1,39 @@
+# Secrets and local state
+secrets.env
+*.env
+!secrets.env.example
+.dev/
+mosquitto/passwd
+
+# Private device identity and activity data (templates are committed, real files are not)
+brief/devices.yaml
+brief/systems.yaml
+brief/topology.yaml
+brief/map_layout.json
+*.private.yaml
+docs/private/
+
+# Log samples: only sanitized ones are committed
+samples/raw/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Databases and miner state
+*.db
+*.db-wal
+*.db-shm
+drain3.bin
+offsets.json
+
+# OS and editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

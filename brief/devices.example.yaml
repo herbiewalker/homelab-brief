@@ -1,0 +1,20 @@
+# Template. Copy to brief/devices.yaml (gitignored) and fill in real values there.
+# Never commit real MACs, names, or owners.
+# profile: full | security_only | ignore   (unknown devices default to security_only)
+schema: 1
+devices:
+  - mac: "00:00:00:00:00:01"
+    label: "Example laptop"
+    owner: "Example person"
+    profile: full
+    quiet_hours: { start: "23:00", end: "06:00" }
+
+  - mac: "00:00:00:00:00:02"
+    label: "Example console"
+    owner: "Household"
+    profile: security_only
+
+  - mac: "00:00:00:00:00:03"
+    label: "Example smart plug"
+    owner: "Household"
+    profile: ignore

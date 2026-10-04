@@ -1,0 +1,136 @@
+# Step 3: Brief
+
+Goal: once a day (and lightly every hour), turn the baseline into ranked findings, write a small set of files that Claude, the web page, and Home Assistant all read, and render the morning brief. The pipeline must work with no LLM at all; the prose layer is an add-on.
+
+## 3a. Detectors
+
+The current values live in `brief/playbook.yaml` (thresholds) and `brief/priorities.yaml` (routing); the table explains what each detector does. Computation stays in Python and SQL, so the daily run is a short job. Hosts roll up to systems (dashboard tiles) through `brief/systems.yaml`.
+
+| Detector | Rule | Starting value |
+| --- | --- | --- |
+| Novelty | Signature first seen in the last 24h, or seen again after at least 7 quiet days; not ignored | Warning and above become stories; info-level are counted only |
+| Deviation | Today's count for a host and signature against the median of its daily totals over the previous 14 days | Flag when count is at least 20 and above median plus 4 times the median absolute deviation (MAD floored at 1) |
+| Off-hours | A signature appearing in an hour of day where it has not appeared in the previous 14 days | Count of at least 3 |
+| Absence | Host `last_seen` older than its normal gap | Greater of 3 times `expected_gap_min` and 30 minutes, capped at 24h |
+
+Absence runs hourly so it can push in time; the other detectors run in the daily full run. Metric drift moves to Phase 2, because there are no collector metrics before then.
+
+Novelty query (new or returning signatures):
+
+```sql
+SELECT s.sig_id, s.app, s.template, s.first_seen, s.prev_last_seen
+FROM signature s
+WHERE s.ignored = 0
+  AND (s.first_seen >= :since
+       OR (s.last_seen >= :since AND s.prev_last_seen < :quiet_cutoff));
+```
+
+Because Step 2 masks IPs and MACs, a new device or a new outbound destination does not appear as a novel signature. Dedicated extractors for DHCP leases, MACs, and firewall destinations come after the baselines mature, and they feed the same findings list.
+
+## 3b. Ignore list
+
+Save as `brief/ignore.yaml` (the repo has a template). The match patterns are placeholders to verify against real lines from your samples.
+
+```yaml
+ignore:
+  - name: flex-switch-gaming-sleep-wake
+    host: "<flex switch hostname>"
+    match: "(?i)link (up|down)"
+    note: Xbox and Steam Deck sleep/wake port flaps are normal
+  - name: doorbell-low-memory
+    host: "<front doorbell name>"
+    match: "(?i)low memory"
+    note: Known camera-local bug; reboot the camera if audio detection pauses
+  - name: ucg-face-sync
+    host: "<UCG-Max hostname>"
+    match: "ubnt_ai_daemon.*(fail|error)"
+    note: Known recurring failure
+```
+
+Ignored events are still counted in a separate `suppressed` counter per rule, so a suppressed source that suddenly changes volume is visible in the pipeline section of the brief.
+
+## 3c. Output files
+
+Everything below is written to `/out` (`\\<host>\<share>\brief`, registered in the Filesystem MCP) and copied where needed to `/www`.
+
+| File | Purpose | Size rule |
+| --- | --- | --- |
+| `latest/status.json` | Machine-readable state for HA and dashboards | Small, schema versioned |
+| `latest/digest.md` | Ranked findings for Claude | 150 lines or fewer |
+| `YYYY-MM-DD/digest.md` | Dated copy | Same |
+| `YYYY-MM-DD/hosts/<host>.md` | Per-host detail Claude can drill into | 150 lines or fewer each |
+| `state.json` | Developing issues carried between days | Resolved after 3 quiet days |
+| `export/<host>-<sig>.csv` | History export for "what's normal?" questions | Written by `brief export` |
+| `weekly/YYYY-Www.md` | Weekly trend report: trends, recurring issues, what changed | Written by `brief weekly`; 150 lines or fewer |
+| `www/brief.html`, `www/status.png` | Rendered brief and tablet status board | Static files |
+
+Example `status.json` (schema 1, sample values):
+
+```json
+{
+  "schema": 1,
+  "generated_at": "2026-10-03T09:45:02Z",
+  "run_ok": true,
+  "learning": { "active": false, "day": 8, "of": 7 },
+  "headline": "Quiet night; one new signature on the UDM Pro",
+  "systems": [
+    { "id": "udm", "name": "UDM Pro", "state": "yellow", "summary": "1 new signature" },
+    { "id": "server-1", "name": "the host server", "state": "green", "summary": "no findings" }
+  ],
+  "stories": [
+    { "id": "novelty-udm-1042", "rank": 1, "system": "udm", "kind": "novelty",
+      "title": "New socket error signature", "detail": "hosts/udm.md" }
+  ],
+  "developing": [ { "id": "drift-udm-mem", "days": 3, "trend": "same" } ],
+  "quiet": [ "14 hosts checked, 11 clean" ],
+  "pipeline": { "ingest_lag_s": 42, "events_24h": 183000, "parse_failed_24h": 12, "db_mb": 48 }
+}
+```
+
+Store times in UTC in files and convert to local time only when rendering. Always write `run_ok: false` and a "no data today" headline when the run fails, never an empty "all quiet".
+
+## 3d. Writing the brief
+
+The template brief (Jinja2 over `status.json`, rule-based phrasing) always exists and needs nothing else. An AI rewrite is optional and model-agnostic: `brief/ai.yaml` defines providers (any OpenAI-compatible server, local on the GPU server or hosted, or the native Anthropic API) and a fallback chain per task that always ends in the template. Prompts are plain Markdown in `brief/prompts/`. See `09-ai-integration.md`.
+
+Build template-only first. The AI layer reads the same digest, so adding it later is a configuration change, not a rewrite. The pipeline never waits on AI: on any error, timeout, budget limit, or failed validation, the next provider in the chain is tried and the template is the last resort.
+
+## 3e. Schedule and rendering
+
+- **Hourly light run:** runs the absence detector, updates system states and pipeline health in `status.json`, and publishes MQTT. No rendering.
+- **Daily full run** (configurable, for example 05:45): runs detectors, writes digests, renders `brief.html` and `status.png`, updates `state.json`.
+- **HTML:** one static file with inline CSS and no JavaScript, so it loads fast on old tablets and e-readers.
+- **PNG:** drawn with Pillow using a bundled monospace font, with the output size set in config because tablet resolutions differ. This is far lighter than running a headless browser.
+- **PDF/EPUB for the e-reader:** added later, once the e-reader model is known.
+- **Weekly run:** writes the weekly trend report.
+- **Config reload:** every run reloads and validates the config files, keeps the last good version on error, and raises a `config_error` finding naming the file and problem.
+
+## 3f. Replay and tuning
+
+`brief replay --from <date> --to <date> --dry-run` runs the detectors and routing over stored history with the current config and prints the findings and the pushes that would have been sent, without writing anything. Use it after every change to `playbook.yaml` or `priorities.yaml` to see the effect in minutes instead of waiting days. A golden-day test (a synthetic day of logs with an expected digest) guards against accidental changes in output.
+
+## 3g. Alert lifecycle
+
+Every push goes through the lifecycle in `brief/priorities.yaml`, so a lasting problem does not nag:
+
+- **Routing:** rule id, then finding kind, then `default`. `urgent` findings bypass quiet hours and the daily budget.
+- **Dedupe:** each finding has a stable id (kind, system or device, signature or attribute). An unchanged open finding pushes at most once per `renotify_hours`.
+- **Escalate:** a finding that gets worse (higher bucket, larger count, new host) pushes early.
+- **Resolve:** when a pushed finding clears for `resolve_after_quiet_runs` runs, a short "resolved" message is sent.
+- **Budget:** non-urgent pushes beyond `daily_push_budget` fold into the next daily headline.
+- **Feedback:** Home Assistant notification buttons publish `ack`, `snooze_24h`, or `snooze_7d` to `homelab/brief/feedback/<finding_id>`. Acknowledged or snoozed findings drop to the digest until they get worse.
+
+```sql
+CREATE TABLE alert (
+  finding_id TEXT PRIMARY KEY, kind TEXT, rule TEXT, level TEXT,
+  state TEXT,                       -- open | acked | snoozed | resolved
+  first_sent TEXT, last_sent TEXT, last_value TEXT, snooze_until TEXT
+);
+CREATE TABLE feedback (
+  ts TEXT, finding_id TEXT, action TEXT
+);
+```
+
+Alert payloads carry the lifecycle state (`new`, `repeat`, `escalated`, `resolved`) so Home Assistant can format them differently.
+
+**Done when:** a full run writes all files, a deliberately broken run (stop the ingest loop) produces "no data today" instead of "all quiet", and a known-noisy source stays out of the stories.

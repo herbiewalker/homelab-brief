@@ -1,0 +1,13 @@
+.git
+.dev
+secrets.env
+samples
+docs
+deploy
+mosquitto
+scripts
+brief/systems.yaml
+brief/devices.yaml
+brief/topology.yaml
+**/__pycache__
+**/.pytest_cache

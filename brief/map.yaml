@@ -1,0 +1,14 @@
+# Network map settings. See docs/guide/07-network-map.md.
+schema: 1
+enabled: false
+refresh_s: 300               # how often the interactive page re-fetches map.json
+layers: [network, services, power]
+group_clients: by_vlan       # by_vlan | none (hide clients) | each (one node per client; noisy)
+show_containers: true
+show_vms: true
+auto_layout: cose            # layout used only for nodes without a saved position
+static_svg:
+  enabled: true
+  width: 1600
+  height: 1000
+drawio_export: false         # also write out/map.drawio for editing in diagrams.net

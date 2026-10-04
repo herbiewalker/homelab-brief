@@ -1,0 +1,55 @@
+# Ranking, routing, and alert lifecycle. Edit values to reorder the brief and reroute
+# notifications; no code changes. Reloaded every run; an invalid edit keeps the last good
+# version and raises a config_error finding.
+#
+# Lookup order for a finding: rules.<rule id> -> kinds.<finding kind> -> default
+# Routes: push_now | daily_headline | digest_only | suppress
+# urgent: true lets a push_now finding bypass quiet hours and the daily push budget.
+# Note: off_hours is a log signature at an unusual hour; odd_hours is a device online
+# during its profile's quiet hours.
+schema: 1
+
+default: { rank: 10, route: digest_only }
+
+quiet_hours:
+  start: "22:00"
+  end: "06:30"
+
+lifecycle:
+  renotify_hours: 24          # repeat a still-open pushed finding at most this often
+  escalate_on_worse: true     # push again early only when a finding gets worse
+  send_resolved: true         # short "resolved" message when a pushed finding clears
+  resolve_after_quiet_runs: 3
+  daily_push_budget: 5        # extra non-urgent pushes fold into the next daily headline
+  snooze_options_h: [24, 168]
+
+kinds:
+  absence:            { rank: 80, route: push_now }
+  pipeline_error:     { rank: 90, route: push_now }
+  config_error:       { rank: 85, route: daily_headline }
+  novelty:            { rank: 45, route: digest_only }
+  deviation:          { rank: 50, route: digest_only }
+  off_hours:          { rank: 40, route: digest_only }
+  smart_failing:      { rank: 100, route: push_now, urgent: true }
+  smart_trend:        { rank: 70, route: daily_headline }
+  disk_temp:          { rank: 55, route: daily_headline }
+  crc_rising:         { rank: 50, route: digest_only }
+  firmware_pending:   { rank: 30, route: digest_only }
+  version_behind:     { rank: 35, route: digest_only }
+  new_infrastructure: { rank: 65, route: daily_headline }
+  new_device:         { rank: 60, route: daily_headline }
+  traffic_spike:      { rank: 65, route: daily_headline }
+  odd_hours:          { rank: 40, route: digest_only }
+  metric_drift:       { rank: 45, route: digest_only }
+  parity_slow:        { rank: 55, route: daily_headline }
+  unraid_warning:     { rank: 60, route: daily_headline }
+  clock_skew:         { rank: 50, route: daily_headline }
+  unknown_sender:     { rank: 55, route: daily_headline }
+  storage_low:        { rank: 85, route: push_now }
+
+rules:
+  smart_pending_nonzero: { rank: 95, route: push_now, urgent: true }
+
+profile_overrides:
+  security_only:
+    odd_hours: { route: suppress }

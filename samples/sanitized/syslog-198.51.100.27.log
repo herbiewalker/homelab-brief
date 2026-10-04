@@ -1,0 +1,30 @@
+Sep 20 04:40:03 host-15 apcupsd[2301583]: NIS server startup succeeded
+Sep 20 08:30:01 host-15 root: Nvidia-Driver-Plugin: Automatic update check failed, can't get latest Production Branch version number!
+Sep 20 08:30:16 host-15 crond[2990]: exit status 1 from user root /usr/local/emhttp/plugins/nvidia-driver/include/update-check.sh &>/dev/null 2>&1
+Sep 20 12:24:00 host-15 emhttpd: read SMART /dev/sdh
+Sep 20 12:24:00 host-15 emhttpd: read SMART /dev/sdg
+Sep 20 12:24:00 host-15 emhttpd: read SMART /dev/sdf
+Sep 20 12:57:30 host-15 emhttpd: spinning down /dev/sdh
+Sep 20 12:57:30 host-15 emhttpd: spinning down /dev/sdg
+Sep 20 12:57:30 host-15 emhttpd: spinning down /dev/sdf
+Sep 20 18:20:25 host-15 emhttpd: read SMART /dev/sdg
+Sep 20 18:20:25 host-15 emhttpd: read SMART /dev/sdf
+Sep 20 18:20:34 host-15 emhttpd: read SMART /dev/sdh
+Sep 20 18:50:34 host-15 emhttpd: spinning down /dev/sdh
+Sep 20 18:50:34 host-15 emhttpd: spinning down /dev/sdg
+Sep 20 18:50:34 host-15 emhttpd: spinning down /dev/sdf
+Sep 21 02:15:01 host-15 move: mover: started
+Sep 21 02:15:12 host-15 move: mover: finished
+Sep 21 08:30:02 host-15 root: Nvidia-Driver-Plugin: Automatic update check failed, can't get latest Production Branch version number!
+Sep 21 08:30:02 host-15 crond[2990]: exit status 1 from user root /usr/local/emhttp/plugins/nvidia-driver/include/update-check.sh &>/dev/null 2>&1
+Sep 21 18:17:32 host-15 webgui: Successful login user root from 198.51.100.19
+Sep 21 18:18:14 host-15 plugin-manager: creating: /boot/config/plugins/unassigned.devices/unassigned.devices-2026.09.15-x86_64-1.txz - downloading from URL https://raw.githubusercontent.com/unraid/unassigned.devices/master/archive/unassigned.devices-2026.09.15-x86_64-1.txz
+Sep 21 18:18:14 host-15 plugin-manager: checking: /boot/config/plugins/unassigned.devices/unassigned.devices-2026.09.15-x86_64-1.txz - MD5
+Sep 21 18:18:14 host-15 plugin-manager: running: upgradepkg --install-new --reinstall /boot/config/plugins/unassigned.devices/unassigned.devices-2026.09.15-x86_64-1.txz
+Sep 21 18:18:14 host-15 plugin-manager: executing inline script: /bin/bash '/tmp/inline2-unassigned.devices.sh'
+Sep 21 18:18:14 host-15 plugin-manager: skipping: /boot/config/plugins/unassigned.devices/unassigned.devices.cfg already exists
+Sep 21 18:18:14 host-15 plugin-manager: skipping: /boot/config/plugins/unassigned.devices/samba_mount.cfg already exists
+Sep 21 18:18:14 host-15 plugin-manager: skipping: /boot/config/plugins/unassigned.devices/iso_mount.cfg already exists
+Sep 21 18:18:14 host-15 plugin-manager: creating: /tmp/unassigned.devices/add-smb - from INLINE content
+Sep 21 18:18:14 host-15 plugin-manager: setting: /tmp/unassigned.devices/add-smb - mode to 0770
+Sep 21 18:18:14 host-15 plugin-manager: executing inline script: /bin/bash '/tmp/inline7-unassigned.devices.sh'

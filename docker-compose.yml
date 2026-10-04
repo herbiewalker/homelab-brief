@@ -1,0 +1,43 @@
+# Local development stack: the single homelab-brief image plus a dev Mosquitto.
+# Versions are pinned (see docs/DECISIONS.md).
+# Run scripts/dev-init.ps1 once first (creates .dev/ folders and Mosquitto users).
+# Syslog uses high ports locally (5514) so no admin rights are needed; on Unraid the
+# container has its own IP and uses 514.
+services:
+  homelab-brief:
+    build:
+      context: .
+      target: runtime
+    image: homelab-brief:dev
+    env_file: ./secrets.env
+    environment:
+      SYSLOG_PORT: "5514"
+    ports:
+      - "5514:5514/udp"       # syslog (dev)
+      - "5514:5514/tcp"
+      - "8080:80"             # read-only views, API, /metrics
+      - "8443:443"            # admin GUI (HTTPS)
+    volumes:
+      - ./brief:/config/brief:ro      # dev: config templates (the GUI writes to /config in prod)
+      - ./vector:/config/vector:ro
+      - ./.dev/state:/state
+      - ./.dev/archive:/archive
+      - ./.dev/out:/out
+    depends_on: [mosquitto]
+    mem_limit: 768m
+
+  mosquitto:
+    image: eclipse-mosquitto:2.1.2-alpine
+    ports: ["1883:1883"]
+    volumes:
+      - ./mosquitto:/mosquitto/config
+      - ./.dev/mosquitto-data:/mosquitto/data
+    mem_limit: 64m
+
+  # Run the tests inside the container: docker compose --profile test run --rm test
+  test:
+    profiles: [test]
+    build:
+      context: .
+      target: test
+    image: homelab-brief:test

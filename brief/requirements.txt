@@ -1,0 +1,10 @@
+# Direct dependencies, exact pins (versions and licenses in docs/DECISIONS.md).
+# Transitive dependencies are not locked yet; generate a lock with `pip freeze` inside the
+# built image once Docker is available (open item in docs/DECISIONS.md).
+drain3==0.9.11
+paho-mqtt==2.1.0
+pyyaml==6.0.3
+jinja2==3.1.6
+pillow==12.3.0
+fastapi==0.142.2
+uvicorn==0.54.0

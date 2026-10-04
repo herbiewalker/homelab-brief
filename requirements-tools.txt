@@ -1,0 +1,4 @@
+# Developer tooling (not shipped in the image). Install with scripts/setup-dev-tools.sh.
+ruff==0.16.10
+pre-commit==4.6.2
+pytest==9.1.1

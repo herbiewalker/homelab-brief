@@ -1,0 +1,45 @@
+# Phase 3 agents. Each one is off by default and also needs ai.yaml enabled: true and
+# features.agents: true. Editable on the admin GUI's AI page (Agents section).
+# Agents use read-only tools only. Anything that would change config becomes a proposal
+# you approve in the GUI. See docs/guide/10-agents.md.
+schema: 1
+
+defaults:
+  max_steps: 8                # tool-call rounds per run
+  max_tool_calls: 12
+  max_tokens_per_run: 12000
+  timeout_s: 300
+  max_runs_per_day: 20        # per agent
+  chain: [local]               # providers that support tool calling; no template fallback for agents
+  require_citations: true     # locked on; shown for clarity
+
+agents:
+  investigator:
+    enabled: false
+    trigger: { on_finding_rank_at_least: 60, on_demand: true }
+    tools: [get_status, list_findings, get_finding, get_history, search_logs, get_inventory,
+            get_unraid_notifications, list_systems]
+    output: investigation_note          # attached to the finding
+    prompt: prompts/agent_investigator.md
+
+  triage:
+    enabled: false
+    trigger: { on_new_signatures: true, after_learning_period: true }
+    tools: [get_signature, get_history, search_logs, list_systems]
+    output: proposals                   # ignore rules or playbook rules, for your approval
+    prompt: prompts/agent_triage.md
+
+  tuner:
+    enabled: false
+    trigger: { schedule: weekly }
+    tools: [run_replay, list_findings, get_history]
+    output: proposals                   # threshold and routing changes, with replay evidence
+    prompt: prompts/agent_tuner.md
+
+  ask_the_lab:
+    enabled: false
+    trigger: { on_demand: true }        # chat box in the admin GUI
+    tools: [get_status, list_findings, get_finding, get_history, search_logs, get_inventory,
+            list_systems, get_map]
+    output: chat_answer
+    prompt: prompts/ask_the_lab.md

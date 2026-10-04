@@ -1,0 +1,9 @@
+# Retention. Editable here or in the admin GUI. Reloaded every run.
+schema: 1
+archive_days: 60            # raw syslog archive (compressed daily files); open decision: 30, 60, or 90
+events_days: 7              # normalized event files (rebuildable from the archive)
+exports_days: 30            # history exports in /out/export
+rollup_after_days: 90       # client, DNS, and power hourly rows roll up to daily rows
+samples_per_signature: 5
+config_history_versions: 50 # saved versions per config file for rollback
+audit_log_days: 365

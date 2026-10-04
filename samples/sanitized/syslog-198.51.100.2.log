@@ -1,0 +1,30 @@
+Sep  9 03:05:34 host-03 00005e005301,USW-Flex-7.5.10+17129: syswrapper[7481]: [apply-config] using fast apply
+Sep  9 03:05:34 host-03 00005e005301,USW-Flex-7.5.10+17129: syswrapper[7481]: Creating /var/run/need_cfg_save
+Sep  9 03:05:34 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_json(): immediately send discover packet
+Sep  9 03:05:34 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.set_inform_family(): next inform family: ipv4
+Sep  9 03:05:34 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_json(): immediately send user inform packet
+Sep  9 03:05:34 host-03 00005e005301,USW-Flex-7.5.10+17129: kernel: RAETH_DRV 1e100000.ethernet eth0: port 2 link up
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: syswrapper[7481]: Provision took 3 sec, full=0, persist=1
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.notify_bg_done_async_cb(): [notify-bg-provision-done] pending_cfgtimeout=0
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): is_default: false
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): led_enabled: true
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): is_setup_completed: false
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): report_crash: true
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): cfgversion: 80759c70902f50d7
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): cfgversion_effective: 80759c70902f50d7
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): cfgversion_saved: 80759c70902f50d7
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): cfgtimeout: 0
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): selfrun_guest_mode: true
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): capability: notif,fastapply-bg,notif-assoc-stat
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): use_aes_gcm: true
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): inform_url: http://198.51.100.3:8080/inform
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): ipv6_ll_inform_url: (null)
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): stun_url: stun://198.51.100.3/
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): mgmt_url: https://198.51.100.3:8443/manage/site/default
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.reporter_save_config(): default_url: http://unifi:8080/inform
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.set_inform_family(): next inform family: ipv4
+Sep  9 03:05:35 host-03 00005e005301,USW-Flex-7.5.10+17129: mcad: mcad[27565]: ace_reporter.notify_bg_done_async_cb(): immediately send timer_immediate inform packet
+Sep  9 03:05:47 host-03 00005e005301,USW-Flex-7.5.10+17129: kernel: RAETH_DRV 1e100000.ethernet eth0: port 2 link down
+Sep  9 03:05:49 host-03 00005e005301,USW-Flex-7.5.10+17129: kernel: RAETH_DRV 1e100000.ethernet eth0: port 2 link up
+Sep  9 03:06:01 host-03 00005e005301,USW-Flex-7.5.10+17129: : cfgmtd[7770]: cfgmtd.cfgmtd_do_write(): Found  Active on[1]
+Sep  9 03:06:01 host-03 00005e005301,USW-Flex-7.5.10+17129: : cfgmtd[7770]: cfgmtd.cfgmtd_do_write(): Found Backup1 on[2]

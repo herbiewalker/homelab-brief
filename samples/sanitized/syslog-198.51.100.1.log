@@ -1,0 +1,30 @@
+Sep 26 12:31:56 host-01 host-01 systemd[1]: Started Time & Date Service.
+Sep 26 12:32:20 host-01 host-01 earlyoom[1699]: mem avail:  1194 of  2947 MiB (40.51%), swap free: 2720 of 3389 MiB (80.24%)
+Sep 26 12:32:26 host-01 host-01 systemd[1]: systemd-timedated.service: Succeeded.
+Sep 26 12:32:29 host-01 host-01 dbus-daemon[1695]: [system] Activating via systemd: service name='org.freedesktop.timedate1' unit='dbus-org.freedesktop.timedate1.service' requested by ':1.61326' (uid=0 pid=745012 comm="timedatectl show -p NTPSynchronized --value ")
+Sep 26 12:32:29 host-01 host-01 systemd[1]: Starting Time & Date Service...
+Sep 26 12:32:29 host-01 host-01 dbus-daemon[1695]: [system] Successfully activated service 'org.freedesktop.timedate1'
+Sep 26 12:32:29 host-01 host-01 systemd[1]: Started Time & Date Service.
+Sep 26 12:32:59 host-01 host-01 systemd[1]: systemd-timedated.service: Succeeded.
+Sep 26 12:33:01 host-01 host-01 dbus-daemon[1695]: [system] Activating via systemd: service name='org.freedesktop.timedate1' unit='dbus-org.freedesktop.timedate1.service' requested by ':1.61328' (uid=0 pid=745326 comm="timedatectl show -p NTPSynchronized --value ")
+Sep 26 12:33:01 host-01 host-01 systemd[1]: Starting Time & Date Service...
+Sep 26 12:33:02 host-01 host-01 dbus-daemon[1695]: [system] Successfully activated service 'org.freedesktop.timedate1'
+Sep 26 12:33:20 host-01 host-01 earlyoom[1699]: mem avail:  1192 of  2947 MiB (40.46%), swap free: 2720 of 3389 MiB (80.24%)
+Sep 26 12:33:29 host-01 host-01 /usr/bin/unifi-mq-broker[2764]: MEM usage flows=37 dying=0 dns=16 ifaces=7 dnsResolv=10 routines=30
+Sep 26 12:34:44 host-01 host-01 ubnt_ai_daemon[21571]: 2026-09-26 12:34:44.811 <I>: Background sync: Fetching face data updates (force_sync=false) [face_data_client.cpp:705]
+Sep 26 12:34:45 host-01 host-01 ubnt_ai_daemon[21571]: 2026-09-26 12:34:45.719 <E>: HTTP request failed - no response [face_data_client.cpp:273]
+Sep 26 12:39:36 host-01 host-01 sudo[749498]: ucs-update : PWD=/data/unifi-identity-update ; USER=root ; COMMAND=/sbin/ubnt-tools id
+Sep 26 12:39:44 host-01 host-01 ubnt_ai_daemon[21571]: 2026-09-26 12:39:44.815 <I>: Background sync: Fetching face data updates (force_sync=false) [face_data_client.cpp:705]
+Sep 26 12:39:45 host-01 host-01 ubnt_ai_daemon[21571]: 2026-09-26 12:39:45.820 <E>: HTTP request failed - no response [face_data_client.cpp:273]
+Sep 26 12:40:00 host-02 systemd[1]: Starting system activity accounting tool...
+Sep 26 12:40:00 host-02 systemd[1]: sysstat-collect.service: Succeeded.
+Sep 26 12:40:00 host-02 systemd[1]: Finished system activity accounting tool.
+Sep 26 12:40:00 host-01 host-01 systemd[1]: Starting system activity accounting tool...
+Sep 26 12:40:00 host-01 host-01 systemd[1]: sysstat-collect.service: Succeeded.
+Sep 26 12:40:00 host-01 host-01 systemd[1]: Finished system activity accounting tool.
+Sep 26 12:43:30 host-01 host-01 /usr/bin/unifi-mq-broker[2764]: MEM usage flows=38 dying=0 dns=18 ifaces=7 dnsResolv=9 routines=30
+Sep 26 12:47:11 host-01 host-01 mcad[3654]: probe-runner.probe_runner_dispatch(): [dhcpv6] start ifname=eth4 timeout=10 req=00000000-0000-4000-8000-000000000001
+Sep 26 12:47:11 host-01 host-01 mcad[3654]: probe-runner.probe_instance_launch(): [dhcpv6] launched probe for eth4 (req=00000000-0000-4000-8000-000000000001)
+Sep 26 12:47:12 host-01 host-01 mcad[754859]: ui-probe-dhcpv6: stateful probe: ianaCount=1 iapdCount=1 prefixSize=64
+Sep 26 12:47:12 host-01 host-01 mcad[754859]: ui-probe-dhcpv6: eth4 link type 1 (Ethernet)
+Sep 26 12:47:12 host-01 host-01 mcad[754859]: ui-probe-dhcpv6: sending Solicit on eth4 (xid=1e4744)
