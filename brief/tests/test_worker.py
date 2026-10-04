@@ -14,6 +14,7 @@ def make_env(tmp_path, **extra):
     return {
         "BRIEF_CONFIG_DIR": str(config),
         "BRIEF_DEFAULTS_DIR": str(BRIEF.parent / "nonexistent"),
+        "BRIEF_OUT": str(tmp_path / "out"),
         **extra,
     }, config / "brief"
 

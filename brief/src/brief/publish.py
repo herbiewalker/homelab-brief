@@ -1,0 +1,156 @@
+"""MQTT publisher: Home Assistant discovery, retained states, and availability with a last will.
+
+The sensors come from brief/registry.yaml (restricted to the metrics the program can compute, see
+status.DERIVED_METRICS). Topics follow docs/guide/04-publish.md:
+
+  homelab/brief/availability                online | offline (retained; offline is the last will)
+  homelab/brief/<metric_id>/state           the latest value (retained)
+  homeassistant/sensor/homelab_brief/<metric_id>/config   discovery (retained)
+
+States are published on every hourly run, not only on change: discovery sets `expire_after` to about
+twice the interval, so a value that never repeated would make a healthy sensor expire. When the
+broker is unreachable nothing is queued; the latest values are sent when the connection returns.
+Nothing here ever logs the broker password.
+"""
+
+import json
+import threading
+from collections.abc import Mapping
+from pathlib import Path
+
+from brief.config import ConfigError, config_file, load_mapping
+from brief.jsonlog import log
+
+BASE_TOPIC = "homelab/brief"
+DISCOVERY_PREFIX = "homeassistant"
+NODE_ID = "homelab_brief"
+INTERVAL_SECONDS = {"hourly": 3600, "daily": 86400}
+
+
+def load_registry(env: Mapping[str, str] | None = None, only: tuple[str, ...] | None = None) -> list[dict]:
+    path: Path = config_file("registry.yaml", env)
+    metrics = load_mapping(path).get("metrics") or []
+    if not isinstance(metrics, list):
+        raise ConfigError(f"{path.name}: metrics must be a list")
+    out = []
+    for item in metrics:
+        if not isinstance(item, dict) or not item.get("id"):
+            raise ConfigError(f"{path.name}: every metric needs an id")
+        if item.get("kind", "number") != "number":
+            continue  # state and text sensors arrive with the systems tiles (Task 11)
+        if only is None or item["id"] in only:
+            out.append(item)
+    return out
+
+
+def discovery_payload(metric: dict, base: str = BASE_TOPIC) -> dict:
+    interval = INTERVAL_SECONDS.get(str(metric.get("interval", "hourly")), 3600)
+    payload = {
+        "name": metric.get("name") or metric["id"],
+        "unique_id": f"{NODE_ID}_{metric['id']}",
+        "state_topic": f"{base}/{metric['id']}/state",
+        "availability_topic": f"{base}/availability",
+        "state_class": "measurement",
+        "expire_after": 2 * interval,
+        "device": {"identifiers": [NODE_ID], "name": "Homelab Brief"},
+    }
+    if metric.get("unit"):
+        payload["unit_of_measurement"] = str(metric["unit"])
+    return payload
+
+
+class Publisher:
+    def __init__(
+        self,
+        host: str,
+        port: int = 1883,
+        user: str = "",
+        password: str = "",
+        metrics: list[dict] | None = None,
+        base: str = BASE_TOPIC,
+        client=None,
+    ):
+        self.host, self.port, self.base = host, port, base
+        self.metrics = list(metrics or [])
+        self._lock = threading.Lock()
+        self._latest: dict[str, int | float] = {}
+        self.connected = False
+        if client is None:
+            import paho.mqtt.client as mqtt
+
+            client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="homelab-brief")
+        self.client = client
+        if user:
+            client.username_pw_set(user, password)
+        client.will_set(f"{base}/availability", "offline", qos=1, retain=True)
+        client.reconnect_delay_set(min_delay=1, max_delay=60)
+        client.on_connect = self._on_connect
+        client.on_disconnect = self._on_disconnect
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str], metrics: list[dict]) -> "Publisher | None":
+        """None when MQTT_HOST is empty: MQTT is optional, the rest of the product runs without it."""
+        host = (env.get("MQTT_HOST") or "").strip()
+        if not host:
+            return None
+        try:
+            port = int((env.get("MQTT_PORT") or "1883").strip())
+        except ValueError:
+            raise ValueError(f"MQTT_PORT must be a number, got {env.get('MQTT_PORT')!r}") from None
+        return cls(host, port, env.get("MQTT_USER", ""), env.get("MQTT_PASSWORD", ""), metrics)
+
+    # -- connection (paho runs these on its own thread)
+
+    def _on_connect(self, client, userdata, flags, reason_code, properties=None) -> None:
+        if getattr(reason_code, "is_failure", False):
+            log("mqtt_connect_failed", host=self.host, port=self.port, reason=str(reason_code))
+            return
+        with self._lock:
+            self.connected = True
+            self._send_discovery()
+            self._send_states(self._latest)
+            client.publish(f"{self.base}/availability", "online", qos=1, retain=True)
+        log("mqtt_connected", host=self.host, port=self.port, sensors=len(self.metrics))
+
+    def _on_disconnect(self, client, userdata, *args) -> None:
+        self.connected = False
+        log("mqtt_disconnected", host=self.host, port=self.port)
+
+    def _send_discovery(self) -> None:
+        for metric in self.metrics:
+            topic = f"{DISCOVERY_PREFIX}/sensor/{NODE_ID}/{metric['id']}/config"
+            self.client.publish(topic, json.dumps(discovery_payload(metric, self.base)), qos=1, retain=True)
+
+    def _send_states(self, values: Mapping[str, int | float]) -> None:
+        for metric_id, value in values.items():
+            self.client.publish(f"{self.base}/{metric_id}/state", str(value), qos=1, retain=True)
+
+    # -- API
+
+    def start(self) -> None:
+        self.client.connect_async(self.host, self.port, keepalive=60)
+        self.client.loop_start()
+
+    def publish(self, values: Mapping[str, int | float]) -> None:
+        """Remember the values and send them now when connected (otherwise on the next connect)."""
+        known = {m["id"] for m in self.metrics}
+        values = {k: v for k, v in values.items() if k in known}
+        with self._lock:
+            self._latest.update(values)
+            if self.connected:
+                self._send_states(values)
+
+    def forget(self) -> None:
+        """Drop the remembered values (the run failed), so a reconnect cannot refresh stale ones."""
+        with self._lock:
+            self._latest.clear()
+
+    def stop(self) -> None:
+        """Publish offline on a clean shutdown (a crash is covered by the last will)."""
+        try:
+            if self.connected:
+                info = self.client.publish(f"{self.base}/availability", "offline", qos=1, retain=True)
+                info.wait_for_publish(timeout=3)
+            self.client.disconnect()
+        finally:
+            self.client.loop_stop()

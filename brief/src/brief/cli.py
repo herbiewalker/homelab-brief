@@ -1,4 +1,4 @@
-"""The `brief` command. Today: `brief admin set-password`; the rest of the CLI arrives in Task 16.
+"""The `brief` command. Today: `brief admin set-password` and `brief import`; the rest arrives in Task 16.
 
 Run it inside the container (`docker exec -it homelab-brief brief admin set-password`). The
 password is read without echo, checked against the same rules as the web form, and never printed.
@@ -53,8 +53,14 @@ def main(argv: list[str] | None = None) -> int:
     sp = admin.add_parser("set-password", help="create the admin account or change its password")
     sp.add_argument("--user", default="admin")
     sp.add_argument("--password-stdin", action="store_true", help="read the password from one line of stdin")
+    imp = sub.add_parser("import", help="one-off backfill of old syslog-<ip>.log files (read-only)")
+    imp.add_argument("--from", dest="source", default="/import", help="folder with syslog-<ip>.log files")
     args = parser.parse_args(argv)
     state = Path(os.environ.get("BRIEF_STATE", "/state"))
+    if args.group == "import":
+        from brief.importer import main as run_import
+
+        return run_import(args.source, state, Path(os.environ.get("BRIEF_ARCHIVE", "/archive")))
     if args.group == "admin" and args.cmd == "set-password":
         password = sys.stdin.readline().rstrip("\r\n") if args.password_stdin else None
         return set_password(args.user, state, password)

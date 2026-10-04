@@ -28,10 +28,13 @@ from fastapi.staticfiles import StaticFiles
 
 from brief import __version__, health
 from brief.auth import Auth, AuthError, BadCredentials, Session, Throttled
+from brief.config import ConfigError, config_file
 from brief.jsonlog import log
 from brief.learning import learning_status
 from brief.settings import Settings
+from brief.status import build_status
 from brief.store import Store
+from brief.systems import Systems
 
 HERE = Path(__file__).parent
 COOKIE_SESSION = "__Host-brief_session"
@@ -190,6 +193,17 @@ def create_app(
         report = health.check_health(store, settings.syslog_port, settings.interval, uptime)
         report.update(version=__version__, uptime_s=int(uptime))
         return JSONResponse(report, status_code=200 if report["status"] == "ok" else 503)
+
+    @app.get("/status.json")
+    def status_json() -> JSONResponse:
+        """The same document the worker writes hourly, computed now (read-only, no login)."""
+        try:
+            systems = Systems.load(config_file("systems.yaml"))
+        except (ConfigError, OSError):
+            systems = Systems()
+        uptime = time.monotonic() - app.state.started
+        doc = build_status(store, systems, settings.syslog_port, settings.interval, uptime)
+        return JSONResponse(doc, headers={"Cache-Control": "no-cache"})
 
     @app.get("/", response_class=HTMLResponse)
     def status_page(request: Request) -> HTMLResponse:

@@ -9,6 +9,7 @@ import os
 import signal
 import sys
 import threading
+import time
 from pathlib import Path
 
 from brief import __version__
@@ -16,11 +17,15 @@ from brief.config import ConfigError, config_file, load_mapping
 from brief.ignore import IgnoreRules
 from brief.ingest import CycleResult, Pipeline
 from brief.jsonlog import log
+from brief.publish import Publisher, load_registry
+from brief.settings import Settings
 from brief.signatures import Signatures
+from brief.status import DERIVED_METRICS, build_status, metric_values, write_status
 from brief.store import Store
 from brief.systems import Systems
 
 HEARTBEAT_EVERY = 10  # quiet cycles between "still running" log lines
+PUBLISH_EVERY = 3600.0  # seconds between status.json writes and MQTT publishes (hourly)
 
 
 class Worker:
@@ -41,6 +46,17 @@ class Worker:
             samples_per_signature=int(retention.get("samples_per_signature", 5)),
         )
         self._quiet = 0
+        self.settings = Settings.from_env(self.env)
+        self.out_dir = Path(self.env.get("BRIEF_OUT", "/out"))
+        self.started = time.monotonic()
+        self.publisher = self._make_publisher()
+
+    def _make_publisher(self) -> Publisher | None:
+        try:
+            return Publisher.from_env(self.env, load_registry(self.env, only=DERIVED_METRICS))
+        except Exception as exc:  # a bad MQTT setting must not stop ingest
+            log("mqtt_config_error", error=f"{type(exc).__name__}: {exc}")
+            return None
 
     def _reload(self) -> None:
         """Reload config every cycle; a broken edit keeps the last good version and is logged."""
@@ -79,10 +95,51 @@ class Worker:
                 log("ingest_idle", cycles=self._quiet)
         return result
 
-    def run_forever(self, stop: threading.Event, interval: float) -> None:
+    def publish_status(self) -> dict:
+        """The hourly job: write /out/latest/status.json and send the sensor values over MQTT.
+
+        A failed run publishes no values, so the sensors expire instead of reporting a calm network.
+        """
+        status = build_status(
+            self.store,
+            self.systems,
+            self.settings.syslog_port,
+            self.settings.interval,
+            time.monotonic() - self.started,
+            self.env,
+        )
+        write_status(status, self.out_dir)
+        values = metric_values(status)
+        if self.publisher is not None:
+            if values:
+                self.publisher.publish(values)
+            else:
+                self.publisher.forget()
+        log(
+            "status_published", run_ok=status["run_ok"], mqtt=self.publisher is not None, **status["pipeline"]
+        )
+        return status
+
+    def _publish_if_due(self, next_publish: float, every: float) -> float:
+        if time.monotonic() < next_publish:
+            return next_publish
+        try:
+            self.publish_status()
+        except Exception as exc:  # status is secondary to ingest; try again next hour
+            log("status_failed", error=f"{type(exc).__name__}: {exc}")
+        return time.monotonic() + every
+
+    def run_forever(
+        self, stop: threading.Event, interval: float, publish_every: float = PUBLISH_EVERY
+    ) -> None:
+        if self.publisher is not None:
+            self.publisher.start()
+        next_publish = 0.0
         while not stop.is_set():
             try:
                 result = self.run_once()
+                # after the cycle, so the first numbers include whatever was waiting at start-up
+                next_publish = self._publish_if_due(next_publish, publish_every)
                 if result.backlog_bytes:
                     continue
             except Exception as exc:  # keep going: one bad cycle must not stop the pipeline
@@ -99,7 +156,11 @@ def main() -> int:
     interval = float(os.environ.get("BRIEF_INGEST_INTERVAL", "60"))
     worker = Worker(Path(os.environ.get("BRIEF_STATE", "/state")))
     log("worker_started", version=__version__, interval=interval, miner_generation=worker.pipeline.generation)
-    worker.run_forever(stop, interval)
+    try:
+        worker.run_forever(stop, interval, float(os.environ.get("BRIEF_PUBLISH_INTERVAL", PUBLISH_EVERY)))
+    finally:
+        if worker.publisher is not None:
+            worker.publisher.stop()
     log("worker_stopped")
     return 0
 
