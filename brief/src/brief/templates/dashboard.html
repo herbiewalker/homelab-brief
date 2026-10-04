@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block body %}
+<h1>Admin</h1>
+<div class="card">
+  <p>Signed in as <strong>{{ session.username }}</strong>.</p>
+  <p class="muted">The admin pages (config editor, findings, sources, and the rest) arrive in later releases. For now you can change the password and see the <a href="/">status page</a>.</p>
+</div>
+{% endblock %}

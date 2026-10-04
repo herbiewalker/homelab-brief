@@ -1,4 +1,4 @@
 -r requirements.txt
 pytest==9.1.1
-# fastapi.testclient needs it; test-only
-httpx==0.28.1
+# fastapi.testclient needs it (httpx2 is what Starlette now asks for); test-only
+httpx2==2.13.1

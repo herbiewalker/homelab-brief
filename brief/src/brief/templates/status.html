@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}homelab-brief status{% endblock %}
+{% block body %}
+<h1>homelab-brief</h1>
+<p class="muted">Version {{ version }} &middot; up {{ uptime }}</p>
+
+{% if learning.active %}
+<div class="card banner">Learning, day {{ learning.day }} of {{ learning.of }}: baselines are being collected and novelty findings stay quiet.</div>
+{% endif %}
+
+<div class="card">
+<h2>Health</h2>
+<table>
+  <tr><td>Overall</td><td class="{{ 'ok' if health.status == 'ok' else 'bad' }}">{{ health.status }}</td></tr>
+  {% for name, c in health.checks.items() %}
+  <tr><td>{{ name }}</td><td class="{{ 'ok' if c.ok else 'bad' }}">{{ c.state or ('ok' if c.ok else 'failed') }}{% if c.last_cycle_s is defined %} ({{ c.last_cycle_s }}s ago){% endif %}</td></tr>
+  {% endfor %}
+</table>
+</div>
+
+<div class="card">
+<h2>Ingest, last 24 hours</h2>
+<table>
+  <tr><td>Events counted</td><td>{{ stats.counted }}</td></tr>
+  <tr><td>Events suppressed by ignore rules</td><td>{{ stats.suppressed }}</td></tr>
+  <tr><td>Signatures</td><td>{{ stats.signatures }}</td></tr>
+  <tr><td>Hosts (unknown)</td><td>{{ stats.hosts }} ({{ stats.unknown_hosts }})</td></tr>
+  {% if stats.last_cycle %}<tr><td>Last ingest cycle</td><td>{{ stats.last_cycle }}</td></tr>{% endif %}
+</table>
+</div>
+{% endblock %}

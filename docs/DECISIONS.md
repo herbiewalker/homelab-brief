@@ -25,6 +25,13 @@ Update this file as decisions are made. Do not decide an open item silently; ask
 | Broker | Outside the container: temporary Mosquitto now, HA's Mosquitto add-on later | Standard home for the broker |
 | Outputs | MQTT with HA discovery, Prometheus `/metrics`, versioned REST `/api/v1`, static views, optional Apprise | Industry-standard interfaces for HA and any other dashboard |
 | Admin GUI | FastAPI + Jinja2 + htmx + Alpine.js, vendored, no build step; HTTPS with login, CSRF, audit log, versioned config with rollback | Modern GUI with low overhead and strong safety for constant tweaking |
+| Web apps | Two apps from one codebase: HTTP holds only the read-only routes (`/admin` is redirected, never served), HTTPS adds `/admin`; ports from `network.yaml` with environment overrides | The admin area cannot be reached or tricked into answering over plain HTTP, because it is not there |
+| Admin access control | One router-level guard gives default-deny: a session for every `/admin` route except sign-in and setup, and a CSRF token (plus an Origin check on scheme and host) for every write | A new admin route is safe without anyone remembering to opt in |
+| Accounts and sessions | One admin account (the table allows more later); Argon2id, 12 characters minimum; server-side sessions with only a token hash stored, `__Host-` Secure HttpOnly SameSite=Strict cookies, 30 minute idle and 12 hour absolute limits, ended by sign-out and by any password change | A copy of the database cannot be used to sign in, and a stolen cookie has a short life |
+| Login throttling | Per address and per username, 5 free failures in 15 minutes then a lock of 30 seconds doubling to 15 minutes, stored in the database; unknown users answer like wrong passwords | Slows guessing without a permanent lockout and survives restarts |
+| First-run setup | `brief admin set-password` through docker exec, or a one-time token in the container log (hash stored, 24 hour expiry, replaced each start while no admin exists, works once) | No default credentials, and either path works from the Unraid console |
+| TLS | A self-signed certificate (EC P-256, 2 years) generated on first start, regenerated when its names change or it nears expiry; `cert.pem` and `key.pem` in `/config/tls` are used instead and never overwritten; no HSTS | Works out of the box, and a changing self-signed certificate must not lock people out |
+| Health | `/healthz` covers the database, the worker (a recent `ingest.cycle_seconds` metric), and the receiver, and Docker's health check uses it | A crashed worker or Vector no longer leaves the container looking healthy |
 | Command line | `brief` CLI for every GUI action; default access via Unraid SSH plus `docker exec`; optional in-container SSH, key-only, off by default | Command line when needed without widening the attack surface by default |
 | Power | Home Assistant collects power and energy; the container reads chosen entities via MQTT statestream; iDRAC optional | HA's Energy dashboard, Zigbee, and NUT; no HA token in the container |
 | Releases | Versioned images built by GitHub Actions to a private registry; never `latest`; excluded from CA auto-update | Repeatable, deliberate upgrades |
@@ -129,7 +136,10 @@ Expected licenses come from general knowledge. Verify each at pin time and fill 
 | Uvicorn | BSD-3-Clause | 2026-10-03 (PyPI) |
 | htmx | BSD (verify which variant for the pinned version) | 2026-10-03 (npm reports 0BSD for 2.0.11) |
 | Alpine.js | MIT | 2026-10-03 (npm) |
-| argon2-cffi | MIT | |
+| argon2-cffi | MIT | 2026-10-04 (PyPI) |
+| python-multipart | Apache-2.0 | 2026-10-04 (PyPI) |
+| cryptography | Apache-2.0 OR BSD-3-Clause | 2026-10-04 (PyPI) |
+| httpx2 (dev) | BSD-3-Clause | 2026-10-04 (PyPI) |
 | s6-overlay (chosen over supervisord) | ISC | 2026-10-03 (COPYING in v3.2.3.2) |
 | Apprise (optional) | BSD-2-Clause | |
 | SNMP library, for example pysnmp (optional) | BSD-2-Clause | |
@@ -163,8 +173,10 @@ Not open source and not replaceable here: Unraid, UniFi hardware and firmware, F
 | Uvicorn | 0.54.0 | 2026-10-03 |
 | s6-overlay | 3.2.3.2 (x86_64, sha256-checked in the Dockerfile) | 2026-10-03 |
 | pytest (dev) | 9.1.1 | 2026-10-03 |
-| httpx (dev, for FastAPI's TestClient) | 0.28.1 | 2026-10-03 |
-| argon2-cffi | 25.1.0 (not yet in requirements; added in Task 6) | 2026-10-03 |
+| httpx2 (dev, for FastAPI's TestClient; replaces httpx, which Starlette now deprecates) | 2.13.1 | 2026-10-03 |
+| argon2-cffi | 25.1.0 (Task 6) | 2026-10-03 |
+| python-multipart | 0.0.32 (Task 6; form parsing; Apache-2.0) | 2026-10-04 |
+| cryptography | 50.0.2 (Task 6; generates the self-signed certificate; Apache-2.0 OR BSD-3-Clause) | 2026-10-04 |
 | htmx | 2.0.11 (to vendor in Task 15) | 2026-10-03 |
 | Alpine.js | 3.17.4 (to vendor in Task 15) | 2026-10-03 |
 | Cytoscape.js | 3.34.3 (to vendor in Task 25) | 2026-10-03 |
@@ -196,3 +208,4 @@ Details of any one install belong in its instance folder, not here.
 - Task 3 built and verified end to end: parser with 26 Vector unit tests, sender gate, archive, backfill, port and allowlist rendering, archive compression, replay and report scripts, and a five-scenario end-to-end check that CI runs. Gotchas worth keeping: in VRL `to_int(null)` is 0 rather than an error (it silently overwrote a good time until a test caught it); VRL's type inference rejects `to_string(...) ?? x` in some places and requires it in others, so keep the message in a local string variable; Vector will not create its `data_dir`; and Docker's port proxy accepts connections before the container is listening, so wait on Vector's own log lines. The Vector config moved into the image (it used to be expected under `/config/vector`).
 - Task 4 built: the SQLite store with migrations, a single-writer helper, signature id mapping with miner generations, and the baseline, alert, feedback, and audit tables, with 31 tests. Decided within the task: `prev_last_seen` semantics (quiet gap, above), CHECK constraints on `hourly` (hour 0-23, counts not negative), and a `meta` table for the miner generation. A batch that spans long gaps (a backfill) should call `touch_signature` once per hour bucket, because the gap is judged from the first timestamp given.
 - Task 5 built and verified end to end: event-time parsing, systems and ignore loaders, the Drain3 wrapper, the offset-tracked ingest cycle with one transaction per cycle, the worker loop with last-good config reload, and an `ingest` scenario in the end-to-end check that runs the whole path (samples, Vector, event files, worker, database). On the full private sample set (2,800 lines) Drain3 produced 278 signatures, and the most numerous templates are the expected telemetry and DHCP lines. Also changed: the quiet gap for `prev_last_seen` is 24 hours (one hour let a later short gap overwrite a "returned after N days" signal), and household-specific wording was removed from `ignore.yaml`, the brief guide, and the project plan.
+- Task 6 built: the web apps, the guarded admin area with login, logout, setup, and change-password, throttling, TLS, the CLI command, and the health model, with an end-to-end check over real TLS. Fixed a latent Task 4 bug it exposed (two processes starting on a fresh database raced on the migration; each migration is now re-checked under the write lock and statements run inside our own transaction). FastAPI keeps an included router lazy, so tests walk the router object (`app.state.admin_router`) instead of `app.routes`. The Origin check must compare the scheme as well as the host; a test caught that it did not. Not done: the admin GUI pages (Task 15), TOTP and single sign-on (later). The HTTPS port a browser should use when the template maps a different one is `HTTPS_PUBLIC_PORT`.

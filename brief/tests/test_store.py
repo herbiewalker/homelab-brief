@@ -380,3 +380,33 @@ def test_two_stores_on_one_file_take_turns_like_the_worker_and_the_web_server(tm
     assert rows(worker, "SELECT n FROM hourly")[0]["n"] == 120
     worker.close()
     web.close()
+
+
+def test_two_processes_starting_on_a_fresh_database_do_not_fight_over_the_migration(tmp_path):
+    path = tmp_path / "baseline.db"
+    errors, stores = [], []
+    barrier = threading.Barrier(6)
+
+    def start():
+        try:
+            barrier.wait()
+            stores.append(s.Store(path))
+        except Exception as exc:  # noqa: BLE001 - the test reports whatever went wrong
+            errors.append(repr(exc))
+
+    threads = [threading.Thread(target=start) for _ in range(6)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert errors == [] and len(stores) == 6
+    assert {st.schema_version for st in stores} == {LATEST}
+    [st.close() for st in stores]
+
+
+def test_a_migration_with_comments_and_several_statements_runs_whole(tmp_path):
+    path = tmp_path / "baseline.db"
+    base = s.load_migrations()
+    script = "-- a comment\nCREATE TABLE one (x INTEGER);\n-- another; with a semicolon\nCREATE TABLE two (y INTEGER);\n-- trailing\n"
+    st = s.Store(path, migrations=[*base, s.Migration(len(base) + 1, "two_tables", script)])
+    names = {r["name"] for r in rows(st, "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert {"one", "two"} <= names
+    st.close()

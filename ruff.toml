@@ -5,3 +5,8 @@ extend-exclude = ["**/*.md"]
 
 [lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[lint.per-file-ignores]
+# Long literal strings (log lines, SQL, HTML) read better unwrapped in tests and the end-to-end scripts.
+"**/tests/**" = ["E501"]
+"scripts/e2e_*.py" = ["E501"]

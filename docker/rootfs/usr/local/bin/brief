@@ -1,0 +1,6 @@
+#!/bin/sh
+# The `brief` command. Run as the brief user so the database files it touches keep their owner.
+if [ "$(id -u)" = "0" ]; then
+  exec /command/s6-setuidgid brief /opt/venv/bin/python -m brief "$@"
+fi
+exec /opt/venv/bin/python -m brief "$@"

@@ -101,12 +101,33 @@ def migrate(
         target.close()
     for m in pending:
         try:
-            conn.executescript(f"BEGIN IMMEDIATE;\n{m.sql}\nPRAGMA user_version = {m.version};\nCOMMIT;")
+            conn.execute("BEGIN IMMEDIATE")
+            # The worker and the web server start together. If the other one got here first while
+            # we waited for the lock, this migration is already done.
+            if _version(conn) >= m.version:
+                conn.execute("ROLLBACK")
+                continue
+            for statement in _statements(m.sql):
+                conn.execute(statement)
+            conn.execute(f"PRAGMA user_version = {m.version}")
+            conn.execute("COMMIT")
         except sqlite3.Error as exc:
             if conn.in_transaction:
                 conn.execute("ROLLBACK")
             raise StoreError(f"migration {m.version:04d}_{m.name} failed and was rolled back: {exc}") from exc
     return _version(conn)
+
+
+def _statements(sql: str) -> Iterator[str]:
+    """Split a migration script into complete statements, so they run inside our own transaction."""
+    buffer = ""
+    for line in sql.splitlines(keepends=True):
+        buffer += line
+        if sqlite3.complete_statement(buffer):
+            yield buffer
+            buffer = ""
+    if any(ln.strip() and not ln.strip().startswith("--") for ln in buffer.splitlines()):
+        yield buffer
 
 
 class Tx:

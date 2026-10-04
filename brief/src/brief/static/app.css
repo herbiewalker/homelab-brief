@@ -1,0 +1,33 @@
+/* One small stylesheet for the status page and the admin pages. No scripts anywhere. */
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9; --fg: #1b1f24; --muted: #5b6573; --card: #ffffff; --line: #d8dde4;
+  --accent: #2457c5; --ok: #1a7f37; --warn: #9a6700; --bad: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151a; --fg: #e6e9ee; --muted: #9aa5b4; --card: #1b2028; --line: #2d3541;
+    --accent: #7aa2ff; --ok: #4ac26b; --warn: #e3b341; --bad: #ff7b72;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+main { max-width: 46rem; margin: 0 auto; padding: 1rem; }
+header.top { display: flex; gap: 1rem; align-items: baseline; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid var(--line); background: var(--card); }
+header.top a { color: var(--accent); text-decoration: none; margin-right: 1rem; }
+h1 { font-size: 1.4rem; margin: 1rem 0 0.5rem; }
+h2 { font-size: 1.05rem; margin: 1.25rem 0 0.4rem; color: var(--muted); font-weight: 600; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+table { width: 100%; border-collapse: collapse; }
+td, th { text-align: left; padding: 0.3rem 0.25rem; border-bottom: 1px solid var(--line); }
+td:last-child { text-align: right; }
+.ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+.muted { color: var(--muted); font-size: 0.9rem; }
+.banner { border-left: 4px solid var(--warn); }
+label { display: block; margin: 0.75rem 0 0.2rem; font-weight: 600; }
+input[type=text], input[type=password] { width: 100%; padding: 0.55rem; font: inherit; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+button { margin-top: 1rem; padding: 0.55rem 1.1rem; font: inherit; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+button.link { background: none; color: var(--accent); padding: 0; margin: 0; }
+.error { border-left: 4px solid var(--bad); }
+.notice { border-left: 4px solid var(--ok); }
+form.inline { display: inline; }

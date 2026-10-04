@@ -16,15 +16,24 @@ Old tablets struggle with self-signed certificates, which is why the read-only v
 
 ## Security model
 
-- **No default credentials.** First-run setup uses `brief admin set-password` from the command line, or a one-time setup token printed to the container log.
-- **Passwords** are hashed with Argon2.
-- **Sessions** use Secure, HttpOnly, SameSite=Strict cookies and expire after inactivity.
-- **CSRF protection** covers every write.
-- **Failed logins** are rate-limited.
-- **TLS** uses a self-signed certificate generated on first start; replace it with your own (or put the GUI behind your existing reverse proxy) whenever you like.
-- **Audit log.** Every admin change (config edit, rollback, acknowledge, collector toggle, password change) is recorded with time, user, and what changed. It is viewable in the GUI.
+The code is `brief/src/brief/web.py` (the apps), `auth.py` (accounts, sessions, throttling), `tlscert.py`, and `serve.py`. `scripts/e2e_web.py` checks all of it against the built image over real TLS.
+
+- **Two apps, one codebase.** The HTTP app holds only the read-only routes, so the admin area does not exist there: `GET /admin` is redirected to HTTPS, and a write to it is refused unprocessed. The HTTPS app adds `/admin`. Ports come from `brief/network.yaml` (`ports.http`, `ports.https`), with `HTTP_PORT`, `HTTPS_PORT`, and `HTTPS_PUBLIC_PORT` (the port a browser should use when the template maps a different one) as environment overrides.
+- **No default credentials.** The first admin is created either with `docker exec -it homelab-brief brief admin set-password`, or on `/admin/setup` with a one-time token printed to the container log as a `setup_token` line. The token is stored only as a hash, expires after 24 hours, is replaced at every start while no admin exists, and works once. A weak password does not use it up.
+- **Passwords** are hashed with Argon2id, at least 12 characters (length matters, there are no composition rules), and are never logged or stored in the clear.
+- **Sessions** are server-side. The cookie (`__Host-brief_session`: Secure, HttpOnly, SameSite=Strict, no domain, path `/`) holds a random 256-bit token; only its SHA-256 is stored. A session ends after 30 minutes idle or 12 hours in all, on sign-out, and on any password change.
+- **Default-deny guard.** One dependency on the whole `/admin` router requires a session for every route except sign-in and setup, and requires a CSRF token for every write (any method but GET, HEAD, OPTIONS). A route added later is protected without anyone remembering to opt in. A test walks the router to prove it, and another proves nothing is registered under `/admin` outside it.
+- **CSRF protection** uses a token bound to the session (a hidden form field, or an `X-CSRF-Token` header for scripts), a double-submit cookie before sign-in, and an Origin or Referer check that must match this site's scheme and host.
+- **Failed logins are throttled** per address and per username (5 free failures in 15 minutes, then a lock of 30 seconds that doubles up to 15 minutes). The failures live in the database, so a restart does not reset them, even the right password waits out a lock, and an unknown username answers exactly like a wrong password. Only the direct peer address is trusted (no proxy headers).
+- **TLS** uses a self-signed certificate generated on first start that names the advertised address, this host, and `localhost`, and is regenerated when those change or it nears expiry. Put `cert.pem` and `key.pem` in `/config/tls` to use your own (or put the GUI behind your existing reverse proxy); a certificate you supply is never overwritten. There is no HSTS, because a self-signed certificate that changes would lock people out.
+- **Headers:** every response sends a strict Content-Security-Policy (no scripts at all today), nosniff, frame denial, and no referrer, and admin pages are `no-store`.
+- **Audit log.** Every sign-in, failed sign-in, throttled attempt, sign-out, password change, failed setup, and account creation is recorded with time, user, and address (never a password).
 - **LAN only.** Do not route the admin GUI through a Cloudflare tunnel or any public reverse proxy. For remote administration use a VPN (Tailscale, for example).
 - **Later:** single sign-on (OIDC) and an optional TOTP second factor.
+
+### Health
+
+`/healthz` (HTTP, no login) returns 200 or 503. It checks that the database is readable, that the worker has completed a cycle recently (it records an `ingest.cycle_seconds` metric each cycle, with a grace period after start), and that the syslog receiver accepts connections. Docker's health check uses it, so a crashed worker or Vector now shows as unhealthy. The status page at `/` shows the same checks with the last 24 hours of ingest and the learning banner, with no JavaScript, for old tablets.
 
 ## GUI
 

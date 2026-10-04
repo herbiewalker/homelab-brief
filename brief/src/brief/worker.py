@@ -5,28 +5,22 @@ if an edit is broken (the error is logged), then reads new events and flushes on
 a backlog (a backfill) the next cycle starts straight away instead of waiting.
 """
 
-import json
 import os
 import signal
 import sys
 import threading
-from datetime import UTC, datetime
 from pathlib import Path
 
 from brief import __version__
 from brief.config import ConfigError, config_file, load_mapping
 from brief.ignore import IgnoreRules
 from brief.ingest import CycleResult, Pipeline
+from brief.jsonlog import log
 from brief.signatures import Signatures
 from brief.store import Store
 from brief.systems import Systems
 
 HEARTBEAT_EVERY = 10  # quiet cycles between "still running" log lines
-
-
-def log(event: str, **fields) -> None:
-    record = {"ts": datetime.now(UTC).isoformat(), "event": event, **fields}
-    print(json.dumps(record), flush=True)
 
 
 class Worker:

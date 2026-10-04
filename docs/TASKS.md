@@ -56,13 +56,14 @@ Phase 1 runs in order. Ingestion is deployed early (Task 7) so real history accu
 - Status: done and verified end to end. `ingest.py`, `signatures.py`, `systems.py`, `ignore.py`, `timeparse.py`, `learning.py`, `config.py`, and the worker loop, with migration `0002_ingest.sql`; 88 new tests (replays do not double count, partial lines wait, restarts, midnight rollover, backfilled events land in their own hours, unknown hosts, ignore rules, lost miner state, failed flush rolls back, byte budget, last-good config). The end-to-end check has an `ingest` scenario: 374 sample lines through Vector and the worker into the database. Still ahead: the scheduler's other jobs and self-monitoring metrics (Task 14), and the detectors that read this data (Task 8).
 
 ## Task 6: Web app foundation and security
-- [ ] FastAPI app served by Uvicorn inside the container: read-only views on HTTP (brief, status board, map, `status.json`) and `/admin` on HTTPS only.
-- [ ] Local admin account: first-run setup through the CLI (`brief admin set-password`) or a one-time setup token printed to the container log; passwords hashed with Argon2; no default credentials.
-- [ ] Sessions with Secure, HttpOnly, SameSite=Strict cookies; CSRF protection on every write; login rate limiting; an `audit_log` row for every admin change.
-- [ ] TLS: self-signed certificate generated on first start, replaceable with your own; HTTP to HTTPS redirect for `/admin` only.
-- [ ] Listen ports come from `brief/network.yaml` (with environment overrides for first start), so the same image runs in own-IP, host, and bridge modes.
-- [ ] `/healthz` and a minimal status page (version, uptime, ingest rate, last runs, errors). Structured JSON logs to stdout.
+- [x] FastAPI app served by Uvicorn inside the container: read-only views on HTTP (brief, status board, map, `status.json`) and `/admin` on HTTPS only.
+- [x] Local admin account: first-run setup through the CLI (`brief admin set-password`) or a one-time setup token printed to the container log; passwords hashed with Argon2; no default credentials.
+- [x] Sessions with Secure, HttpOnly, SameSite=Strict cookies; CSRF protection on every write; login rate limiting; an `audit_log` row for every admin change.
+- [x] TLS: self-signed certificate generated on first start, replaceable with your own; HTTP to HTTPS redirect for `/admin` only.
+- [x] Listen ports come from `brief/network.yaml` (with environment overrides for first start), so the same image runs in own-IP, host, and bridge modes.
+- [x] `/healthz` and a minimal status page (version, uptime, ingest rate, last runs, errors). Structured JSON logs to stdout.
 - Accept: `/admin` is unreachable without login; a write without a CSRF token is rejected; repeated failed logins are throttled; the read-only views work without login on old tablets.
+- Status: done and verified end to end. HTTP and HTTPS apps from one codebase (`web.py`), a default-deny guard on `/admin`, Argon2id accounts, server-side sessions with hardened cookies, CSRF, per-address and per-user login throttling, a one-time setup token and `brief admin set-password`, a self-signed certificate that is replaced by yours, ports from `network.yaml`, JSON logs, and a `/healthz` that covers the database, the worker, and the receiver. Migration `0003_admin.sql`. 94 new tests, and `scripts/e2e_web.py` drives the built image over real TLS (CI runs it). Fixed on the way: two processes starting together on a fresh database could race on the migration (it is now re-checked under the write lock). Only login, sign-out, and change-password exist under `/admin` so far; the GUI pages are Task 15.
 
 ## Task 7: Thin slice and early deploy
 - [ ] Minimal `status.json` (run_ok, events_24h, new_signatures_24h, hosts_silent) and a minimal MQTT publisher for two sensors with availability.

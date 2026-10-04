@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}homelab-brief{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <nav>
+    <a href="/">Status</a>
+    {% if session %}<a href="/admin">Admin</a><a href="/admin/account">Account</a>{% endif %}
+  </nav>
+  {% if session %}
+  <form class="inline" method="post" action="/admin/logout">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <span class="muted">{{ session.username }}</span> <button class="link" type="submit">Sign out</button>
+  </form>
+  {% endif %}
+</header>
+<main>
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>
