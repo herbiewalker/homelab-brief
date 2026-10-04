@@ -46,33 +46,28 @@ Notes:
 
 SQLite in WAL mode at `/state/baseline.db` (pool path, not `/mnt/user`). No server, almost no memory, and exporting history is a plain query.
 
-```sql
-CREATE TABLE signature (
-  sig_id INTEGER PRIMARY KEY AUTOINCREMENT,      -- our own id, never Drain3's
-  miner_generation INTEGER, cluster_id INTEGER,  -- Drain3 identity within one miner state
-  app TEXT, template TEXT,
-  first_seen TEXT, last_seen TEXT,
-  prev_last_seen TEXT,                           -- for "returned after N quiet days"
-  ignored INTEGER DEFAULT 0,
-  UNIQUE (miner_generation, cluster_id)
-);
-CREATE TABLE host (
-  host TEXT PRIMARY KEY, system_id TEXT,
-  first_seen TEXT, last_seen TEXT,
-  expected_gap_min INTEGER                       -- learned typical gap between lines
-);
-CREATE TABLE hourly (
-  day TEXT, hour INTEGER, host TEXT, sig_id INTEGER, severity TEXT,
-  n INTEGER,
-  PRIMARY KEY (day, hour, host, sig_id, severity)
-);
-CREATE TABLE sample (sig_id INTEGER, ts TEXT, host TEXT, msg TEXT);   -- last few lines per signature
-CREATE TABLE metric (ts TEXT, metric_id TEXT, value REAL);           -- numeric series
-CREATE TABLE audit_log (ts TEXT, user TEXT, action TEXT, detail TEXT); -- admin changes
-CREATE INDEX hourly_sig ON hourly (sig_id, day);
-```
+The schema is the numbered SQL files in `brief/src/brief/migrations/` (`0001_baseline.sql` is the starting point), applied by `brief.store`. Phase 2 tables arrive as later migrations.
 
-The alert, feedback, and Phase 2 tables are defined in `03-brief.md`, `06-phase2-device-intelligence.md`, and `07-network-map.md`.
+| Table | Holds |
+| --- | --- |
+| `signature` | One row per message template: our `sig_id`, the Drain3 identity `(miner_generation, cluster_id)`, `app`, `template`, `first_seen`, `last_seen`, `prev_last_seen`, `ignored` |
+| `host` | One row per sender: `system_id`, `first_seen`, `last_seen`, `expected_gap_min` |
+| `hourly` | Event counts by event hour: `(day, hour, host, sig_id, severity) -> n` |
+| `sample` | The newest few raw lines per signature |
+| `metric` | Numeric series from collectors and self-monitoring |
+| `audit_log` | Every admin change |
+| `alert`, `feedback` | The notification lifecycle and acknowledgements (see `03-brief.md`) |
+| `meta` | The program's own state, such as `miner_generation` |
+
+How the store behaves:
+
+- **Migrations:** numbered files, each applied in one transaction (`PRAGMA user_version` records the level). Before upgrading an existing database a copy is saved as `baseline.db.pre-v<N>`, and a database written by a newer program is refused instead of touched.
+- **Writes:** one writer at a time. `Store.write()` serializes threads and opens one transaction per cycle, so a whole ingest cycle commits together or not at all (no per-line writes). The worker and the web server each hold their own `Store` and SQLite arbitrates between them (5 second busy timeout). Readers use read-only connections, which WAL lets run alongside the writer.
+- **Times** are UTC text such as `2026-09-26T13:22:33Z`, so they sort as strings.
+- **`sig_id` is ours,** not Drain3's. `(miner_generation, cluster_id)` maps to a `sig_id` that is never reused. When `drain3.bin` is lost, `bump_miner_generation()` starts a new generation, so the new miner's cluster ids cannot collide with history.
+- **`first_seen` and `last_seen` follow event time:** `first_seen` only moves earlier (a backfill), `last_seen` only later.
+- **`prev_last_seen`** keeps the `last_seen` from before the most recent quiet gap (one hour by default), which is what "returned after N quiet days" needs. It is not touched while activity continues.
+- **`hourly` counts accumulate** on the same key, so a flush adds to what is there.
 
 ## 2c. Signatures with Drain3
 

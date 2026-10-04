@@ -120,16 +120,7 @@ Every push goes through the lifecycle in `brief/priorities.yaml`, so a lasting p
 - **Budget:** non-urgent pushes beyond `daily_push_budget` fold into the next daily headline.
 - **Feedback:** Home Assistant notification buttons publish `ack`, `snooze_24h`, or `snooze_7d` to `homelab/brief/feedback/<finding_id>`. Acknowledged or snoozed findings drop to the digest until they get worse.
 
-```sql
-CREATE TABLE alert (
-  finding_id TEXT PRIMARY KEY, kind TEXT, rule TEXT, level TEXT,
-  state TEXT,                       -- open | acked | snoozed | resolved
-  first_sent TEXT, last_sent TEXT, last_value TEXT, snooze_until TEXT
-);
-CREATE TABLE feedback (
-  ts TEXT, finding_id TEXT, action TEXT
-);
-```
+The `alert` table (`finding_id`, `kind`, `rule`, `level`, `state`, `first_sent`, `last_sent`, `last_value`, `snooze_until`; `state` is open, acked, snoozed, or resolved) and the `feedback` table (`ts`, `finding_id`, `action`) are defined in `brief/src/brief/migrations/0001_baseline.sql`.
 
 Alert payloads carry the lifecycle state (`new`, `repeat`, `escalated`, `resolved`) so Home Assistant can format them differently.
 
