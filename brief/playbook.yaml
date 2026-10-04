@@ -8,6 +8,7 @@
 schema: 1
 
 thresholds:
+  learning: { days: 7 }        # live days of baseline collection before novelty and deviation findings
   novelty: { quiet_days_before_return: 7 }
   deviation: { window_days: 14, min_count: 20, mad_multiple: 4 }
   off_hours: { window_days: 14, min_count: 3 }

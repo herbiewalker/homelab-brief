@@ -21,7 +21,7 @@ from pathlib import Path
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 TIME_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
-QUIET_GAP = timedelta(hours=1)
+QUIET_GAP = timedelta(hours=24)
 ALERT_COLUMNS = ("kind", "rule", "level", "state", "first_sent", "last_sent", "last_value", "snooze_until")
 ALERT_STATES = ("open", "acked", "snoozed", "resolved")
 
@@ -145,8 +145,9 @@ class Tx:
 
         first_seen only moves earlier (a backfill), last_seen only later. When activity resumes
         after at least quiet_gap of silence, prev_last_seen keeps the last_seen from before that
-        gap, which is what "returned after N quiet days" needs. Feed one cycle's range per call;
-        for a batch that spans long gaps (a backfill), call once per hour bucket.
+        gap, which is what "returned after N quiet days" needs. Feed one UTC day's range per call:
+        a gap of a day or more cannot hide inside a day, so a batch that spans a backfill is fed
+        day by day, oldest first.
         """
         row = self.db.execute(
             "SELECT first_seen, last_seen, prev_last_seen FROM signature WHERE sig_id = ?", (sig_id,)
@@ -175,16 +176,22 @@ class Tx:
         )
 
     def touch_host(
-        self, host: str, first_ts: datetime | str, last_ts: datetime | str, system_id: str | None = None
+        self,
+        host: str,
+        first_ts: datetime | str,
+        last_ts: datetime | str,
+        system_id: str | None = None,
+        known: bool = True,
     ) -> None:
         first, last = iso(first_ts), iso(last_ts)
         self.db.execute(
-            "INSERT INTO host (host, system_id, first_seen, last_seen) VALUES (?, ?, ?, ?) "
+            "INSERT INTO host (host, system_id, first_seen, last_seen, known) VALUES (?, ?, ?, ?, ?) "
             "ON CONFLICT (host) DO UPDATE SET "
             "first_seen = MIN(first_seen, excluded.first_seen), "
             "last_seen = MAX(last_seen, excluded.last_seen), "
-            "system_id = COALESCE(excluded.system_id, system_id)",
-            (host, system_id, first, last),
+            "system_id = COALESCE(excluded.system_id, system_id), "
+            "known = excluded.known",
+            (host, system_id, first, last, int(known)),
         )
 
     def set_expected_gap(self, host: str, minutes: int) -> None:
@@ -209,6 +216,29 @@ class Tx:
             "INSERT INTO metric (ts, metric_id, value) VALUES (?, ?, ?)",
             [(iso(ts), metric_id, value) for ts, metric_id, value in rows],
         )
+
+    def add_suppressed(self, rows: Iterable[tuple[str, int, str, str, int]]) -> None:
+        """Count events removed by an ignore rule: (day, hour, host, rule, n)."""
+        self.db.executemany(
+            "INSERT INTO suppressed (day, hour, host, rule, n) VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT (day, hour, host, rule) DO UPDATE SET n = n + excluded.n",
+            rows,
+        )
+
+    # --- ingest offsets ---
+    def offsets(self) -> dict[str, int]:
+        return {r["path"]: r["offset"] for r in self.db.execute("SELECT path, offset FROM ingest_offset")}
+
+    def set_offsets(self, offsets: dict[str, int], ts: datetime | str | None = None) -> None:
+        now = iso(ts or datetime.now(UTC))
+        self.db.executemany(
+            "INSERT INTO ingest_offset (path, offset, updated) VALUES (?, ?, ?) "
+            "ON CONFLICT (path) DO UPDATE SET offset = excluded.offset, updated = excluded.updated",
+            [(path, offset, now) for path, offset in offsets.items()],
+        )
+
+    def forget_offsets(self, paths: Iterable[str]) -> None:
+        self.db.executemany("DELETE FROM ingest_offset WHERE path = ?", [(p,) for p in paths])
 
     # --- admin audit, alerts, feedback ---
     def audit(
@@ -251,6 +281,15 @@ class Tx:
     def get_meta(self, key: str, default: str | None = None) -> str | None:
         row = self.db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else default
+
+    def note_live_data(self, received: datetime | str) -> None:
+        """Remember when live (not imported) data first arrived; the learning period counts from it."""
+        self.db.execute("INSERT OR IGNORE INTO meta (key, value) VALUES ('live_since', ?)", (iso(received),))
+
+    def signature_count(self, generation: int) -> int:
+        return self.db.execute(
+            "SELECT COUNT(*) FROM signature WHERE miner_generation = ?", (generation,)
+        ).fetchone()[0]
 
     def miner_generation(self) -> int:
         """The current Drain3 miner generation (1 until the miner state is ever lost)."""

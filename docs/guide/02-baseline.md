@@ -66,41 +66,32 @@ How the store behaves:
 - **Times** are UTC text such as `2026-09-26T13:22:33Z`, so they sort as strings.
 - **`sig_id` is ours,** not Drain3's. `(miner_generation, cluster_id)` maps to a `sig_id` that is never reused. When `drain3.bin` is lost, `bump_miner_generation()` starts a new generation, so the new miner's cluster ids cannot collide with history.
 - **`first_seen` and `last_seen` follow event time:** `first_seen` only moves earlier (a backfill), `last_seen` only later.
-- **`prev_last_seen`** keeps the `last_seen` from before the most recent quiet gap (one hour by default), which is what "returned after N quiet days" needs. It is not touched while activity continues.
+- **`prev_last_seen`** keeps the `last_seen` from before the most recent quiet gap (24 hours by default), which is what "returned after N quiet days" needs. It is not touched while activity continues.
 - **`hourly` counts accumulate** on the same key, so a flush adds to what is there.
 
 ## 2c. Signatures with Drain3
 
-Prefix each message with its app name so templates stay app-specific, and persist the miner state so signatures survive restarts.
+Each message is mined as `<app>: <message>` so templates stay app-specific. The code is `brief/src/brief/signatures.py`; `brief/drain3.ini` holds the masking rules (IPs, MACs, numbers), and masking is what turns thousands of near-duplicate lines into one signature.
 
-```python
-from drain3 import TemplateMiner
-from drain3.file_persistence import FilePersistence
-from drain3.template_miner_config import TemplateMinerConfig
-
-cfg = TemplateMinerConfig()
-cfg.load("/config/drain3.ini")
-miner = TemplateMiner(FilePersistence("/state/drain3.bin"), cfg)
-
-result = miner.add_log_message(f"{app}: {msg}")
-cluster_id = result["cluster_id"]      # Drain3's id; map to our own sig_id via (miner_generation, cluster_id)
-template = result["template_mined"]     # evolves as the miner generalizes
-```
-
-`brief/drain3.ini` holds the masking rules (IPs, MACs, numbers). Masking is what turns thousands of near-duplicate lines into one signature. Update `signature.template` when the miner changes a template. If `drain3.bin` is ever lost, increment `miner_generation` so new clusters get new `sig_id` values instead of colliding with history.
+- Drain3 saves its state to `/state/drain3.bin` on every new cluster or template change, so the miner is always at least as new as the database.
+- Drain3's cluster id maps to our own `sig_id` through `(miner_generation, cluster_id)` (see 2b). If `drain3.bin` is lost or unreadable at start, the pipeline starts a new `miner_generation` and records it in the audit log, so new clusters cannot collide with history.
+- An exact-match cache in front of the miner makes a storm of identical lines cheap, and very long lines are trimmed before mining.
+- Update `signature.template` when the miner changes a template.
 
 ## 2d. Ingest loop
 
-1. Every 60 seconds, read new bytes from today's (and yesterday's, near midnight) event file, tracking byte offsets in `/state/offsets.json`. Consume only complete lines.
-2. Normalize each event's time to UTC: CEF or JSON timestamps when present; otherwise the header time with the host's `source_tz` and an inferred year (rolled back a year if it lands in the future); receive time as a flagged fallback.
-3. Map the host to its system via `systems.yaml`; unknown hosts roll up to `default_system` and appear on the admin GUI's Sources page.
-4. Run each event through the ignore list, then the miner.
-5. Accumulate counts in memory by event hour and flush to `hourly` in one transaction per cycle, updating `signature.last_seen` (and `prev_last_seen`), `host.last_seen`, and a few `sample` rows.
-6. Record ingest lag, events per cycle, and receive rate per source for self-monitoring.
+The code is `brief/src/brief/ingest.py`, run by the worker (`brief/src/brief/worker.py`) every 60 seconds (`BRIEF_INGEST_INTERVAL`), and straight away again while there is a backlog.
+
+1. List the event files each cycle (a new day and the backfill appear on their own) and read each from its stored offset. Offsets live in the `ingest_offset` table and commit in the same transaction as the counts they produced, so a crash can neither double count nor lose a line, and re-running a cycle over the same files counts nothing twice. Only complete lines are consumed; a half-written last line waits. A file that shrank is read again from the start. A byte budget per cycle (32 MiB) spreads a large backlog over cycles.
+2. Normalize each event's time to UTC (`brief/src/brief/timeparse.py`): a precise `epoch_ms` when the line has one; otherwise the header time read in the host's `source_tz` with the year inferred (a time more than a day ahead of the receive time belongs to the previous year); otherwise the receive time, which is counted as a fallback.
+3. Map the host to its system (`brief/src/brief/systems.py`). Unknown hosts roll up to `default_system` with `host.known = 0` and appear on the admin GUI's Sources page.
+4. Run each event through the ignore list (`brief/src/brief/ignore.py`), then the miner. An ignored event is counted per rule in `suppressed`; an event whose signature is marked ignored is counted as `signature:<id>`. Neither goes into `hourly`, but both refresh the host's last-seen time.
+5. Accumulate counts in memory by event hour and flush in one transaction per cycle: signatures (first, last, and previous last seen, fed one UTC day at a time, oldest first), `hourly`, `suppressed`, `host`, a few `sample` rows, the offsets, and a few `ingest.*` metrics (events, backlog bytes, cycle seconds, lag).
+6. Config is reloaded every cycle. A broken `systems.yaml` or `ignore.yaml` keeps the last good version and logs a `config_error`. Default config files ship in the image (`/app/defaults/brief`); a file in `/config/brief` overrides its default.
 
 ## 2e. Learning period and backfill
 
-- **Learning period:** for the first 7 days of live data, collect baselines but suppress novelty and deviation findings. The brief shows "learning, day N of 7". With the backfill imported, the learning period can be shortened in config.
+- **Learning period:** for the first 7 days of live data, collect baselines but suppress novelty and deviation findings. The brief shows "learning, day N of 7". The clock starts at the first live event (`meta.live_since`), not at a backfill, and the length is `thresholds.learning.days` in `playbook.yaml`; with the backfill imported it can be shortened (`brief/src/brief/learning.py`).
 - **Backfill:** see `01-collect.md`, section 1c. Imported lines land in their own hours because counts use event time.
 - **Early deploy:** deploy as soon as ingest works locally (Task 7), so real history accumulates while the rest is built.
 

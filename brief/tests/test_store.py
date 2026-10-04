@@ -7,7 +7,8 @@ import pytest
 from brief import store as s
 
 T0 = "2026-09-20T10:00:00Z"
-MIGRATION_2 = s.Migration(2, "extra", "CREATE TABLE extra (x INTEGER);")
+LATEST = len(s.load_migrations())
+EXTRA = s.Migration(LATEST + 1, "extra", "CREATE TABLE extra (x INTEGER);")
 
 
 @pytest.fixture
@@ -38,7 +39,7 @@ def test_a_new_database_has_the_whole_baseline_schema_in_wal_mode(db):
         "alert",
         "feedback",
     } <= names
-    assert db.schema_version == 1
+    assert db.schema_version == LATEST
     assert rows(db, "PRAGMA journal_mode")[0]["journal_mode"] == "wal"
     assert db.check()
 
@@ -52,7 +53,7 @@ def test_reopening_is_a_no_op_and_keeps_the_data(tmp_path):
     b = s.Store(path)
     with b.write() as tx:
         assert tx.get_meta("k") == "v"
-    assert b.schema_version == 1
+    assert b.schema_version == LATEST
     assert not list(tmp_path.glob("*.pre-v*"))
     b.close()
 
@@ -73,10 +74,10 @@ def test_a_new_migration_is_applied_and_the_old_database_is_backed_up_first(tmp_
     with first.write() as tx:
         tx.set_meta("keep", "me")
     first.close()
-    upgraded = s.Store(path, migrations=[*s.load_migrations(), MIGRATION_2])
-    assert upgraded.schema_version == 2
+    upgraded = s.Store(path, migrations=[*s.load_migrations(), EXTRA])
+    assert upgraded.schema_version == LATEST + 1
     assert rows(upgraded, "SELECT name FROM sqlite_master WHERE name = 'extra'")
-    backup = tmp_path / "baseline.db.pre-v1"
+    backup = tmp_path / f"baseline.db.pre-v{LATEST}"
     assert backup.exists()
     old = sqlite3.connect(backup)
     assert old.execute("SELECT value FROM meta WHERE key = 'keep'").fetchone()[0] == "me"
@@ -88,11 +89,11 @@ def test_a_new_migration_is_applied_and_the_old_database_is_backed_up_first(tmp_
 def test_a_failing_migration_is_rolled_back_whole(tmp_path):
     path = tmp_path / "baseline.db"
     s.Store(path).close()
-    broken = s.Migration(2, "broken", "CREATE TABLE half (x INTEGER); INSERT INTO nope VALUES (1);")
+    broken = s.Migration(LATEST + 1, "broken", "CREATE TABLE half (x INTEGER); INSERT INTO nope VALUES (1);")
     with pytest.raises(s.StoreError, match="rolled back"):
         s.Store(path, migrations=[*s.load_migrations(), broken])
     conn = sqlite3.connect(path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == LATEST
     assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'half'").fetchone() is None
     conn.close()
 

@@ -47,12 +47,13 @@ Phase 1 runs in order. Ingestion is deployed early (Task 7) so real history accu
 - Status: done. `brief/src/brief/store.py` and `brief/src/brief/migrations/0001_baseline.sql`, with 31 tests in `brief/tests/test_store.py` (schema and WAL, atomic migrations with a backup before an upgrade and a refusal of a newer database, our `sig_id` and a reset miner that never collides, first/last-seen and `prev_last_seen`, hourly upserts, host, sample, metric, audit, alert and feedback tables, rollback on error, no nested writes, and no lost updates across threads or across two stores on one file). Phase 2 tables come as later migrations (Task 18).
 
 ## Task 5: Ingest, signatures, ignore rules, systems, learning period
-- [ ] Offset-tracked NDJSON reader that consumes only complete lines, survives restarts, and handles midnight rollover.
-- [ ] Bucket counts by event time normalized to UTC (`source_tz` from `systems.yaml`, missing year inferred), with fallback to receive time flagged.
-- [ ] Drain3 wrapper with persistence, masking, template updates, and generation mapping.
-- [ ] `systems.yaml` loader; unknown hosts roll up to `default_system` and are flagged.
-- [ ] Ignore rules with `suppressed` counters; learning-period flag; one batched flush per cycle.
+- [x] Offset-tracked NDJSON reader that consumes only complete lines, survives restarts, and handles midnight rollover.
+- [x] Bucket counts by event time normalized to UTC (`source_tz` from `systems.yaml`, missing year inferred), with fallback to receive time flagged.
+- [x] Drain3 wrapper with persistence, masking, template updates, and generation mapping.
+- [x] `systems.yaml` loader; unknown hosts roll up to `default_system` and are flagged.
+- [x] Ignore rules with `suppressed` counters; learning-period flag; one batched flush per cycle.
 - Accept: replaying a sample twice does not double count; partial lines wait; backfilled events land in their own hours; tests for restart, rollover, and unknown hosts.
+- Status: done and verified end to end. `ingest.py`, `signatures.py`, `systems.py`, `ignore.py`, `timeparse.py`, `learning.py`, `config.py`, and the worker loop, with migration `0002_ingest.sql`; 88 new tests (replays do not double count, partial lines wait, restarts, midnight rollover, backfilled events land in their own hours, unknown hosts, ignore rules, lost miner state, failed flush rolls back, byte budget, last-good config). The end-to-end check has an `ingest` scenario: 374 sample lines through Vector and the worker into the database. Still ahead: the scheduler's other jobs and self-monitoring metrics (Task 14), and the detectors that read this data (Task 8).
 
 ## Task 6: Web app foundation and security
 - [ ] FastAPI app served by Uvicorn inside the container: read-only views on HTTP (brief, status board, map, `status.json`) and `/admin` on HTTPS only.

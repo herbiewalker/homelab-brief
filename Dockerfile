@@ -55,6 +55,8 @@ RUN useradd --uid 99 --gid 100 --no-create-home --shell /usr/sbin/nologin brief 
 COPY docker/rootfs/ /
 COPY brief/src/ /app/
 COPY vector/ /app/vector/
+COPY brief/*.yaml brief/*.ini /app/defaults/brief/
+COPY brief/prompts/ /app/defaults/brief/prompts/
 RUN chmod +x /etc/s6-overlay/scripts/* /etc/s6-overlay/s6-rc.d/*/run
 
 ENV PATH=/opt/venv/bin:/command:$PATH \

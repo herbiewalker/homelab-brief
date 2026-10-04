@@ -1,18 +1,26 @@
-# Known noise. Hostnames and patterns are placeholders: fill them in against real
-# sanitized samples (Task 5). Ignored events are still counted in per-rule
-# "suppressed" counters so a sudden volume change stays visible.
+# Known noise. Ignored events are still counted in a per-rule "suppressed" counter, so a sudden
+# volume change stays visible. The hosts and patterns below are placeholders that match nothing:
+# replace them with your own after looking at real lines (the admin GUI's "ignore this signature"
+# adds rules too).
+#
+#   name   unique label for the rule and its suppressed counter
+#   host   optional: a sender IP, a hostname from the log header, or a system id from systems.yaml
+#          (case-insensitive). Leave it out to match any host.
+#   match  a regular expression tested against "<app>: <message>"
+#   note   why it is safe to ignore
+schema: 1
 ignore:
-  - name: flex-switch-gaming-sleep-wake
-    host: "<flex-switch-host>"
+  - name: example-port-flaps
+    host: "<switch-system-id>"
     match: "(?i)link (up|down)"
-    note: Xbox and Steam Deck sleep/wake port flaps are normal
+    note: A device that sleeps and wakes flaps its switch port; this is normal
 
-  - name: doorbell-low-memory
-    host: "<front-doorbell-host>"
+  - name: example-camera-low-memory
+    host: "<camera-hostname>"
     match: "(?i)low memory"
     note: Known camera-local bug; reboot the camera if audio detection pauses
 
-  - name: ucg-face-sync
-    host: "<ucg-max-host>"
-    match: "ubnt_ai_daemon.*(fail|error)"
+  - name: example-recurring-daemon-failure
+    host: "<gateway-hostname>"
+    match: "some_daemon.*(fail|error)"
     note: Known recurring failure

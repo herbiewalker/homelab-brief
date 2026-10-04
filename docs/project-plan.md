@@ -99,7 +99,7 @@ Counts per host and signature are bucketed by event time, so "is this normal?" i
 | Devices (Phase 2) | New devices, traffic spikes against each device's own history, odd-hours activity |
 | Power and metrics (Phase 2) | Power drift, metric drift |
 
-**Ignore list:** known noise is filtered before detection (Flex switch gaming-device flaps, doorbell low memory, UCG-Max face-sync failures) and still counted, so a change in volume stays visible. "Ignore this signature" in the GUI adds rules.
+**Ignore list:** known noise is filtered before detection (devices that flap a port when they sleep, a camera's low-memory bug, a recurring daemon failure) and still counted, so a change in volume stays visible. "Ignore this signature" in the GUI adds rules.
 
 ## Notifications that don't nag
 

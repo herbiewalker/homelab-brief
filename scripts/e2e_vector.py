@@ -9,6 +9,7 @@ checks the raw archive and the normalized events:
   flag     an allowlist that excludes the sender, unknown_senders: flag    kept and flagged
   drop     the same allowlist, unknown_senders: drop                       nothing written
   backfill the one-off import of old syslog-<ip>.log files (no priority field)
+  ingest   the whole pipeline: samples -> Vector -> event files -> the worker -> the baseline database
 
   python3 scripts/e2e_vector.py [--image homelab-brief:dev] [--scenario NAME] [--port 15514]
 """
@@ -260,10 +261,107 @@ def run_backfill(image, src: Path, lines):
     return not problems
 
 
+def db_rows(cname: str, sql: str) -> list[list]:
+    """Query the container's baseline database from inside it (read-only)."""
+    code = (
+        "import json, sqlite3, sys; c = sqlite3.connect('file:/state/baseline.db?mode=ro', uri=True); "
+        "print(json.dumps([list(r) for r in c.execute(sys.argv[1])]))"
+    )
+    out = docker("exec", cname, "python", "-c", code, sql, check=False)
+    return json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip() else []
+
+
+def run_ingest(image, port, lines):
+    """The whole pipeline: samples -> Vector -> event files -> the worker -> the baseline database."""
+    tmp = Path(tempfile.mkdtemp(prefix="hb-e2e-ingest-"))
+    for d in ("state", "archive"):
+        (tmp / d).mkdir()
+        (tmp / d).chmod(0o777)
+    cname = "hb-e2e-ingest"
+    docker("rm", "-f", cname, check=False)
+    docker(
+        "run",
+        "-d",
+        "--rm",
+        "--name",
+        cname,
+        "-e",
+        "SYSLOG_PORT=5514",
+        "-e",
+        "BRIEF_INGEST_INTERVAL=1",
+        "-v",
+        f"{tmp}/state:/state",
+        "-v",
+        f"{tmp}/archive:/archive",
+        "-v",
+        f"{ROOT}/vector:/app/vector:ro",
+        "-p",
+        f"{port}:5514/udp",
+        "-p",
+        f"{port}:5514/tcp",
+        image,
+    )
+    problems: list[str] = []
+    try:
+        wait_for_port(port, cname)
+        replay_samples.replay(lines, "127.0.0.1", port, "both", 134, 5)
+        total = 0
+        for _ in range(90):
+            rows = db_rows(cname, "SELECT COALESCE(SUM(n), 0) FROM hourly")
+            total = rows[0][0] if rows else 0
+            if total >= len(lines):
+                break
+            time.sleep(1)
+        one = lambda sql: (db_rows(cname, sql) or [[None]])[0][0]  # noqa: E731
+        sigs = one("SELECT COUNT(*) FROM signature")
+        days = one("SELECT COUNT(DISTINCT day) FROM hourly")
+        hosts = db_rows(cname, "SELECT host, known FROM host")
+        live = one("SELECT value FROM meta WHERE key = 'live_since'")
+        offsets = one("SELECT COUNT(*) FROM ingest_offset")
+        suppressed = one("SELECT COALESCE(SUM(n), 0) FROM suppressed")
+        print(
+            f"[ingest] sent={len(lines)} counted={total} suppressed={suppressed} signatures={sigs} "
+            f"event_days={days} hosts={len(hosts)} live_since={live} offsets={offsets}"
+        )
+        if total + suppressed != len(lines):
+            problems.append(f"expected {len(lines)} events counted, got {total} + {suppressed} suppressed")
+        if not 3 <= (sigs or 0) < len(lines) // 2:
+            problems.append(f"{sigs} signatures looks wrong for {len(lines)} lines")
+        if (days or 0) < 2:
+            problems.append("events should land in their own event days, not all in one")
+        if not hosts or any(known for _, known in hosts):
+            problems.append("the sender is not in systems.yaml, so it should be flagged unknown")
+        if not live or not offsets:
+            problems.append("live_since and the file offsets should be recorded")
+    except Exception as exc:
+        problems.append(str(exc))
+    finally:
+        if problems:
+            print(container_logs(cname)[-1500:])
+        docker("stop", "-t", "3", cname, check=False)
+        docker(
+            "run",
+            "--rm",
+            "--entrypoint",
+            "rm",
+            "-v",
+            f"{tmp}:/t",
+            image,
+            "-rf",
+            "/t/state",
+            "/t/archive",
+            check=False,
+        )
+        subprocess.run(["rm", "-rf", str(tmp)], check=False)
+    for p in problems:
+        print(f"[ingest] FAIL: {p}")
+    return not problems
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--image", default="homelab-brief:dev")
-    ap.add_argument("--scenario", choices=sorted(SCENARIOS) + ["backfill"], action="append")
+    ap.add_argument("--scenario", choices=sorted(SCENARIOS) + ["backfill", "ingest"], action="append")
     ap.add_argument("--port", type=int, default=15514)
     ap.add_argument("--src", type=Path, default=ROOT / "samples" / "sanitized")
     args = ap.parse_args(argv)
@@ -272,9 +370,11 @@ def main(argv):
         print(f"no samples in {args.src}", file=sys.stderr)
         return 1
     ok = True
-    for name in args.scenario or [*SCENARIOS, "backfill"]:
+    for name in args.scenario or [*SCENARIOS, "backfill", "ingest"]:
         if name == "backfill":
             ok = run_backfill(args.image, args.src, lines) and ok
+        elif name == "ingest":
+            ok = run_ingest(args.image, args.port, lines) and ok
         else:
             ok = run_scenario(name, SCENARIOS[name], args.image, args.port, lines) and ok
     print("e2e: PASS" if ok else "e2e: FAIL")

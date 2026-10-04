@@ -29,23 +29,22 @@ Because Step 2 masks IPs and MACs, a new device or a new outbound destination do
 
 ## 3b. Ignore list
 
-Save as `brief/ignore.yaml` (the repo has a template). The match patterns are placeholders to verify against real lines from your samples.
+Save as `brief/ignore.yaml` (the repo has a template whose hosts and patterns match nothing). Replace them after looking at real lines from your samples.
 
 ```yaml
+schema: 1
 ignore:
-  - name: flex-switch-gaming-sleep-wake
-    host: "<flex switch hostname>"
+  - name: example-port-flaps
+    host: "<switch-system-id>"
     match: "(?i)link (up|down)"
-    note: Xbox and Steam Deck sleep/wake port flaps are normal
-  - name: doorbell-low-memory
-    host: "<front doorbell name>"
+    note: A device that sleeps and wakes flaps its switch port; this is normal
+  - name: example-camera-low-memory
+    host: "<camera-hostname>"
     match: "(?i)low memory"
     note: Known camera-local bug; reboot the camera if audio detection pauses
-  - name: ucg-face-sync
-    host: "<UCG-Max hostname>"
-    match: "ubnt_ai_daemon.*(fail|error)"
-    note: Known recurring failure
 ```
+
+A rule applies to events from `host` (a sender IP, a hostname from the log header, or a system id from `systems.yaml`, case-insensitive; omit it to match any host) whose `<app>: <message>` text matches `match` (a regular expression). The first matching rule wins. An ignored event is not mined into a signature or counted in `hourly`, but it still refreshes the host's last-seen time, so a quiet source is not mistaken for a silent one.
 
 Ignored events are still counted in a separate `suppressed` counter per rule, so a suppressed source that suddenly changes volume is visible in the pipeline section of the brief.
 
