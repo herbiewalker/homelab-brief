@@ -279,6 +279,7 @@ class Pipeline:
                 (stamp, "ingest.events", float(result.events)),
                 (stamp, "ingest.backlog_bytes", float(result.backlog_bytes)),
                 (stamp, "ingest.cycle_seconds", round(result.seconds, 3)),
+                (stamp, "ingest.parse_failed", float(result.parse_failed)),
             ]
             if result.lag_seconds is not None:
                 metrics.append((stamp, "ingest.lag_seconds", round(result.lag_seconds, 1)))

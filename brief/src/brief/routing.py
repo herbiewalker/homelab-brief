@@ -42,6 +42,8 @@ class Priorities:
         self.rules = {k: _route(v, self.default) for k, v in (data.get("rules") or {}).items()}
         self.lifecycle = data.get("lifecycle") or {}
         self.quiet_hours = data.get("quiet_hours") or {}
+        self.grouping = data.get("grouping") or {}
+        self.severity_boost = {str(k): int(v) for k, v in (data.get("severity_boost") or {}).items()}
 
     @classmethod
     def load(cls, env=None) -> "Priorities":
@@ -56,6 +58,10 @@ class Priorities:
         if rule and rule in self.rules:
             return self.rules[rule]
         return self.kinds.get(finding.kind, self.default)
+
+    def boost(self, finding: Finding) -> int:
+        """Extra rank for a finding that carries a severity (a new error beats a routine volume swing)."""
+        return self.severity_boost.get(str(finding.detail.get("worst_severity")), 0)
 
     def ranked(self, findings: list[Finding]) -> list[tuple[Finding, Route]]:
         """Most important first: story findings before count-only ones, then rank, then size, then id."""

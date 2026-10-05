@@ -66,3 +66,34 @@ def test_the_golden_day_tells_the_story_it_was_built_to_tell(tmp_path):
     push = doc["summary"]["pushes"]
     assert [p["id"] for p in push] == ["absence-198.51.100.3"]  # only the camera would have been pushed
     assert not any(run["learning"] for run in doc["runs"])  # a month of live data: learning is over
+
+
+def _compare_text(name: str, actual: str) -> None:
+    path = Path(__file__).parent / "golden" / name
+    if os.environ.get("GOLDEN_UPDATE") == "1":
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(actual, encoding="utf-8")
+        return
+    expected = path.read_text(encoding="utf-8")
+    if actual != expected:
+        diff = "\n".join(
+            difflib.unified_diff(
+                expected.splitlines(), actual.splitlines(), "expected", "actual", lineterm="", n=2
+            )
+        )
+        raise AssertionError(
+            f"The golden {name} changed.\n\n{diff[:6000]}\n\nIf this is intended, regenerate it "
+            "(GOLDEN_UPDATE=1 python -m pytest tests/test_golden.py) and commit it."
+        )
+
+
+def test_the_golden_digest_matches_its_snapshot(tmp_path):
+    text = golden_day.digest_snapshot(tmp_path)
+    assert len(text.splitlines()) <= 150
+    _compare_text("expected_digest.md", text)
+
+
+def test_the_golden_weekly_report_matches_its_snapshot(tmp_path):
+    text = golden_day.weekly_snapshot(tmp_path)
+    assert len(text.splitlines()) <= 150
+    _compare_text("expected_weekly.md", text)

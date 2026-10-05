@@ -1,0 +1,4 @@
+# When the scheduled jobs run. Editable here or in the admin GUI. Reloaded every run.
+# Times are UTC; the display timezone arrives with the scheduler (Task 14), until then convert yourself.
+schema: 1
+daily_run_utc: "06:00"   # the daily full run: detectors, digest, host files, state.json, status.json

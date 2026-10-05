@@ -133,6 +133,101 @@ def run_replay(args, state: Path, out=print) -> int:
     return 0
 
 
+def _systems():
+    from brief.config import config_file
+    from brief.systems import Systems
+
+    try:
+        return Systems.load(config_file("systems.yaml"))
+    except Exception as exc:  # a broken systems.yaml should not hide the results
+        print(f"systems.yaml not loaded ({exc}); hosts are treated as unknown", file=sys.stderr)
+        return Systems()
+
+
+def run_digest(args, state: Path, out=print, out_dir: Path | None = None) -> int:
+    from datetime import UTC, datetime
+
+    from brief import outputs
+    from brief.render_md import digest_markdown
+    from brief.store import parse_time
+
+    out_dir = out_dir or Path(os.environ.get("BRIEF_OUT", "/out"))
+    now = parse_time(args.now) if args.now else datetime.now(UTC)
+    store = Store(state / "baseline.db")
+    try:
+        # the CLI cannot see the receiver's uptime, so only the database and event flow are judged here
+        digest = outputs.run_daily(
+            store,
+            _systems(),
+            now,
+            out_dir,
+            state_dir=state,
+            write=not args.dry_run,
+            extra_problems=[],
+            ignore_learning=getattr(args, "ignore_learning", False),
+        )
+    finally:
+        store.close()
+    if args.dry_run:
+        for line in digest_markdown(digest, now.strftime("%Y-%m-%d")):
+            out(line)
+    else:
+        out(digest.headline)
+        out(f"Wrote {out_dir}/latest/digest.md and status.json, {now:%Y-%m-%d}/ and state.json.")
+    return 0 if digest.run_ok else 1
+
+
+def run_export(args, state: Path, out=print, out_dir: Path | None = None) -> int:
+    from datetime import UTC, datetime
+
+    from brief import export
+
+    if (args.sig is None) == (args.top is None):
+        print("Give either --sig ID or --top N.", file=sys.stderr)
+        return 2
+    out_dir = out_dir or Path(os.environ.get("BRIEF_OUT", "/out"))
+    today = datetime.now(UTC).date()
+    store = Store(state / "baseline.db")
+    try:
+        ids = (
+            [args.sig]
+            if args.sig is not None
+            else export.top_signatures(store, args.host, today, args.days, args.top)
+        )
+        if not ids:
+            print(f"No signatures for {args.host} in the last {args.days} days.", file=sys.stderr)
+            return 1
+        for sid in ids:
+            out(str(export.write_export(store, out_dir, args.host, sid, today, args.days)))
+    finally:
+        store.close()
+    return 0
+
+
+def run_weekly(args, state: Path, out=print, out_dir: Path | None = None) -> int:
+    from datetime import timedelta
+
+    from brief import weekly
+
+    out_dir = out_dir or Path(os.environ.get("BRIEF_OUT", "/out"))
+    try:
+        monday = weekly.parse_week(args.week) if args.week else weekly.current_monday() - timedelta(days=7)
+    except (ValueError, TypeError):
+        print("--week looks like 2026-W40.", file=sys.stderr)
+        return 2
+    store = Store(state / "baseline.db")
+    try:
+        systems = _systems()
+        if args.dry_run:
+            for line in weekly.weekly_markdown(store, systems, monday):
+                out(line)
+        else:
+            out(str(weekly.write_weekly(store, systems, out_dir, monday)))
+    finally:
+        store.close()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="brief", description="homelab-brief command line")
     sub = parser.add_subparsers(dest="group", required=True)
@@ -162,10 +257,28 @@ def main(argv: list[str] | None = None) -> int:
     rp.add_argument("--json", action="store_true", help="machine-readable output")
     rp.add_argument("--verbose", action="store_true", help="list every new finding, not the top few")
     rp.add_argument("--dry-run", action="store_true", help="accepted for completeness: a replay never writes")
+    dg = sub.add_parser(
+        "digest", help="run the daily job now: detectors, digest, host files, state.json, status.json"
+    )
+    dg.add_argument("--now", help="run as if it were this UTC time, like 2026-10-04T06:00:00Z")
+    dg.add_argument("--dry-run", action="store_true", help="print the digest, write nothing")
+    dg.add_argument(
+        "--ignore-learning", action="store_true", help="ignore the learning period (for imported history)"
+    )
+    ex = sub.add_parser("export", help="write a CSV history of one signature on one host to /out/export")
+    ex.add_argument("--host", required=True, help="the sender, like 198.51.100.1")
+    ex.add_argument("--sig", type=int, help="the signature id")
+    ex.add_argument("--top", type=int, help="instead of --sig: export the host's N busiest signatures")
+    ex.add_argument("--days", type=int, default=30)
+    wk = sub.add_parser("weekly", help="write the weekly trend report to /out/weekly")
+    wk.add_argument("--week", help="an ISO week like 2026-W40 (default: the last complete week)")
+    wk.add_argument("--dry-run", action="store_true", help="print the report, write nothing")
     args = parser.parse_args(argv)
     state = Path(os.environ.get("BRIEF_STATE", "/state"))
     if args.group == "replay":
         return run_replay(args, state)
+    if args.group in ("digest", "export", "weekly"):
+        return {"digest": run_digest, "export": run_export, "weekly": run_weekly}[args.group](args, state)
     if args.group == "detect":
         return run_detect(args, state)
     if args.group == "import":

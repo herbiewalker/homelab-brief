@@ -10,6 +10,7 @@ import signal
 import sys
 import threading
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 from brief import __version__, detect
@@ -18,10 +19,11 @@ from brief.ignore import IgnoreRules
 from brief.ingest import CycleResult, Pipeline
 from brief.jsonlog import log
 from brief.netinfo import network_info
+from brief.outputs import read_json, run_daily
 from brief.publish import Publisher, load_registry
 from brief.settings import Settings
 from brief.signatures import Signatures
-from brief.status import DERIVED_METRICS, build_status, metric_values, write_status
+from brief.status import DERIVED_METRICS, build_status, health_problems, metric_values, write_status
 from brief.store import Store
 from brief.systems import Systems
 
@@ -114,6 +116,7 @@ class Worker:
             time.monotonic() - self.started,
             self.env,
             network=network_info(self.settings),
+            previous=read_json(self.out_dir / "latest" / "status.json"),
         )
         write_status(status, self.out_dir)
         values = metric_values(status)
@@ -126,6 +129,60 @@ class Worker:
             "status_published", run_ok=status["run_ok"], mqtt=self.publisher is not None, **status["pipeline"]
         )
         return status
+
+    def daily_due(self, now: datetime | None = None) -> bool:
+        """True when today's daily run has not happened and its time (schedule.yaml, UTC) has passed."""
+        now = now or datetime.now(UTC)
+        try:
+            text = str(load_mapping(config_file("schedule.yaml", self.env)).get("daily_run_utc") or "06:00")
+            hh, mm = text.split(":")
+            at = now.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
+        except (ConfigError, OSError, ValueError):
+            log(
+                "config_error", file="schedule.yaml", error="daily_run_utc must look like 06:00", kept="06:00"
+            )
+            at = now.replace(hour=6, minute=0, second=0, microsecond=0)
+        if now < at:
+            return False
+        with self.store.read() as db:
+            # a brand-new install that has never received a line is not a failed night: wait for data
+            if db.execute("SELECT 1 FROM hourly LIMIT 1").fetchone() is None:
+                return False
+            row = db.execute("SELECT value FROM meta WHERE key = 'last_daily_date'").fetchone()
+        return not row or row["value"] != now.strftime("%Y-%m-%d")
+
+    def run_daily(self, now: datetime | None = None):
+        """The daily full run: detectors, digest, host files, state.json, status.json (see outputs.py)."""
+        now = now or datetime.now(UTC)
+        problems = health_problems(
+            self.store,
+            self.settings.syslog_port,
+            self.settings.interval,
+            time.monotonic() - self.started,
+            now,
+        )
+        digest = run_daily(
+            self.store,
+            self.systems,
+            now,
+            self.out_dir,
+            self.env,
+            state_dir=self.state,
+            extra_problems=problems,
+            network=network_info(self.settings),
+        )
+        with self.store.write() as tx:
+            tx.set_meta("last_daily_date", now.strftime("%Y-%m-%d"))
+        return digest
+
+    def _daily_if_due(self, backlog: bool) -> None:
+        if backlog:  # a digest of half-ingested history would be wrong; wait for the backlog to clear
+            return
+        try:
+            if self.daily_due():
+                self.run_daily()
+        except Exception as exc:  # the daily run is secondary to ingest; it is tried again next cycle
+            log("daily_failed", error=f"{type(exc).__name__}: {exc}")
 
     def _publish_if_due(self, next_publish: float, every: float) -> float:
         if time.monotonic() < next_publish:
@@ -147,6 +204,7 @@ class Worker:
                 result = self.run_once()
                 # after the cycle, so the first numbers include whatever was waiting at start-up
                 next_publish = self._publish_if_due(next_publish, publish_every)
+                self._daily_if_due(bool(result.backlog_bytes))
                 if result.backlog_bytes:
                     continue
             except Exception as exc:  # keep going: one bad cycle must not stop the pipeline

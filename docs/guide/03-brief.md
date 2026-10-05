@@ -88,6 +88,15 @@ Example `status.json` (schema 1, sample values):
 
 Store times in UTC in files and convert to local time only when rendering. Always write `run_ok: false` and a "no data today" headline when the run fails, never an empty "all quiet".
 
+How the files are made (`brief digest` runs the daily job by hand; the worker runs it once a day at `daily_run_utc` in `brief/schedule.yaml`, and not until the install has received its first event, so an empty new install is not reported as a failed night):
+
+- **Stories, not findings.** Detectors report one finding per signature. The digest merges findings of one kind on one host into one story once there are `grouping.min_members` of them (`priorities.yaml`), so twelve signatures jumping on one gateway read as one line with the biggest three named. A story's rank is its kind's rank plus `severity_boost` for its worst severity, so a new error outranks a routine swing in volume. Info-level findings are counted in the "quiet" lines, not listed.
+- **System state:** red when any story is routed `push_now`, yellow for any other story, green for none, `unknown` when the run failed.
+- **`state.json`** carries issues from day to day. An issue open on more than one day is "developing" with a trend (growing, shrinking, same). It is dropped after 3 daily runs without it. A failed run leaves it untouched, so a bad night never resolves a real problem, and running the same date twice does not count the day twice.
+- **Failure path.** If the run fails, a detector crashes, a pipeline check fails, or no events arrived in 24 hours, the digest is "No data today: <reason>", `run_ok` is false, systems are `unknown`, and nothing is described as quiet. The hourly `status.json` carries the last daily run's stories, and turns into the same failure if that run is older than 36 hours or failed.
+- **Host pages** (`YYYY-MM-DD/hosts/<host>.md`) exist for every host with findings: last heard from, events in 24 hours, the findings with their numbers, the busiest signatures, and sample lines for the flagged ones. Every Markdown file is clipped to 150 lines.
+- **`brief export --host H --sig ID [--days 30]`** (or `--top N`) writes `export/<host>-<sig>.csv`: one row per day with events, hours active, busiest hour, and worst severity, zeros included. **`brief weekly [--week 2026-W40]`** writes `weekly/YYYY-Www.md`: volume by system against the week before, biggest movers, new signatures, signatures that went quiet, recurring issues (open on 3 or more days, found by replaying the week), and hosts that went silent.
+
 ## 3d. Writing the brief
 
 The template brief (Jinja2 over `status.json`, rule-based phrasing) always exists and needs nothing else. An AI rewrite is optional and model-agnostic: `brief/ai.yaml` defines providers (any OpenAI-compatible server, local on the GPU server or hosted, or the native Anthropic API) and a fallback chain per task that always ends in the template. Prompts are plain Markdown in `brief/prompts/`. See `09-ai-integration.md`.
@@ -106,7 +115,9 @@ Build template-only first. The AI layer reads the same digest, so adding it late
 
 ## 3f. Replay and tuning
 
-`brief replay --from <date> --to <date> --dry-run` runs the detectors and routing over stored history with the current config and prints the findings and the pushes that would have been sent, without writing anything. Use it after every change to `playbook.yaml` or `priorities.yaml` to see the effect in minutes instead of waiting days. A golden-day test (a synthetic day of logs with an expected digest) guards against accidental changes in output.
+`brief replay --from <date> --to <date> --dry-run` runs the detectors and routing over stored history with the current config and prints the findings and the pushes that would have been sent, without writing anything. Use it after every change to `playbook.yaml` or `priorities.yaml` to see the effect in minutes instead of waiting days. A golden-day test (a synthetic month of logs through the real pipeline, replayed, against committed snapshots of the replay, the digest, and the weekly report in `brief/tests/golden/`) guards against accidental changes in output; if it fails, read the diff, and if the change is intended regenerate the snapshots with `GOLDEN_UPDATE=1` and commit them with the change.
+
+A replay is as of each past moment, so it reproduces what a live run said, with three limits: absence is as precise as the hour, clock skew (measured live only) is left out, and today's system mapping, ignore rules, and learned host gaps are used. The alert lifecycle below is not applied to a replay yet, so "would push" means "new this run and routed push_now".
 
 ## 3g. Alert lifecycle
 

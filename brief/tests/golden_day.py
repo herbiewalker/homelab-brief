@@ -139,7 +139,7 @@ def build_store(tmp: Path) -> Store:
 def golden_env(tmp: Path) -> dict:
     """The shipped playbook and priorities, so a change to either shows up in the snapshot."""
     folder = tmp / "defaults" / "brief"
-    folder.mkdir(parents=True)
+    folder.mkdir(parents=True, exist_ok=True)
     for name in ("playbook.yaml", "priorities.yaml"):
         (folder / name).write_bytes((BRIEF / name).read_bytes())
     return {"BRIEF_DEFAULTS_DIR": str(tmp / "defaults"), "BRIEF_CONFIG_DIR": str(tmp / "none")}
@@ -152,3 +152,30 @@ def snapshot(tmp: Path) -> dict:
     finally:
         store.close()
     return replay.as_dict(rep)
+
+
+def build_daily(tmp: Path):
+    """The golden month's daily run at 06:00 on DAY: (store, systems, digest, out_dir)."""
+    from brief import outputs
+
+    store = build_store(tmp / "work")
+    out = tmp / "out"
+    digest = outputs.run_daily(store, SYSTEMS, RUN_AT, out, env=golden_env(tmp), state_dir=tmp / "no-state")
+    return store, digest, out
+
+
+def digest_snapshot(tmp: Path) -> str:
+    store, _, out = build_daily(tmp)
+    store.close()
+    return (out / "latest" / "digest.md").read_text(encoding="utf-8")
+
+
+def weekly_snapshot(tmp: Path) -> str:
+    from brief import weekly
+
+    store = build_store(tmp / "work")
+    try:
+        monday = weekly.week_of(DAY)[0]
+        return "\n".join(weekly.weekly_markdown(store, SYSTEMS, monday, env=golden_env(tmp))) + "\n"
+    finally:
+        store.close()

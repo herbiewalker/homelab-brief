@@ -18,7 +18,7 @@ from pathlib import Path
 
 from brief import detect, detectors, health
 from brief.learning import learning_status
-from brief.store import Store, iso
+from brief.store import Store, iso, parse_time
 from brief.systems import Systems
 
 SCHEMA = 1
@@ -90,6 +90,7 @@ def build_status(
     env=None,
     now: datetime | None = None,
     network: dict | None = None,
+    previous: dict | None = None,
 ) -> dict:
     now = now or datetime.now(UTC)
     report = health.check_health(store, syslog_port, interval, uptime_s, now)
@@ -116,7 +117,7 @@ def build_status(
             "hosts_checked": 0,
         }
     silent = numbers.pop("silent")
-    return {
+    live = {
         "schema": SCHEMA,
         "generated_at": iso(now),
         "run_ok": run_ok,
@@ -131,6 +132,7 @@ def build_status(
         "silent_hosts": silent[:MAX_LISTED_SILENT],
         "network": network,
     }
+    return merge_daily(live, previous, now)
 
 
 def metric_values(status: dict) -> dict[str, int]:
@@ -150,3 +152,96 @@ def write_status(status: dict, out_dir: Path) -> Path:
     tmp.write_text(json.dumps(status, indent=2) + "\n", encoding="utf-8")
     os.replace(tmp, target)
     return target
+
+
+# ---------------------------------------------------------------- the daily run's part of status.json
+
+DAILY_FIELDS = ("systems", "stories", "developing", "quiet")
+DAILY_STALE_HOURS = 36  # a daily run older than this means the daily run has stopped
+
+
+def learning_status_for(store: Store, now: datetime, env=None) -> dict:
+    days = learning_days(env)
+    with store.read() as db:
+        row = db.execute("SELECT value FROM meta WHERE key = 'live_since'").fetchone()
+    return learning_status(row["value"] if row else None, now, days)
+
+
+def status_document(d, network: dict | None = None) -> dict:
+    """The complete schema-1 status.json for a daily run (`d` is a brief.digest.Digest)."""
+    silent = [
+        {"host": f.host, "system": f.system, "last_seen": f.detail.get("last_seen")}
+        for f in d.findings
+        if f.kind == "absence"
+    ][:MAX_LISTED_SILENT]
+    p = d.pipeline
+    return {
+        "schema": SCHEMA,
+        "generated_at": iso(d.generated_at),
+        "daily_generated_at": iso(d.generated_at),
+        "run_ok": d.run_ok,
+        "learning": d.learning,
+        "headline": d.headline,
+        **(d.to_status() if d.run_ok else {k: [] for k in DAILY_FIELDS}),
+        "pipeline": {
+            k: p.get(k)
+            for k in (
+                "events_24h",
+                "new_signatures_24h",
+                "hosts_silent",
+                "hosts_checked",
+                "parse_failed_24h",
+                "ingest_lag_s",
+                "db_mb",
+            )
+        },
+        "silent_hosts": silent,
+        "network": network,
+    }
+
+
+def merge_daily(live: dict, previous: dict | None, now: datetime) -> dict:
+    """The hourly status (live health and pipeline numbers) with the last daily run's stories carried
+    over. If the daily run failed or has gone stale the result says so and is not run_ok, rather than
+    keeping yesterday's calm headline."""
+    if not previous or not previous.get("daily_generated_at"):
+        return live  # no daily run yet (a fresh install): only the live numbers exist
+    out = {**live, "daily_generated_at": previous["daily_generated_at"]}
+    for key in DAILY_FIELDS:
+        out[key] = previous.get(key, [])
+    age = now - parse_time(previous["daily_generated_at"])
+    if age > timedelta(hours=DAILY_STALE_HOURS):
+        out["run_ok"] = False
+        out["headline"] = (
+            f"No data today: the daily run has not completed for {int(age.total_seconds() // 3600)} hours"
+        )
+    elif not previous.get("run_ok", True):
+        out["run_ok"] = False
+        out["headline"] = previous.get("headline") or "No data today"
+    elif live["run_ok"]:
+        out["headline"] = previous.get("headline", live["headline"])
+    # hosts that went silent since the daily run turn their system red
+    silent_systems = {s["system"] for s in live.get("silent_hosts", []) if s.get("system")}
+    out["systems"] = [
+        {
+            **s,
+            "state": "red",
+            "summary": "silent host" if s["summary"] == "no findings" else s["summary"] + ", silent host",
+        }
+        if s["id"] in silent_systems and s["state"] != "red"
+        else s
+        for s in out["systems"]
+    ]
+    return out
+
+
+def health_problems(
+    store: Store, syslog_port: int, interval: float, uptime_s: float, now: datetime
+) -> list[str]:
+    """What is wrong with the pipeline right now, in words (empty when it is healthy)."""
+    report = health.check_health(store, syslog_port, interval, uptime_s, now)
+    return [
+        f"{name} {c.get('state') or c.get('error') or 'failing'}"
+        for name, c in report["checks"].items()
+        if not c["ok"]
+    ]

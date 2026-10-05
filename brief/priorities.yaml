@@ -11,6 +11,14 @@ schema: 1
 
 default: { rank: 10, route: digest_only }
 
+# Findings of one kind on one host are merged into a single story once there are min_members of them
+# (twelve signatures jumping on one gateway are one event); show is how many of the biggest are named.
+grouping: { min_members: 3, show: 3 }
+
+# Added to a story's rank when its findings carry a worst severity (novelty does), so that a brand-new
+# error outranks a routine swing in volume. Severities not listed add nothing.
+severity_boost: { emerg: 30, alert: 25, crit: 20, err: 10 }
+
 quiet_hours:
   start: "22:00"
   end: "06:30"

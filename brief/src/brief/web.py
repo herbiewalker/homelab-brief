@@ -32,6 +32,7 @@ from brief.config import ConfigError, config_file
 from brief.jsonlog import log
 from brief.learning import learning_status
 from brief.netinfo import network_info, with_detected_address
+from brief.outputs import read_json
 from brief.settings import Settings
 from brief.status import build_status
 from brief.store import Store
@@ -204,7 +205,13 @@ def create_app(
             systems = Systems()
         uptime = time.monotonic() - app.state.started
         doc = build_status(
-            store, systems, settings.syslog_port, settings.interval, uptime, network=network_info(settings)
+            store,
+            systems,
+            settings.syslog_port,
+            settings.interval,
+            uptime,
+            network=network_info(settings),
+            previous=read_json(settings.out_dir / "latest" / "status.json"),
         )
         return JSONResponse(doc, headers={"Cache-Control": "no-cache"})
 
