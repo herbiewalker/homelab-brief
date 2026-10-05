@@ -19,6 +19,7 @@ class FakeReason:
 class FakeClient:
     def __init__(self):
         self.sent = []  # (topic, payload, retain)
+        self.subscribed = []
         self.will = None
         self.auth = None
         self.started = self.stopped = self.disconnected = False
@@ -43,6 +44,9 @@ class FakeClient:
 
     def disconnect(self):
         self.disconnected = True
+
+    def subscribe(self, topic, qos=0):
+        self.subscribed.append(topic)
 
     def publish(self, topic, payload=None, qos=0, retain=False):
         self.sent.append((topic, payload, retain))
@@ -194,3 +198,64 @@ def test_the_shipped_registry_offers_the_derived_sensors(tmp_path):
     (folder / "registry.yaml").write_bytes(shipped.read_bytes())
     ids = [m["id"] for m in p.load_registry({"BRIEF_DEFAULTS_DIR": str(tmp_path)}, only=DERIVED_METRICS)]
     assert set(ids) == set(DERIVED_METRICS)
+
+
+# ---------------------------------------------------------------- alerts, headline, feedback
+
+
+def connected():
+    pub, client = make()
+    pub._on_connect(client, None, None, FakeReason())
+    client.sent.clear()
+    return pub, client
+
+
+class Msg:
+    def __init__(self, topic, payload):
+        self.topic, self.payload = topic, payload if isinstance(payload, bytes) else payload.encode()
+
+
+def test_it_subscribes_to_the_feedback_topics_on_connect():
+    pub, client = make()
+    pub._on_connect(client, None, None, FakeReason())
+    assert client.subscribed == ["homelab/brief/feedback/#"]
+
+
+def test_an_alert_is_published_once_and_not_retained():
+    pub, client = connected()
+    assert pub.send_alert({"finding_id": "absence-1", "state": "new"}) is True
+    topic, payload, retain = client.sent[0]
+    assert topic == "homelab/brief/alert" and json.loads(payload)["state"] == "new" and retain is False
+
+
+def test_the_headline_is_retained_for_the_phone_push():
+    pub, client = connected()
+    assert pub.send_headline("5 things need a look") is True
+    assert client.sent[0] == ("homelab/brief/headline", "5 things need a look", True)
+
+
+def test_nothing_is_sent_or_queued_while_the_broker_is_away():
+    pub, client = make()
+    assert pub.send_alert({"x": 1}) is False and pub.send_headline("x") is False and client.sent == []
+
+
+def test_a_button_press_becomes_a_queued_feedback_message():
+    pub, _ = connected()
+    pub._on_message(None, None, Msg("homelab/brief/feedback/absence-198.51.100.3", b"ack"))
+    pub._on_message(None, None, Msg("homelab/brief/feedback/group-deviation-198.51.100.1", b" Snooze_24h \n"))
+    assert pub.next_feedback() == ("absence-198.51.100.3", "ack")
+    assert pub.next_feedback() == ("group-deviation-198.51.100.1", "snooze_24h")
+    assert pub.next_feedback() is None
+
+
+def test_feedback_that_looks_wrong_is_dropped(capsys):
+    pub, _ = connected()
+    for topic, payload in (
+        ("homelab/brief/feedback/ok-id", b"rm -rf /"),  # not an action
+        ("homelab/brief/feedback/bad id with spaces", b"ack"),
+        ("homelab/brief/feedback/", b"ack"),
+        ("homelab/brief/feedback/ok-id", b"\xff\xfe"),  # not text
+        ("homelab/other/feedback/ok-id", b"ack"),  # not ours
+    ):
+        pub._on_message(None, None, Msg(topic, payload))
+    assert pub.next_feedback() is None

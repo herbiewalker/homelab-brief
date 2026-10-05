@@ -41,6 +41,7 @@ class Story:
     members: tuple[Finding, ...]
     grouped: bool = False
     top: tuple[str, ...] = ()  # the biggest member titles, for a grouped story
+    escalates: bool = True  # False when every member only grows with time (absence)
     detail: dict = field(default_factory=dict)
 
     @property
@@ -102,6 +103,7 @@ def build_stories(
                     members=tuple(group),
                     grouped=True,
                     top=tuple(f.title for f in group[:show]),
+                    escalates=all(m.escalates for m in group),
                     detail={"count": len(group)},
                 )
             )
@@ -119,6 +121,7 @@ def build_stories(
                         urgent=route.urgent,
                         value=f.value,
                         members=(f,),
+                        escalates=f.escalates,
                         detail=f.detail,
                     )
                 )

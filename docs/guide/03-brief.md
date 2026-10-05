@@ -135,3 +135,12 @@ The `alert` table (`finding_id`, `kind`, `rule`, `level`, `state`, `first_sent`,
 Alert payloads carry the lifecycle state (`new`, `repeat`, `escalated`, `resolved`) so Home Assistant can format them differently.
 
 **Done when:** a full run writes all files, a deliberately broken run (stop the ingest loop) produces "no data today" instead of "all quiet", and a known-noisy source stays out of the stories.
+
+**As built (Task 11):** `brief/src/brief/lifecycle.py` is the engine and `alerts.py` runs it on the database; the numbers are in `priorities.yaml` under `lifecycle` and `quiet_hours` (quiet hours are UTC until a display timezone exists).
+
+- An alert is one story (a grouped story is one alert, with a stable id like `group-deviation-<host>`). Only stories routed `push_now` or `daily_headline` are tracked; `digest_only` ones never are.
+- **new / repeat / escalated / resolved** as described above. "Worse" means the level rose or the size grew by `escalate_factor` (1.5) since the last push, at most once per `escalate_min_minutes` (60). Findings whose size only grows with time (absence) do not escalate on growth, because a longer silence is the same problem; they repeat once per `renotify_hours` instead. Resolution is per kind: a run that did not look at a kind (the hourly run only checks absence) neither confirms nor clears its alerts.
+- **Quiet hours** hold a non-urgent push until they end (it goes out as "new"); **the budget** counts non-urgent pushes per UTC day from the `push` table, and the overflow is listed in the next daily headline. Resolved messages wait for the morning too and do not use the budget.
+- **Ack and snooze** (`ack`, `snooze_24h`, `snooze_7d`, from Home Assistant buttons or `brief ack` / `brief snooze`) stop pushes until the story gets worse, and a snooze also ends by itself. Every press is recorded in `feedback` and the audit log.
+- **The daily headline** (`homelab/brief/headline`, retained) is the digest headline plus the stories that were folded or routed to `daily_headline` ("<headline> Also: a; b (+2 more)"). A failed run sends "No data today: <reason>" and raises a `pipeline_error` alert.
+- Decisions are saved before anything is sent, so a crash cannot send a push twice; a channel that is down just leaves `delivered` at 0 and nothing is retried.

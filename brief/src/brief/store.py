@@ -23,7 +23,10 @@ MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 TIME_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 QUIET_GAP = timedelta(hours=24)
-ALERT_COLUMNS = ("kind", "rule", "level", "state", "first_sent", "last_sent", "last_value", "snooze_until")
+ALERT_COLUMNS = (
+    "kind", "rule", "level", "state", "first_sent", "last_sent", "last_value", "snooze_until",
+    "title", "route", "urgent", "opened", "pushed", "pending_headline", "pending_state", "quiet_runs",
+)  # fmt: skip
 ALERT_STATES = ("open", "acked", "snoozed", "resolved")
 
 
@@ -304,6 +307,24 @@ class Tx:
             f"INSERT INTO alert ({', '.join(columns)}) VALUES ({', '.join('?' * len(columns))}) "
             f"ON CONFLICT (finding_id) DO UPDATE SET {updates}",
             (finding_id, *fields.values()),
+        )
+
+    def add_push(
+        self,
+        finding_id: str,
+        state: str,
+        channel: str,
+        level: str | None,
+        title: str | None,
+        urgent: bool,
+        ts: datetime | str,
+        delivered: bool = False,
+    ) -> None:
+        """Record a notification the lifecycle decided to send."""
+        self.db.execute(
+            "INSERT INTO push (ts, finding_id, state, channel, level, title, urgent, delivered) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (iso(ts), finding_id, state, channel, level, title, int(urgent), int(delivered)),
         )
 
     def add_feedback(self, finding_id: str, action: str, ts: datetime | str | None = None) -> None:

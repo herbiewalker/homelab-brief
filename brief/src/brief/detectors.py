@@ -50,8 +50,10 @@ class Finding:
     host: str | None = None
     sig_id: int | None = None
     story: bool = True  # False: counted in the pipeline summary but not worth a line of its own
-    value: float | None = None  # a size for "got worse" comparisons (a count, minutes, seconds)
+    value: float | None = None  # a size for ranking and for "got worse" (a count, seconds of drift)
     detail: dict = field(default_factory=dict)
+    # False when growth is not "worse": absence grows by the hour, but a longer silence is the same problem
+    escalates: bool = True
 
 
 # ---------------------------------------------------------------- novelty
@@ -289,6 +291,7 @@ def absence(
                     "silent_minutes": minutes,
                     "expected_gap_min": h.expected_gap_min,
                 },
+                escalates=False,
             )
         )
     return sorted(out, key=lambda f: f.detail["last_seen"])

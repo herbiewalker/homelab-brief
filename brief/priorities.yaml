@@ -28,6 +28,8 @@ lifecycle:
   escalate_on_worse: true     # push again early only when a finding gets worse
   send_resolved: true         # short "resolved" message when a pushed finding clears
   resolve_after_quiet_runs: 3
+  escalate_factor: 1.5        # "worse" = the size grew by this factor since the last push (or the level rose)
+  escalate_min_minutes: 60    # never escalate the same finding more often than this
   daily_push_budget: 5        # extra non-urgent pushes fold into the next daily headline
   snooze_options_h: [24, 168]
 

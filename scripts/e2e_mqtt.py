@@ -9,6 +9,8 @@ MQTT_HOST set and a 5-second publish interval, and checks what a Home Assistant 
   - `docker stop` (clean shutdown) flips availability to `offline`;
   - `docker kill` (a crash) flips it to `offline` through the last will;
   - the ACL holds: the `ha` user can read but not write the sensor topics.
+  - a Home Assistant button press (the `ha` user writing homelab/brief/feedback/<id>) reaches the worker,
+    which applies it (the broker ACL allows it, the container is subscribed, the callback queues it).
 
   python3 scripts/e2e_mqtt.py [--image homelab-brief:dev] [--broker eclipse-mosquitto:2.1.2-alpine]
 """
@@ -154,6 +156,17 @@ def main(argv):
         if after == "999999":
             problems.append("the ha user could overwrite a sensor state (ACL not enforced)")
         print(f"[acl] ha write attempt exit={denied.returncode}, state still {after!r}")
+
+        # a button press: allowed by the ACL, delivered to the container, applied by the worker (an unknown
+        # alert id, so nothing changes, but the log line proves the whole path)
+        docker("exec", BROKER, "mosquitto_pub", "-h", "localhost", "-u", "ha", "-P", USERS["ha"],
+               "-t", "homelab/brief/feedback/e2e-unknown-alert", "-m", "ack")  # fmt: skip
+        until(
+            "the feedback to be applied",
+            lambda: "e2e-unknown-alert" in docker("logs", APP, check=False).stdout,
+            30,
+        )
+        print("[feedback] a button press from the ha user reached the worker")
 
         docker("stop", "-t", "10", APP)
         if availability() != "offline":

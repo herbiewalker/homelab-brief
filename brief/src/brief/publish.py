@@ -6,6 +6,9 @@ status.DERIVED_METRICS). Topics follow docs/guide/04-publish.md:
   homelab/brief/availability                online | offline (retained; offline is the last will)
   homelab/brief/<metric_id>/state           the latest value (retained)
   homeassistant/sensor/homelab_brief/<metric_id>/config   discovery (retained)
+  homelab/brief/alert                       one JSON message per notification (not retained)
+  homelab/brief/headline                    today's headline for the phone push (retained)
+  homelab/brief/feedback/<finding_id>       ack, snooze_24h, or snooze_7d, from Home Assistant (we subscribe)
 
 States are published on every hourly run, not only on change: discovery sets `expire_after` to about
 twice the interval, so a value that never repeated would make a healthy sensor expire. When the
@@ -14,6 +17,8 @@ Nothing here ever logs the broker password.
 """
 
 import json
+import queue
+import re
 import threading
 from collections.abc import Mapping
 from pathlib import Path
@@ -25,6 +30,8 @@ BASE_TOPIC = "homelab/brief"
 DISCOVERY_PREFIX = "homeassistant"
 NODE_ID = "homelab_brief"
 INTERVAL_SECONDS = {"hourly": 3600, "daily": 86400}
+FEEDBACK_ID = re.compile(r"^[A-Za-z0-9_.:-]{1,200}$")
+FEEDBACK_ACTION = re.compile(r"^[a-z0-9_]{1,32}$")
 
 
 def load_registry(env: Mapping[str, str] | None = None, only: tuple[str, ...] | None = None) -> list[dict]:
@@ -73,6 +80,7 @@ class Publisher:
         self.host, self.port, self.base = host, port, base
         self.metrics = list(metrics or [])
         self._lock = threading.Lock()
+        self._feedback: queue.SimpleQueue = queue.SimpleQueue()
         self._latest: dict[str, int | float] = {}
         self.connected = False
         if client is None:
@@ -86,6 +94,7 @@ class Publisher:
         client.reconnect_delay_set(min_delay=1, max_delay=60)
         client.on_connect = self._on_connect
         client.on_disconnect = self._on_disconnect
+        client.on_message = self._on_message
 
     @classmethod
     def from_env(cls, env: Mapping[str, str], metrics: list[dict]) -> "Publisher | None":
@@ -110,6 +119,7 @@ class Publisher:
             self._send_discovery()
             self._send_states(self._latest)
             client.publish(f"{self.base}/availability", "online", qos=1, retain=True)
+            client.subscribe(f"{self.base}/feedback/#", qos=1)
         log("mqtt_connected", host=self.host, port=self.port, sensors=len(self.metrics))
 
     def _on_disconnect(self, client, userdata, *args) -> None:
@@ -139,6 +149,44 @@ class Publisher:
             self._latest.update(values)
             if self.connected:
                 self._send_states(values)
+
+    # -- alerts, headline, and feedback
+
+    def send_alert(self, payload: dict) -> bool:
+        """Publish one alert (not retained). False when the broker is not connected: nothing is queued."""
+        if not self.connected:
+            return False
+        info = self.client.publish(f"{self.base}/alert", json.dumps(payload), qos=1, retain=False)
+        return getattr(info, "rc", 0) == 0
+
+    def send_headline(self, text: str) -> bool:
+        if not self.connected:
+            return False
+        info = self.client.publish(f"{self.base}/headline", text, qos=1, retain=True)
+        return getattr(info, "rc", 0) == 0
+
+    def _on_message(self, client, userdata, message) -> None:
+        """A Home Assistant button press: homelab/brief/feedback/<finding_id> with ack or snooze_*."""
+        prefix = f"{self.base}/feedback/"
+        topic = getattr(message, "topic", "")
+        if not topic.startswith(prefix):
+            return
+        finding_id = topic[len(prefix) :]
+        try:
+            action = bytes(message.payload).decode("utf-8").strip().lower()
+        except (UnicodeDecodeError, TypeError):
+            return
+        if FEEDBACK_ID.match(finding_id) and FEEDBACK_ACTION.match(action):
+            self._feedback.put((finding_id, action))
+        else:
+            log("mqtt_feedback_ignored", topic=topic[:80])
+
+    def next_feedback(self):
+        """The next queued (finding_id, action), or None."""
+        try:
+            return self._feedback.get_nowait()
+        except queue.Empty:
+            return None
 
     def forget(self) -> None:
         """Drop the remembered values (the run failed), so a reconnect cannot refresh stale ones."""

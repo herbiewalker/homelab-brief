@@ -16,7 +16,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brief import detect, issues, status
+from brief import alerts, detect, grouping, issues, status
 from brief import digest as dg
 from brief.detectors import Finding
 from brief.jsonlog import log
@@ -155,6 +155,8 @@ def run_daily(
     network: dict | None = None,
     write: bool = True,
     ignore_learning: bool = False,
+    notifier=None,
+    alerts_on: bool = False,
 ) -> dg.Digest:
     """Run every detector, compose the digest, and write the files. Never raises: a failure becomes a
     "No data today" digest (and the files say so), because that is better than no files at all."""
@@ -182,6 +184,8 @@ def run_daily(
     )
     if write:
         write_daily(store, systems, d, state if d.run_ok else prev_state, out, now, env, network)
+        if alerts_on:
+            run_daily_alerts(store, d, Priorities.load(env), now, notifier)
     return d
 
 
@@ -206,3 +210,51 @@ def write_daily(
     doc = status.status_document(d, network=network)
     write_json(out / "latest" / "status.json", doc)
     log("daily_written", run_ok=d.run_ok, stories=len(d.stories), headline=d.headline)
+
+
+# ---------------------------------------------------------------- alerts: the lifecycle around the runs
+
+PIPELINE_KIND = "pipeline_error"
+
+
+def pipeline_story(headline: str, priorities: Priorities) -> list[grouping.Story]:
+    """A failed run is itself something to be told about (kind pipeline_error, routed in priorities.yaml)."""
+    finding = Finding("pipeline_error-daily", PIPELINE_KIND, headline, story=True)
+    return grouping.build_stories([finding], priorities)
+
+
+def run_daily_alerts(store: Store, d: dg.Digest, priorities: Priorities, now: datetime, notifier=None):
+    """The alert lifecycle for the daily run, which is also when the daily headline goes out."""
+    if d.run_ok:
+        stories, evaluated = (
+            d.stories,
+            {*detect.ALL, PIPELINE_KIND},
+        )  # a good run also clears a pipeline alert
+    else:
+        stories, evaluated = pipeline_story(d.headline, priorities), {PIPELINE_KIND}
+    return alerts.run_lifecycle(
+        store,
+        priorities,
+        stories,
+        evaluated,
+        now,
+        headline_run=True,
+        base_headline=d.headline,
+        notifier=notifier,
+    )
+
+
+def run_hourly_alerts(
+    store: Store, systems: Systems, now: datetime, env=None, status_doc: dict | None = None, notifier=None
+):
+    """The alert lifecycle for the hourly run: absence, and whether the pipeline itself is healthy."""
+    priorities = Priorities.load(env)
+    rules = status.absence_thresholds(env)
+    findings = detect.absence_findings(store, systems, rules, now)
+    labels = {s.id: s.label for s in systems.systems}
+    stories = grouping.build_stories(findings, priorities, labels)
+    if status_doc is not None and not status_doc.get("run_ok", True):
+        stories += pipeline_story(status_doc.get("headline", "the pipeline is not healthy"), priorities)
+    return alerts.run_lifecycle(
+        store, priorities, stories, {"absence", PIPELINE_KIND}, now, headline_run=False, notifier=notifier
+    )

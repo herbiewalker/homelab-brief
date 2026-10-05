@@ -64,7 +64,12 @@ def test_the_golden_day_tells_the_story_it_was_built_to_tell(tmp_path):
     assert by_kind["deviation"][0]["system"] == "gw" and by_kind["deviation"][0]["detail"]["today"] == 700
     assert by_kind["off_hours"][0]["system"] == "nas" and by_kind["off_hours"][0]["detail"]["hour_utc"] == 14
     push = doc["summary"]["pushes"]
-    assert [p["id"] for p in push] == ["absence-198.51.100.3"]  # only the camera would have been pushed
+    # the camera, and only the camera: held through quiet hours until 07:00, then one reminder a day
+    assert [(p["at"][5:16], p["state"], p["id"]) for p in push] == [
+        ("09-18T07:00", "new", "absence-198.51.100.3"),
+        ("09-19T07:00", "repeat", "absence-198.51.100.3"),
+        ("09-20T07:00", "repeat", "absence-198.51.100.3"),
+    ]
     assert not any(run["learning"] for run in doc["runs"])  # a month of live data: learning is over
 
 

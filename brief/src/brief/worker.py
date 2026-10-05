@@ -14,12 +14,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from brief import __version__, detect
+from brief.alerts import drain_feedback
 from brief.config import ConfigError, config_file, load_mapping
 from brief.ignore import IgnoreRules
 from brief.ingest import CycleResult, Pipeline
 from brief.jsonlog import log
 from brief.netinfo import network_info
-from brief.outputs import read_json, run_daily
+from brief.outputs import read_json, run_daily, run_hourly_alerts
 from brief.publish import Publisher, load_registry
 from brief.settings import Settings
 from brief.signatures import Signatures
@@ -119,6 +120,10 @@ class Worker:
             previous=read_json(self.out_dir / "latest" / "status.json"),
         )
         write_status(status, self.out_dir)
+        try:
+            run_hourly_alerts(self.store, self.systems, datetime.now(UTC), self.env, status, self.publisher)
+        except Exception as exc:  # alerts are secondary to ingest and status; the next hour tries again
+            log("alerts_failed", error=f"{type(exc).__name__}: {exc}")
         values = metric_values(status)
         if self.publisher is not None:
             if values:
@@ -170,10 +175,21 @@ class Worker:
             state_dir=self.state,
             extra_problems=problems,
             network=network_info(self.settings),
+            notifier=self.publisher,
+            alerts_on=True,
         )
         with self.store.write() as tx:
             tx.set_meta("last_daily_date", now.strftime("%Y-%m-%d"))
         return digest
+
+    def _apply_feedback(self) -> None:
+        """Home Assistant button presses (ack, snooze) that arrived since the last cycle."""
+        if self.publisher is None:
+            return
+        try:
+            drain_feedback(self.store, self.publisher.next_feedback)
+        except Exception as exc:  # a bad message must not stop ingest
+            log("feedback_failed", error=f"{type(exc).__name__}: {exc}")
 
     def _daily_if_due(self, backlog: bool) -> None:
         if backlog:  # a digest of half-ingested history would be wrong; wait for the backlog to clear
@@ -205,6 +221,7 @@ class Worker:
                 # after the cycle, so the first numbers include whatever was waiting at start-up
                 next_publish = self._publish_if_due(next_publish, publish_every)
                 self._daily_if_due(bool(result.backlog_bytes))
+                self._apply_feedback()
                 if result.backlog_bytes:
                     continue
             except Exception as exc:  # keep going: one bad cycle must not stop the pipeline

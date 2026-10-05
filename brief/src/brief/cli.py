@@ -133,6 +133,50 @@ def run_replay(args, state: Path, out=print) -> int:
     return 0
 
 
+def run_alerts(args, state: Path, out=print) -> int:
+    from datetime import UTC, datetime
+
+    from brief import alerts
+    from brief.lifecycle import Policy
+    from brief.routing import Priorities
+
+    store = Store(state / "baseline.db")
+    try:
+        book = alerts.load_book(store, include_resolved=args.all)
+        policy = Policy.from_priorities(Priorities.load())
+        used = alerts.pushes_today(store, datetime.now(UTC))
+    finally:
+        store.close()
+    shown = sorted(book.values(), key=lambda a: (a.state == "resolved", a.finding_id))
+    for a in shown:
+        out(alerts.describe(a))
+    out(f"{len(shown)} alerts. Non-urgent pushes today: {used} of {policy.daily_push_budget}.")
+    return 0
+
+
+def run_ack(args, state: Path, out=print) -> int:
+    from brief import alerts
+
+    store = Store(state / "baseline.db")
+    try:
+        action = "ack" if args.group == "ack" else _snooze_action(args.hours)
+        outcome = alerts.apply_feedback(store, args.finding_id, action, source="cli")
+    finally:
+        store.close()
+    if outcome is None:
+        print(
+            f"Nothing changed: no open alert {args.finding_id}, or that snooze length is not allowed.",
+            file=sys.stderr,
+        )
+        return 1
+    out(f"{args.finding_id}: {outcome}")
+    return 0
+
+
+def _snooze_action(hours: int) -> str:
+    return "snooze_7d" if hours == 168 else f"snooze_{hours}h"
+
+
 def _systems():
     from brief.config import config_file
     from brief.systems import Systems
@@ -270,6 +314,15 @@ def main(argv: list[str] | None = None) -> int:
     ex.add_argument("--sig", type=int, help="the signature id")
     ex.add_argument("--top", type=int, help="instead of --sig: export the host's N busiest signatures")
     ex.add_argument("--days", type=int, default=30)
+    al = sub.add_parser("alerts", help="list the alerts and today's push budget")
+    al.add_argument("--all", action="store_true", help="include resolved alerts")
+    ak = sub.add_parser("ack", help="acknowledge an alert: no repeats until it gets worse")
+    ak.add_argument("finding_id")
+    sn = sub.add_parser("snooze", help="snooze an alert: quiet for a while, or until it gets worse")
+    sn.add_argument("finding_id")
+    sn.add_argument(
+        "--hours", type=int, default=24, help="24 or 168 (7 days) unless priorities.yaml says otherwise"
+    )
     wk = sub.add_parser("weekly", help="write the weekly trend report to /out/weekly")
     wk.add_argument("--week", help="an ISO week like 2026-W40 (default: the last complete week)")
     wk.add_argument("--dry-run", action="store_true", help="print the report, write nothing")
@@ -277,6 +330,10 @@ def main(argv: list[str] | None = None) -> int:
     state = Path(os.environ.get("BRIEF_STATE", "/state"))
     if args.group == "replay":
         return run_replay(args, state)
+    if args.group == "alerts":
+        return run_alerts(args, state)
+    if args.group in ("ack", "snooze"):
+        return run_ack(args, state)
     if args.group in ("digest", "export", "weekly"):
         return {"digest": run_digest, "export": run_export, "weekly": run_weekly}[args.group](args, state)
     if args.group == "detect":

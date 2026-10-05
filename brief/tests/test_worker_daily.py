@@ -175,3 +175,96 @@ def test_the_web_status_json_carries_the_daily_stories(tmp_path, monkeypatch):
         assert doc["stories"] == [1] and doc["headline"] == "3 things need a look"
     finally:
         env.store.close()
+
+
+# ---------------------------------------------------------------- alerts through the worker
+
+
+class Channel:
+    """Stands in for the MQTT publisher: records alerts and headlines, and queues Home Assistant feedback."""
+
+    def __init__(self):
+        self.alerts, self.headlines, self.queue, self.published = [], [], [], []
+
+    def send_alert(self, payload):
+        self.alerts.append(payload)
+        return True
+
+    def send_headline(self, text):
+        self.headlines.append(text)
+        return True
+
+    def next_feedback(self):
+        return self.queue.pop(0) if self.queue else None
+
+    def publish(self, values):
+        self.published.append(values)
+
+    def forget(self):
+        pass
+
+
+def alerting_worker(tmp_path, monkeypatch):
+    """A worker with one expected host that has been silent for years, and no quiet hours."""
+    ok = {"status": "ok", "checks": {"database": {"ok": True}}}
+    monkeypatch.setattr(health, "check_health", lambda *a, **k: ok)
+    env, user = make_env(tmp_path)
+    (user / "systems.yaml").write_text(
+        "schema: 1\nsystems:\n  - id: sys1\n    label: Gateway\n    hosts: [198.51.100.1]\n", encoding="utf-8"
+    )
+    (user / "priorities.yaml").write_text(
+        "schema: 1\nquiet_hours: { start: '00:00', end: '00:00' }\n"
+        "kinds:\n  absence: { rank: 80, route: push_now }\n  pipeline_error: { rank: 90, route: push_now }\n",
+        encoding="utf-8",
+    )
+    worker = w.Worker(tmp_path / "state", env)
+    with worker.store.write() as tx:
+        tx.touch_host("198.51.100.1", "2020-01-01T00:00:00Z", "2020-01-02T00:00:00Z", system_id="sys1")
+    worker.publisher = Channel()
+    return worker
+
+
+def test_the_hourly_job_sends_an_alert_for_a_silent_host_once(tmp_path, monkeypatch):
+    worker = alerting_worker(tmp_path, monkeypatch)
+    worker.publish_status()
+    worker.publish_status()  # an hour later: nothing new to say
+    sent = worker.publisher.alerts
+    assert [(a["state"], a["finding_id"], a["system"]) for a in sent] == [
+        ("new", "absence-198.51.100.1", "sys1")
+    ]
+    assert sent[0]["actions"] == ["ack", "snooze_24h", "snooze_7d"]
+
+
+def test_a_button_press_from_home_assistant_stops_the_repeats(tmp_path, monkeypatch):
+    worker = alerting_worker(tmp_path, monkeypatch)
+    worker.publish_status()
+    worker.publisher.queue.append(("absence-198.51.100.1", "ack"))
+    worker._apply_feedback()
+    with worker.store.read() as db:
+        assert db.execute("SELECT state FROM alert").fetchone()[0] == "acked"
+        assert db.execute("SELECT action FROM feedback").fetchone()[0] == "ack"
+    assert worker.publisher.queue == []
+
+
+def test_a_bad_feedback_message_never_stops_the_worker(tmp_path, monkeypatch, capsys):
+    worker = alerting_worker(tmp_path, monkeypatch)
+    worker.publisher.next_feedback = lambda: (_ for _ in ()).throw(RuntimeError("queue broke"))
+    worker._apply_feedback()
+    assert "feedback_failed" in capsys.readouterr().out
+    worker.publisher = None
+    worker._apply_feedback()  # without MQTT there is nothing to apply, and nothing breaks
+
+
+def test_a_failing_alert_run_is_logged_and_the_status_still_goes_out(tmp_path, monkeypatch, capsys):
+    worker = alerting_worker(tmp_path, monkeypatch)
+    monkeypatch.setattr(w, "run_hourly_alerts", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    doc = worker.publish_status()
+    assert "alerts_failed" in capsys.readouterr().out and doc["run_ok"] is True
+    assert (tmp_path / "out" / "latest" / "status.json").exists()
+
+
+def test_the_daily_job_sends_the_headline_through_the_channel(tmp_path, monkeypatch):
+    worker = alerting_worker(tmp_path, monkeypatch)
+    worker.run_daily(at(7))  # no events in the last 24 hours: the failure path, which still says so
+    assert worker.publisher.headlines and worker.publisher.headlines[0].startswith("No data today")
+    assert [a["kind"] for a in worker.publisher.alerts] == ["pipeline_error"]

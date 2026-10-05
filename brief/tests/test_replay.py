@@ -133,13 +133,18 @@ def shipped_env(tmp_path):
 def test_only_new_story_findings_routed_push_now_would_push(store, tmp_path):
     build(store)
     rep = replay.replay(store, SYSTEMS, date(2026, 10, 3), date(2026, 10, 5), env=shipped_env(tmp_path))
-    pushed = [(run.at.strftime("%m-%d %H:%M"), f.kind) for run in rep.runs for f, _ in rep.pushes(run)]
+    pushed = [
+        (run.at.strftime("%m-%d %H:%M"), n.state, n.finding_id) for run in rep.runs for n in rep.pushes(run)
+    ]
+    # h1 went silent at 22:00 on Oct 4, inside quiet hours, so its push waits until 07:00 on Oct 5;
+    # h2 stops a day after h1 and goes out at once in the afternoon. A deviation routes to the digest.
     assert pushed == [
-        ("10-04 22:00", "absence"),
-        ("10-05 13:00", "absence"),
-    ]  # h1, then h2 a day after it stopped
-    s = replay.summary(rep)  # (a deviation routes to the digest, so it is not a push)
+        ("10-05 07:00", "new", f"absence-{H1}"),
+        ("10-05 13:00", "new", f"absence-{H2}"),
+    ]
+    s = replay.summary(rep)
     assert s["would_push"] == 2 and s["new_by_kind"]["absence"] == 2 and s["new_by_kind"]["deviation"] == 1
+    assert s["held_runs"] >= 1  # the nine hours of quiet hours after 22:00
 
 
 def test_the_learning_period_silences_the_daily_detectors_in_a_replay(store):
@@ -240,7 +245,7 @@ def test_the_command_prints_a_readable_replay(tmp_path, monkeypatch):
     text = "\n".join(lines)
     assert code == 0 and "Read-only: nothing was sent or stored" in text
     assert "-- 2026-10-04 --" in text and "NEW" in text and "deviation" in text
-    assert "Not applied yet: dedupe over days" in text
+    assert "Acknowledgements and snoozes cannot be replayed" in text
 
 
 def test_the_command_can_print_json(tmp_path, monkeypatch):
@@ -267,3 +272,56 @@ def test_the_argument_parser_accepts_the_documented_flags(tmp_path, monkeypatch)
     Store(tmp_path / "baseline.db").close()
     code = cli.main(["replay", "--from", "2026-10-01", "--to", "2026-10-01", "--dry-run", "--no-hourly"])
     assert code == 0
+
+
+# ---------------------------------------------------------------- the alert lifecycle inside a replay
+
+
+def test_replay_holds_a_push_through_quiet_hours_and_then_repeats_it_daily(store, tmp_path):
+    build(store, h2_until=at("2026-10-07", 23))
+    rep = replay.replay(store, SYSTEMS, date(2026, 10, 4), date(2026, 10, 6), env=shipped_env(tmp_path))
+    sent = [
+        (run.at.strftime("%m-%d %H:%M"), n.state, n.finding_id) for run in rep.runs for n in run.notifications
+    ]
+    # h1 is overdue from 22:00 on Oct 4 (quiet hours), so the push waits for 07:00, then once a day
+    assert sent == [
+        ("10-05 07:00", "new", f"absence-{H1}"),
+        ("10-06 07:00", "repeat", f"absence-{H1}"),
+    ]
+    held = [run.at.strftime("%m-%d %H:%M") for run in rep.runs if run.held]
+    assert held[0] == "10-04 22:00" and held[-1] == "10-05 06:00" and len(held) == 9
+
+
+def test_replay_can_leave_the_lifecycle_out(store, tmp_path):
+    build(store)
+    rep = replay.replay(
+        store, SYSTEMS, date(2026, 10, 3), date(2026, 10, 5), env=shipped_env(tmp_path), with_lifecycle=False
+    )
+    assert (
+        all(not run.notifications and not run.held for run in rep.runs)
+        and replay.summary(rep)["would_push"] == 0
+    )
+
+
+def test_replay_says_resolved_when_a_host_comes_back(store, tmp_path):
+    build(store, h2_until=at("2026-10-09", 23))
+    with store.write() as tx:
+        tx.add_hourly(
+            [("2026-10-05", h, H1, 1, "info", 1) for h in range(10, 24)]
+        )  # h1 returns on Oct 5 at 10:00
+        tx.add_hourly([("2026-10-06", h, H1, 1, "info", 1) for h in range(24)])
+        tx.add_hourly([("2026-10-07", h, H1, 1, "info", 1) for h in range(24)])
+    rep = replay.replay(store, SYSTEMS, date(2026, 10, 4), date(2026, 10, 6), env=shipped_env(tmp_path))
+    sent = [(n.state, n.channel) for run in rep.runs for n in run.notifications]
+    assert sent[0] == ("new", "alert") and ("resolved", "alert") in sent
+    text = "\n".join(replay.format_text(rep))
+    assert "PUSH     new" in text and "PUSH     resolved" in text and "sent alert:resolved: 1" in text
+
+
+def test_replay_output_lists_what_was_held(store, tmp_path):
+    build(store, h2_until=at("2026-10-07", 23))
+    rep = replay.replay(store, SYSTEMS, date(2026, 10, 4), date(2026, 10, 5), env=shipped_env(tmp_path))
+    text = "\n".join(replay.format_text(rep))
+    assert "held for the end of quiet hours: 1" in text and "held by quiet hours in 9 runs" in text
+    doc = replay.as_dict(rep)
+    assert any(r["held"] for r in doc["runs"]) and doc["summary"]["held_runs"] == 9
