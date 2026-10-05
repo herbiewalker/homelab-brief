@@ -175,3 +175,18 @@ def test_the_uvicorn_log_config_uses_the_json_formatter():
     cfg = jsonlog.uvicorn_log_config()
     assert cfg["formatters"]["json"]["()"] == "brief.jsonlog.JsonFormatter"
     assert cfg["loggers"]["uvicorn.access"]["level"] == "WARNING"
+
+
+def test_a_worker_with_long_cycles_is_not_reported_stale(tmp_path, monkeypatch):
+    # a big backlog: each cycle takes five minutes, and nothing is recorded until one ends
+    monkeypatch.setattr(health, "receiver_ok", lambda port: True)
+    store = Store(tmp_path / "baseline.db")
+    now = datetime(2026, 10, 4, 12, 0, tzinfo=UTC)
+    with store.write() as tx:
+        tx.add_metrics([(now - timedelta(seconds=400), "ingest.cycle_seconds", 300.0)])
+    busy = health.check_health(store, 514, 60, uptime_s=5000, now=now)
+    assert busy["checks"]["worker"]["state"] == "running" and busy["status"] == "ok"
+    # but it is not forgiven forever: 300 s cycles allow 180 + 600 s, and this is 900 s since the last
+    gone = health.check_health(store, 514, 60, uptime_s=5000, now=now + timedelta(seconds=500))
+    assert gone["checks"]["worker"]["state"] == "stale"
+    store.close()

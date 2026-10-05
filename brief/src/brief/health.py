@@ -28,7 +28,8 @@ def check_health(
         with store.read() as db:
             db.execute("SELECT 1").fetchone()
             last = db.execute(
-                "SELECT ts FROM metric WHERE metric_id = 'ingest.cycle_seconds' ORDER BY ts DESC LIMIT 1"
+                "SELECT ts, value FROM metric WHERE metric_id = 'ingest.cycle_seconds' "
+                "ORDER BY ts DESC LIMIT 1"
             ).fetchone()
         checks["database"] = {"ok": True}
     except Exception as exc:  # report, don't raise: this is the health check
@@ -37,6 +38,9 @@ def check_health(
 
     allowed = max(3 * interval, 120.0)
     if last is not None:
+        # a worker chewing through a big backlog takes minutes per cycle and records nothing until a
+        # cycle ends, so allow for the length of the last one (measured before its flush: twice it)
+        allowed += 2 * float(last["value"] or 0)
         age = (now - parse_time(last["ts"])).total_seconds()
         checks["worker"] = {
             "ok": age <= allowed,
