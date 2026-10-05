@@ -215,8 +215,14 @@ class Tx:
             (host, system_id, first, last, int(known)),
         )
 
-    def set_expected_gap(self, host: str, minutes: int) -> None:
+    def set_expected_gap(self, host: str, minutes: int | None) -> None:
         self.db.execute("UPDATE host SET expected_gap_min = ? WHERE host = ?", (minutes, host))
+
+    def set_clock_skew(self, host: str, seconds: float, ts: datetime | str) -> None:
+        self.db.execute(
+            "UPDATE host SET clock_skew_s = ?, skew_updated = ? WHERE host = ?",
+            (round(seconds, 1), iso(ts), host),
+        )
 
     def add_samples(
         self, sig_id: int, rows: Iterable[tuple[datetime | str, str | None, str | None]], keep: int = 5

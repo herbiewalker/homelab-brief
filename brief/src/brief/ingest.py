@@ -11,6 +11,7 @@ apply the ignore rules, mine a signature, and add to the in-memory counts.
 """
 
 import json
+import statistics
 import time
 from collections import Counter
 from collections.abc import Callable
@@ -26,6 +27,7 @@ from brief.timeparse import event_time, parse_received
 
 SEVERITY_NAMES = ("emerg", "alert", "crit", "err", "warning", "notice", "info", "debug")
 MAX_SAMPLE_CHARS = 500
+MAX_SKEW_SAMPLES = 200  # per host per cycle; the median of these is stored
 
 
 @dataclass
@@ -62,6 +64,7 @@ class _Acc:
     hosts: dict[str, list] = field(default_factory=dict)  # host -> [first, last, system_id, known]
     live_since: str | None = None
     latest_event: datetime | None = None
+    skew: dict[str, list[float]] = field(default_factory=dict)  # host -> event minus receive, seconds
 
 
 class Pipeline:
@@ -187,6 +190,11 @@ class Pipeline:
             received = parse_received(event.get("timestamp")) or self.clock()
             if acc.live_since is None or iso(received) < acc.live_since:
                 acc.live_since = iso(received)
+            # a clock-skew sample: only live events whose time came from the device, not from us
+            if not timed.fallback:
+                samples = acc.skew.setdefault(host, [])
+                if len(samples) < MAX_SKEW_SAMPLES:
+                    samples.append((when - received).total_seconds())
 
         app = event.get("app") if isinstance(event.get("app"), str) else ""
         if event.get("parse_failed") and not app:
@@ -255,6 +263,8 @@ class Pipeline:
                 tx.touch_host(host, first, last, system_id=system_id, known=known)
                 if not known:
                     result.unknown_hosts += 1
+            for host, samples in acc.skew.items():
+                tx.set_clock_skew(host, statistics.median(samples), now)
             if acc.live_since is not None:
                 tx.note_live_data(acc.live_since)
             tx.set_offsets(new_offsets, now)

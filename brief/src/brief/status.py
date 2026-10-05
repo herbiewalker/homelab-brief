@@ -5,11 +5,10 @@ feed `/status.json`, the file the worker writes to /out/latest, and the MQTT sen
 can never disagree. All times are UTC. When the pipeline is unhealthy the file says so
 (`run_ok: false` and a "no data" headline) instead of reporting a quiet network.
 
-Silent hosts (a thin version of the Task 8 absence detector): a host that has sent before and has
-not sent for longer than `gap_multiple` times its learned gap is silent. The limit is never below
-`min_minutes` or above `max_hours` (thresholds.absence in playbook.yaml). Until a gap is learned
-the limit is `max_hours`, so a sparse source does not flap. Only hosts of systems with
-`expected: true` count.
+Silent hosts come from the absence detector (brief.detectors.absence): a host that has sent before and
+has not sent for longer than `gap_multiple` times its learned gap (thresholds.absence in playbook.yaml,
+never below `min_minutes` or above `max_hours`; `max_hours` until a gap is learned). Only hosts of
+systems with `expected: true` count.
 """
 
 import json
@@ -17,10 +16,9 @@ import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brief import health
-from brief.config import ConfigError, config_file, load_mapping
-from brief.learning import DEFAULT_DAYS, learning_status
-from brief.store import Store, iso, parse_time
+from brief import detect, detectors, health
+from brief.learning import learning_status
+from brief.store import Store, iso
 from brief.systems import Systems
 
 SCHEMA = 1
@@ -29,34 +27,16 @@ MAX_LISTED_SILENT = 10
 # The registry ids this module can compute. The MQTT publisher only offers these.
 DERIVED_METRICS = ("events_24h", "new_signatures_24h", "hosts_silent")
 
-DEFAULT_ABSENCE = {"gap_multiple": 3, "min_minutes": 30, "max_hours": 24}
+silent_limit = detectors.silent_limit  # the absence rule lives in brief.detectors
 
 
 def absence_thresholds(env=None) -> dict:
     """thresholds.absence from playbook.yaml, falling back to the defaults on a missing or bad file."""
-    try:
-        found = (load_mapping(config_file("playbook.yaml", env)).get("thresholds") or {}).get("absence") or {}
-    except (ConfigError, OSError):
-        found = {}
-    return {k: type(v)(found.get(k, v)) for k, v in DEFAULT_ABSENCE.items()}
+    return detect.thresholds(env)["absence"]
 
 
 def learning_days(env=None) -> int:
-    try:
-        found = (load_mapping(config_file("playbook.yaml", env)).get("thresholds") or {}).get(
-            "learning"
-        ) or {}
-        return int(found.get("days", DEFAULT_DAYS))
-    except (ConfigError, OSError, TypeError, ValueError):
-        return DEFAULT_DAYS
-
-
-def silent_limit(expected_gap_min: int | None, rules: dict) -> timedelta:
-    ceiling = rules["max_hours"] * 60
-    if not expected_gap_min:
-        return timedelta(minutes=ceiling)
-    minutes = rules["gap_multiple"] * expected_gap_min
-    return timedelta(minutes=min(max(minutes, rules["min_minutes"]), ceiling))
+    return detect.thresholds(env)["learning"]["days"]
 
 
 def derive(store: Store, systems: Systems, rules: dict, now: datetime | None = None) -> dict:
@@ -75,20 +55,17 @@ def derive(store: Store, systems: Systems, rules: dict, now: datetime | None = N
         new_signatures = db.execute(
             "SELECT COUNT(*) FROM signature WHERE first_seen >= ?", (iso(cutoff),)
         ).fetchone()[0]
-        hosts = db.execute("SELECT host, system_id, last_seen, expected_gap_min, known FROM host").fetchall()
-    silent = []
-    for row in hosts:
-        if not row["known"] or row["system_id"] not in expected:
-            continue
-        if now - parse_time(row["last_seen"]) > silent_limit(row["expected_gap_min"], rules):
-            silent.append({"host": row["host"], "system": row["system_id"], "last_seen": row["last_seen"]})
-    silent.sort(key=lambda s: s["last_seen"])
+    hosts = detect.host_rows(store)
+    silent = [
+        {"host": f.host, "system": f.system, "last_seen": f.detail["last_seen"]}
+        for f in detectors.absence(hosts, now, rules, expected)
+    ]
     return {
         "events_24h": int(counted + suppressed),
         "new_signatures_24h": int(new_signatures),
         "hosts_silent": len(silent),
         "silent": silent,
-        "hosts_checked": sum(1 for r in hosts if r["known"] and r["system_id"] in expected),
+        "hosts_checked": sum(1 for h in hosts if h.known and h.system in expected),
     }
 
 

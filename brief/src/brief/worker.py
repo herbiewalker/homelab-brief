@@ -12,7 +12,7 @@ import threading
 import time
 from pathlib import Path
 
-from brief import __version__
+from brief import __version__, detect
 from brief.config import ConfigError, config_file, load_mapping
 from brief.ignore import IgnoreRules
 from brief.ingest import CycleResult, Pipeline
@@ -101,6 +101,11 @@ class Worker:
 
         A failed run publishes no values, so the sensors expire instead of reporting a calm network.
         """
+        try:
+            learned = detect.learn_gaps(self.store)  # normal gaps feed the absence detector
+            log("gaps_learned", hosts=learned)
+        except Exception as exc:  # status must still go out without them
+            log("gaps_failed", error=f"{type(exc).__name__}: {exc}")
         status = build_status(
             self.store,
             self.systems,
