@@ -230,7 +230,7 @@ def test_the_ratio_does_not_apply_when_the_usual_count_is_zero():
 def test_off_hours_needs_a_real_pattern():
     assert len(d.off_hours([hours(3, 5, {9, 10})], learning=False)) == 1
     assert d.off_hours([hours(3, 5, {9, 10}, days=2)], learning=False) == []  # too few days of history
-    assert d.off_hours([hours(3, 5, {9, 10}, events=19)], learning=False) == []  # too few events
+    assert d.off_hours([hours(3, 5, {9, 10}, events=9)], learning=False) == []  # too few events
     assert (
         d.off_hours([hours(3, 5, set(range(4, 16)))], learning=False) == []
     )  # seen at any hour: no unusual one

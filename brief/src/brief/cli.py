@@ -63,8 +63,15 @@ def run_detect(args, state: Path, out=print) -> int:
     now = parse_time(args.now) if args.now else datetime.now(UTC)
     store = Store(state / "baseline.db")
     try:
+        # an explicit --now is a look at the past: use the inputs as they were then, like replay does
+        activity = detect.HostActivity.load(store) if args.now else None
         result = detect.run(
-            store, systems, now, kinds=tuple(args.kind or detect.ALL), ignore_learning=args.ignore_learning
+            store,
+            systems,
+            now,
+            kinds=tuple(args.kind or detect.ALL),
+            ignore_learning=args.ignore_learning,
+            activity=activity,
         )
     finally:
         store.close()
@@ -88,6 +95,44 @@ def run_detect(args, state: Path, out=print) -> int:
     return 0
 
 
+def run_replay(args, state: Path, out=print) -> int:
+    import json
+    from datetime import date, time
+
+    from brief import replay
+    from brief.config import config_file
+    from brief.systems import Systems
+
+    try:
+        start, end = date.fromisoformat(args.start), date.fromisoformat(args.end)
+        hh, mm = args.at.split(":")
+        at = time(int(hh), int(mm))
+    except ValueError:
+        print("Dates look like 2026-10-01 and --at like 06:00.", file=sys.stderr)
+        return 2
+    try:
+        systems = Systems.load(config_file("systems.yaml"))
+    except Exception as exc:  # a broken systems.yaml should not hide the findings
+        print(f"systems.yaml not loaded ({exc}); hosts are treated as unknown", file=sys.stderr)
+        systems = Systems()
+    store = Store(state / "baseline.db")
+    try:
+        rep = replay.replay(
+            store, systems, start, end, at, not args.no_hourly, ignore_learning=args.ignore_learning
+        )
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    finally:
+        store.close()
+    if args.json:
+        out(json.dumps(replay.as_dict(rep), indent=2))
+    else:
+        for line in replay.format_text(rep, verbose=args.verbose):
+            out(line)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="brief", description="homelab-brief command line")
     sub = parser.add_subparsers(dest="group", required=True)
@@ -106,8 +151,21 @@ def main(argv: list[str] | None = None) -> int:
         "--ignore-learning", action="store_true", help="show what would fire after the learning period"
     )
     det.add_argument("--now", help="run as if it were this UTC time, like 2026-10-04T12:00:00Z")
+    rp = sub.add_parser(
+        "replay", help="run the detectors over past days and show what would have fired (read-only)"
+    )
+    rp.add_argument("--from", dest="start", required=True, help="first day, like 2026-10-01")
+    rp.add_argument("--to", dest="end", required=True, help="last day, like 2026-10-03")
+    rp.add_argument("--at", default="06:00", help="UTC time of the daily run (default 06:00)")
+    rp.add_argument("--no-hourly", action="store_true", help="check absence only at the daily run")
+    rp.add_argument("--ignore-learning", action="store_true", help="ignore the learning period")
+    rp.add_argument("--json", action="store_true", help="machine-readable output")
+    rp.add_argument("--verbose", action="store_true", help="list every new finding, not the top few")
+    rp.add_argument("--dry-run", action="store_true", help="accepted for completeness: a replay never writes")
     args = parser.parse_args(argv)
     state = Path(os.environ.get("BRIEF_STATE", "/state"))
+    if args.group == "replay":
+        return run_replay(args, state)
     if args.group == "detect":
         return run_detect(args, state)
     if args.group == "import":

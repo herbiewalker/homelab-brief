@@ -208,7 +208,7 @@ def off_hours(
     learning: bool,
     min_count: int = 3,
     min_history_days: int = 3,
-    min_history_events: int = 20,
+    min_history_events: int = 10,
     max_usual_hours: int = 8,
 ) -> list[Finding]:
     """An hour is only "unusual" for a signature with a real pattern: enough history (days and

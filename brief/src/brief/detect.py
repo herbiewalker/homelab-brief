@@ -32,7 +32,7 @@ DEFAULTS = {
         "window_days": 14,
         "min_count": 3,
         "min_history_days": 3,
-        "min_history_events": 20,
+        "min_history_events": 10,
         "max_usual_hours": 8,
     },
     "absence": {"gap_multiple": 3, "min_minutes": 30, "max_hours": 24},
@@ -82,9 +82,58 @@ def host_rows(store: Store) -> list[d.HostRow]:
     ]
 
 
-def absence_findings(store: Store, systems: Systems, rules: dict, now: datetime) -> list[d.Finding]:
+class HostActivity:
+    """When each host was last heard from, as of any past moment, from the hourly and suppressed counts.
+
+    `host.last_seen` only holds the latest value, so replaying an earlier time needs this instead. It
+    is built once (one pass over the counts) and answers any number of "as of" questions in memory.
+    The precision is the hour bucket; the host's system, known flag, and learned gap are the current
+    ones. Clock skew is a live measurement and cannot be replayed."""
+
+    def __init__(self, hours: dict[str, list[int]], hosts: list[d.HostRow]):
+        self._hours = hours  # host -> sorted active hour indexes
+        self._hosts = hosts
+
+    @classmethod
+    def load(cls, store: Store) -> "HostActivity":
+        hours: dict[str, set[int]] = defaultdict(set)
+        with store.read() as db:
+            for table in ("hourly", "suppressed"):
+                for r in db.execute(f"SELECT DISTINCT host, {HIDX} AS h FROM {table}"):
+                    hours[r["host"]].add(r["h"])
+        return cls({h: sorted(v) for h, v in hours.items()}, host_rows(store))
+
+    def host_rows(self, now: datetime) -> list[d.HostRow]:
+        """Host rows as they would have looked at `now`: last_seen is the end of the last active hour
+        up to then (never later than `now`), and hosts first heard from after `now` are absent."""
+        import bisect
+
+        now_h = hour_index(now)
+        out = []
+        for h in self._hosts:
+            hours = self._hours.get(h.host, [])
+            i = bisect.bisect_right(hours, now_h)
+            if i == 0:
+                continue  # not heard from yet at that time
+            last = min(_bucket_end(hours[i - 1]), now)
+            out.append(d.HostRow(h.host, h.system, h.known, iso(last), h.expected_gap_min))
+        return out
+
+    def last_data_hour(self) -> int | None:
+        latest = [v[-1] for v in self._hours.values() if v]
+        return max(latest) if latest else None
+
+
+def _bucket_end(hidx: int) -> datetime:
+    return datetime.fromtimestamp((hidx + 1) * 3600 - 1, UTC)
+
+
+def absence_findings(
+    store: Store, systems: Systems, rules: dict, now: datetime, activity: HostActivity | None = None
+) -> list[d.Finding]:
     expected = {s.id for s in systems.systems if s.expected}
-    return d.absence(host_rows(store), now, rules, expected)
+    rows = activity.host_rows(now) if activity is not None else host_rows(store)
+    return d.absence(rows, now, rules, expected)
 
 
 def is_learning(store: Store, days: int, now: datetime) -> bool:
@@ -107,72 +156,88 @@ def _labels(db, sig_ids) -> dict[int, str]:
     return out
 
 
+def _bucket_iso(hidx: int) -> str:
+    return iso(datetime.fromtimestamp(hidx * 3600, UTC))
+
+
 def novelty_rows(store: Store, now: datetime, window_hours: int = 24) -> list[d.SignatureRow]:
-    since = iso(now - timedelta(hours=window_hours))
+    """The signatures active in the window, with what the novelty rule needs, computed from the hourly
+    counts alone so the answer is the same whether this runs live or replays an earlier moment
+    (nothing here reads a column that only holds today's value, like signature.prev_last_seen).
+
+    For a signature active in the window: its first hour in the window; the last hour it was active
+    before that (the start of any quiet spell); how many days it was seen on before the spell; and how
+    many hours its busiest host logged anything meanwhile."""
     now_h = hour_index(now)
     lo = now_h - window_hours + 1
+    since = iso(now - timedelta(hours=window_hours))
     with store.read() as db:
-        cands = db.execute(
-            "SELECT sig_id, app, template, first_seen, last_seen, prev_last_seen, ignored FROM signature "
-            "WHERE ignored = 0 AND (first_seen >= ? OR (prev_last_seen IS NOT NULL AND last_seen >= ?))",
-            (since, since),
-        ).fetchall()
-        if not cands:
-            return []
-        ids = [r["sig_id"] for r in cands]
+        first_in: dict[int, int] = {}
+        last_in: dict[int, int] = {}
         worst: dict[int, str] = {}
         busy: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        query = (
+            f"SELECT sig_id, host, severity, SUM(n) AS n, MIN({HIDX}) AS lo, MAX({HIDX}) AS hi FROM hourly "
+            f"WHERE {HIDX} BETWEEN ? AND ? GROUP BY sig_id, host, severity"
+        )
+        for r in db.execute(query, (lo, now_h)):
+            sid = r["sig_id"]
+            busy[sid][r["host"]] += r["n"]
+            first_in[sid] = min(first_in.get(sid, r["lo"]), r["lo"])
+            last_in[sid] = max(last_in.get(sid, r["hi"]), r["hi"])
+            cur = worst.get(sid, "debug")
+            if d.SEVERITY_RANK.get(r["severity"], 7) < d.SEVERITY_RANK[cur]:
+                cur = r["severity"]
+            worst[sid] = cur
+        if not first_in:
+            return []
+        meta = {}
+        ids = sorted(first_in)
         for i in range(0, len(ids), 500):
             chunk = ids[i : i + 500]
             marks = ",".join("?" * len(chunk))
-            query = (
-                f"SELECT sig_id, host, severity, SUM(n) AS n FROM hourly WHERE sig_id IN ({marks}) "
-                f"AND {HIDX} BETWEEN ? AND ? GROUP BY sig_id, host, severity"
-            )
-            for r in db.execute(query, [*chunk, lo, now_h]):
-                busy[r["sig_id"]][r["host"]] += r["n"]
-                cur = worst.get(r["sig_id"], "debug")
-                if d.SEVERITY_RANK.get(r["severity"], 7) < d.SEVERITY_RANK[cur]:
-                    cur = r["severity"]
-                worst[r["sig_id"]] = cur
+            for r in db.execute(
+                f"SELECT sig_id, app, template, first_seen, ignored FROM signature WHERE sig_id IN ({marks})",
+                chunk,
+            ):
+                meta[r["sig_id"]] = r
         systems = {r["host"]: r["system_id"] for r in db.execute("SELECT host, system_id FROM host")}
         rows = []
-        for r in cands:
-            returned_at = None
-            if r["prev_last_seen"]:
-                found = db.execute(
-                    "SELECT MIN(day || 'T' || printf('%02d', hour) || ':00:00Z') FROM hourly "
-                    "WHERE sig_id = ? AND day || 'T' || printf('%02d', hour) || ':00:00Z' > ?",
-                    (r["sig_id"], r["prev_last_seen"]),
+        for sid in ids:
+            m = meta.get(sid)
+            if m is None or m["ignored"]:
+                continue
+            hosts = tuple(h for h, _ in sorted(busy[sid].items(), key=lambda kv: -kv[1])[:3])
+            prev_end = returned_at = host_hours = prior_days = None
+            if m["first_seen"] < since:  # not new: was it away for a while and back inside the window?
+                first_day = datetime.fromtimestamp(first_in[sid] * 3600, UTC).strftime("%Y-%m-%d")
+                before = db.execute(
+                    f"SELECT MAX({HIDX}) FROM hourly WHERE sig_id = ? AND day <= ? AND {HIDX} < ?",
+                    (sid, first_day, first_in[sid]),
                 ).fetchone()[0]
-                returned_at = found
-            hosts = tuple(h for h, _ in sorted(busy[r["sig_id"]].items(), key=lambda kv: -kv[1])[:3])
-            host_hours = None
-            if returned_at and hosts:
-                # did its host keep logging (anything) while this signature was away?
-                host_hours = db.execute(
-                    "SELECT COUNT(DISTINCT day || printf('%02d', hour)) FROM hourly WHERE host = ? "
-                    "AND day || 'T' || printf('%02d', hour) || ':00:00Z' > ? "
-                    "AND day || 'T' || printf('%02d', hour) || ':00:00Z' < ?",
-                    (hosts[0], r["prev_last_seen"], returned_at),
-                ).fetchone()[0]
-            prior_days = None
-            if r["prev_last_seen"]:
-                # how regular it was before it went quiet
-                prior_days = db.execute(
-                    "SELECT COUNT(DISTINCT day) FROM hourly WHERE sig_id = ? AND day <= ?",
-                    (r["sig_id"], r["prev_last_seen"][:10]),
-                ).fetchone()[0]
+                if before is not None:
+                    prev_end = _bucket_iso(before + 1)  # the end of the last hour it was active
+                    returned_at = _bucket_iso(first_in[sid])
+                    prior_days = db.execute(
+                        f"SELECT COUNT(DISTINCT day) FROM hourly WHERE sig_id = ? AND {HIDX} <= ?",
+                        (sid, before),
+                    ).fetchone()[0]
+                    if hosts:  # did its host keep logging (anything) while this signature was away?
+                        host_hours = db.execute(
+                            f"SELECT COUNT(DISTINCT {HIDX}) FROM hourly "
+                            f"WHERE host = ? AND {HIDX} > ? AND {HIDX} < ?",
+                            (hosts[0], before, first_in[sid]),
+                        ).fetchone()[0]
             rows.append(
                 d.SignatureRow(
-                    r["sig_id"],
-                    r["app"],
-                    r["template"],
-                    r["first_seen"],
-                    r["last_seen"],
-                    r["prev_last_seen"],
-                    bool(r["ignored"]),
-                    worst.get(r["sig_id"], "info"),
+                    sid,
+                    m["app"],
+                    m["template"],
+                    m["first_seen"],
+                    _bucket_iso(last_in[sid]),
+                    prev_end,
+                    False,
+                    worst.get(sid, "info"),
                     hosts,
                     tuple(dict.fromkeys(s for s in (systems.get(h) for h in hosts) if s)),
                     returned_at,
@@ -267,15 +332,19 @@ def run(
     env=None,
     kinds: tuple[str, ...] = ALL,
     ignore_learning: bool = False,
+    activity: HostActivity | None = None,
 ) -> dict:
-    """{"learning": bool, "findings": [Finding...]} for the chosen detector kinds."""
+    """{"learning": bool, "findings": [Finding...]} for the chosen detector kinds.
+
+    With `activity` the run is "as of" `now` (a replay of an earlier moment): absence reads host
+    activity as it was then, and clock skew, which is only measured live, is left out."""
     now = now or datetime.now(UTC)
     t = thresholds(env)
     learning = False if ignore_learning else is_learning(store, t["learning"]["days"], now)
     findings: list[d.Finding] = []
     if "absence" in kinds:
-        findings += absence_findings(store, systems, t["absence"], now)
-    if "clock_skew" in kinds:
+        findings += absence_findings(store, systems, t["absence"], now, activity)
+    if "clock_skew" in kinds and activity is None:
         findings += d.clock_skew(host_rows(store), now, t["clock_skew"]["max_minutes"])
     if "novelty" in kinds and not learning:
         nv = t["novelty"]
