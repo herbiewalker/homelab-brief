@@ -15,14 +15,26 @@ from datetime import UTC, datetime, timedelta
 from brief import detectors as d
 from brief.config import ConfigError, config_file, load_mapping
 from brief.learning import DEFAULT_DAYS, learning_status
-from brief.store import Store, iso, parse_time
+from brief.store import Store, iso
 from brief.systems import Systems
 
 DEFAULTS = {
     "learning": {"days": DEFAULT_DAYS},
-    "novelty": {"quiet_days_before_return": 7},
-    "deviation": {"window_days": 14, "min_count": 20, "mad_multiple": 4},
-    "off_hours": {"window_days": 14, "min_count": 3},
+    "novelty": {"quiet_days_before_return": 7, "host_active_hours_in_gap": 3, "min_prior_days": 5},
+    "deviation": {
+        "window_days": 14,
+        "min_count": 20,
+        "mad_multiple": 4,
+        "min_ratio": 3,
+        "min_history_days": 3,
+    },
+    "off_hours": {
+        "window_days": 14,
+        "min_count": 3,
+        "min_history_days": 3,
+        "min_history_events": 20,
+        "max_usual_hours": 8,
+    },
     "absence": {"gap_multiple": 3, "min_minutes": 30, "max_hours": 24},
     "clock_skew": {"max_minutes": 3},
 }
@@ -135,6 +147,22 @@ def novelty_rows(store: Store, now: datetime, window_hours: int = 24) -> list[d.
                 ).fetchone()[0]
                 returned_at = found
             hosts = tuple(h for h, _ in sorted(busy[r["sig_id"]].items(), key=lambda kv: -kv[1])[:3])
+            host_hours = None
+            if returned_at and hosts:
+                # did its host keep logging (anything) while this signature was away?
+                host_hours = db.execute(
+                    "SELECT COUNT(DISTINCT day || printf('%02d', hour)) FROM hourly WHERE host = ? "
+                    "AND day || 'T' || printf('%02d', hour) || ':00:00Z' > ? "
+                    "AND day || 'T' || printf('%02d', hour) || ':00:00Z' < ?",
+                    (hosts[0], r["prev_last_seen"], returned_at),
+                ).fetchone()[0]
+            prior_days = None
+            if r["prev_last_seen"]:
+                # how regular it was before it went quiet
+                prior_days = db.execute(
+                    "SELECT COUNT(DISTINCT day) FROM hourly WHERE sig_id = ? AND day <= ?",
+                    (r["sig_id"], r["prev_last_seen"][:10]),
+                ).fetchone()[0]
             rows.append(
                 d.SignatureRow(
                     r["sig_id"],
@@ -148,6 +176,8 @@ def novelty_rows(store: Store, now: datetime, window_hours: int = 24) -> list[d.
                     hosts,
                     tuple(dict.fromkeys(s for s in (systems.get(h) for h in hosts) if s)),
                     returned_at,
+                    host_hours,
+                    prior_days,
                 )  # fmt: skip
             )
     return rows
@@ -163,16 +193,21 @@ def series_rows(store: Store, now: datetime, days: int, min_count: int) -> list[
         )
         for r in db.execute(query, (now_h - 24 * (days + 1) + 1, now_h)):
             windows[(r["host"], r["sig_id"])][r["k"]] = r["n"]
-        first = {r["host"]: r["first_seen"] for r in db.execute("SELECT host, first_seen FROM host")}
+        # the windows in which each host logged anything at all: the baseline only counts those, so a
+        # host that was down (or an outage of the collector) does not make everything "usually zero"
+        active: dict[str, set[int]] = defaultdict(set)
+        host_query = (
+            f"SELECT host, ({now_h} - {HIDX}) / 24 AS k FROM hourly WHERE {HIDX} BETWEEN ? AND ? "
+            "GROUP BY host, k"
+        )
+        for r in db.execute(host_query, (now_h - 24 * (days + 1) + 1, now_h)):
+            active[r["host"]].add(r["k"])
         systems = {r["host"]: r["system_id"] for r in db.execute("SELECT host, system_id FROM host")}
         busy = {key: w for key, w in windows.items() if w.get(0, 0) >= min_count}
         labels = _labels(db, (sig for _, sig in busy))
     rows = []
     for (host, sig), w in busy.items():
-        # only the days the host has existed count as baseline, so a new host is not "usually zero"
-        seen_h = int(parse_time(first[host]).timestamp()) // 3600 if host in first else now_h
-        available = min(days, max(0, (now_h - seen_h) // 24))
-        history = tuple(w.get(k, 0) for k in range(1, available + 1))
+        history = tuple(w.get(k, 0) for k in sorted(active[host]) if 1 <= k <= days)
         rows.append(d.SeriesRow(host, sig, systems.get(host), w[0], history, labels.get(sig, "")))
     return rows
 
@@ -189,13 +224,22 @@ def hour_rows(store: Store, now: datetime, days: int, min_count: int) -> list[d.
         if not today:
             return []
         history: dict[tuple[str, int], set[int]] = defaultdict(set)
+        spans: dict[tuple[str, int], tuple[int, int]] = {}  # (distinct days, events) in the history
         wanted = {(r["host"], r["sig_id"]) for r in today}
+        bounds = (now_h - 24 * (days + 1) + 1, lo0 - 1)
         for r in db.execute(
             f"SELECT host, sig_id, hour FROM hourly WHERE {HIDX} BETWEEN ? AND ? GROUP BY host, sig_id, hour",
-            (now_h - 24 * (days + 1) + 1, lo0 - 1),
+            bounds,
         ):
             if (r["host"], r["sig_id"]) in wanted:
                 history[(r["host"], r["sig_id"])].add(r["hour"])
+        for r in db.execute(
+            f"SELECT host, sig_id, COUNT(DISTINCT day) AS days, SUM(n) AS n FROM hourly "
+            f"WHERE {HIDX} BETWEEN ? AND ? GROUP BY host, sig_id",
+            bounds,
+        ):
+            if (r["host"], r["sig_id"]) in wanted:
+                spans[(r["host"], r["sig_id"])] = (r["days"], r["n"])
         systems = {r["host"]: r["system_id"] for r in db.execute("SELECT host, system_id FROM host")}
         labels = _labels(db, (r["sig_id"] for r in today))
     return [
@@ -207,6 +251,7 @@ def hour_rows(store: Store, now: datetime, days: int, min_count: int) -> list[d.
             r["n"],
             frozenset(history[(r["host"], r["sig_id"])]),
             labels.get(r["sig_id"], ""),
+            *spans.get((r["host"], r["sig_id"]), (0, 0)),
         )  # fmt: skip
         for r in today
     ]
@@ -233,17 +278,35 @@ def run(
     if "clock_skew" in kinds:
         findings += d.clock_skew(host_rows(store), now, t["clock_skew"]["max_minutes"])
     if "novelty" in kinds and not learning:
+        nv = t["novelty"]
         findings += d.novelty(
-            novelty_rows(store, now), now, learning, t["novelty"]["quiet_days_before_return"]
+            novelty_rows(store, now),
+            now,
+            learning,
+            nv["quiet_days_before_return"],
+            min_host_hours=nv["host_active_hours_in_gap"],
+            min_prior_days=nv["min_prior_days"],
         )
     if "deviation" in kinds and not learning:
         dev = t["deviation"]
         rows = series_rows(store, now, dev["window_days"], dev["min_count"])
-        findings += d.deviation(rows, learning, dev["min_count"], dev["mad_multiple"])
+        findings += d.deviation(
+            rows,
+            learning,
+            dev["min_count"],
+            dev["mad_multiple"],
+            dev["min_history_days"],
+            dev["min_ratio"],
+        )
     if "off_hours" in kinds and not learning:
         oh = t["off_hours"]
         findings += d.off_hours(
-            hour_rows(store, now, oh["window_days"], oh["min_count"]), learning, oh["min_count"]
+            hour_rows(store, now, oh["window_days"], oh["min_count"]),
+            learning,
+            oh["min_count"],
+            oh["min_history_days"],
+            oh["min_history_events"],
+            oh["max_usual_hours"],
         )
     return {"learning": learning, "findings": findings}
 

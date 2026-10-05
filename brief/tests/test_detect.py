@@ -144,12 +144,17 @@ def test_a_signature_returning_after_a_quiet_spell_is_found_via_returned_at(stor
         # active long ago, silent for ~38 days, back an hour ago
         tx.add_hourly(
             [
-                (day_of(40), 5, "198.51.100.1", sid, "warning", 3),
+                *[
+                    (day_of(k), 5, "198.51.100.1", sid, "warning", 3) for k in range(40, 47)
+                ],  # regular before it went quiet
                 (day_of(0), 11, "198.51.100.1", sid, "warning", 3),
             ]
         )
         tx.touch_signature(sid, stamp(NOW - timedelta(hours=1)), stamp(NOW - timedelta(hours=1)))
         tx.note_live_data(stamp(NOW - timedelta(days=60)))
+        # the host kept logging other things all through the gap, so it is the signature that returned
+        other = add_sig(tx, cluster=2, template="chatter")
+        tx.add_hourly([(day_of(k), 8, "198.51.100.1", other, "info", 5) for k in range(2, 30)])
     found = detect.run(store, Systems(), NOW, kinds=("novelty",))["findings"]
     assert len(found) == 1 and found[0].detail["state"] == "returned"
     # a day later it is no longer news (it returned more than 24 hours ago)
@@ -210,7 +215,8 @@ def test_suppressed_counts_also_prove_a_host_was_alive(store):
 
 def test_thresholds_come_from_playbook_yaml_and_survive_a_broken_file(tmp_path):
     env = {"BRIEF_CONFIG_DIR": str(tmp_path / "c"), "BRIEF_DEFAULTS_DIR": str(tmp_path / "d")}
-    assert detect.thresholds(env)["deviation"] == {"window_days": 14, "min_count": 20, "mad_multiple": 4}
+    base = detect.thresholds(env)["deviation"]
+    assert (base["window_days"], base["min_count"], base["mad_multiple"], base["min_ratio"]) == (14, 20, 4, 3)
     folder = tmp_path / "c" / "brief"
     folder.mkdir(parents=True)
     (folder / "playbook.yaml").write_text("thresholds:\n  deviation: { min_count: 50 }\n", encoding="utf-8")
@@ -235,3 +241,48 @@ def test_the_cli_prints_findings_as_text_and_json(store, tmp_path, monkeypatch, 
     args.json = True
     cli.run_detect(args, tmp_path, out=lines.append)
     assert json.loads(lines[-1])["findings"] == []
+
+
+def test_a_signature_is_not_returned_when_its_whole_host_was_down_meanwhile(store):
+    # the collector was off for weeks: every signature "comes back" when it resumes, but only the host did
+    with store.write() as tx:
+        setup_host(tx)
+        sid = add_sig(tx, first_days=60, last=stamp(NOW - timedelta(days=40)))
+        tx.add_hourly(
+            [
+                *[
+                    (day_of(k), 5, "198.51.100.1", sid, "warning", 3) for k in range(40, 47)
+                ],  # regular before it went quiet
+                (day_of(0), 11, "198.51.100.1", sid, "warning", 3),
+            ]
+        )
+        tx.touch_signature(sid, stamp(NOW - timedelta(hours=1)), stamp(NOW - timedelta(hours=1)))
+        tx.note_live_data(stamp(NOW - timedelta(days=60)))
+    assert detect.run(store, Systems(), NOW, kinds=("novelty",))["findings"] == []
+
+
+def test_days_the_host_was_silent_do_not_drag_the_deviation_baseline_to_zero(store):
+    with store.write() as tx:
+        setup_host(tx)
+        sid = add_sig(tx)
+        # logging (100 a day) on six days, completely silent on the other eight (an outage)
+        tx.add_hourly([(day_of(k), 10, "198.51.100.1", sid, "warning", 100) for k in range(1, 7)])
+        tx.add_hourly([(day_of(0), 10, "198.51.100.1", sid, "warning", 130)])
+    # the old zero-filled baseline had a median of 0 and flagged 130; against its real days it is normal
+    assert detect.run(store, Systems(), NOW, kinds=("deviation",), ignore_learning=True)["findings"] == []
+    with store.write() as tx:
+        tx.add_hourly([(day_of(0), 11, "198.51.100.1", sid, "warning", 400)])  # 530 today: a real spike
+    assert len(detect.run(store, Systems(), NOW, kinds=("deviation",), ignore_learning=True)["findings"]) == 1
+
+
+def test_off_hours_ignores_a_signature_with_too_little_history(store):
+    with store.write() as tx:
+        setup_host(tx)
+        sid = add_sig(tx)
+        tx.add_hourly(
+            [
+                (day_of(1), 10, "198.51.100.1", sid, "warning", 2),
+                (day_of(0), 3, "198.51.100.1", sid, "warning", 6),
+            ]
+        )
+    assert detect.run(store, Systems(), NOW, kinds=("off_hours",), ignore_learning=True)["findings"] == []

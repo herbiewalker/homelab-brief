@@ -83,8 +83,10 @@ def test_deviation_ignores_normal_variation_and_small_counts():
 
 
 def test_the_mad_is_floored_at_one_so_a_flat_history_does_not_flag_tiny_changes():
-    assert d.deviation([series(24, [20] * 14)], learning=False) == []  # 20 + 4 x 1 = 24, not above
-    assert len(d.deviation([series(25, [20] * 14)], learning=False)) == 1
+    assert (
+        d.deviation([series(24, [20] * 14)], learning=False, min_ratio=1) == []
+    )  # 20 + 4 x 1 = 24, not above
+    assert len(d.deviation([series(25, [20] * 14)], learning=False, min_ratio=1)) == 1
 
 
 def test_a_rare_signature_that_suddenly_fires_a_lot_is_flagged():
@@ -108,8 +110,8 @@ def test_mad():
 # ---------------------------------------------------------------- off hours
 
 
-def hours(hour, count, history, host="h1", sig_id=3):
-    return d.HourRow(host, sig_id, "sys1", hour, count, frozenset(history), "app: login")
+def hours(hour, count, history, host="h1", sig_id=3, days=10, events=100):
+    return d.HourRow(host, sig_id, "sys1", hour, count, frozenset(history), "app: login", days, events)
 
 
 def test_off_hours_flags_an_hour_the_signature_never_appeared_in():
@@ -197,3 +199,54 @@ def test_expected_gap_uses_the_95th_percentile_of_the_quiet_stretches():
     assert gap in (60, 120)
     sparse = list(range(0, 24 * 40, 4))  # every fourth hour
     assert d.expected_gap(sparse) == 240
+
+
+# ---------------------------------------------------------------- the refinements found on real data
+
+
+def test_a_signature_is_not_news_when_its_host_was_not_logging_while_it_was_away():
+    back = dict(prev=ago(days=12), returned=ago(hours=2))
+    assert len(d.novelty([sig(**back)], NOW, learning=False)) == 1  # unknown: reported
+    quiet = d.SignatureRow(1, "app", "t", ago(days=30), ago(hours=1), ago(days=12), False, "err", ("h1",), ("sys1",),
+                           ago(hours=2), 0)  # fmt: skip
+    assert d.novelty([quiet], NOW, learning=False) == []  # the host was silent: the host came back
+    busy = d.SignatureRow(1, "app", "t", ago(days=30), ago(hours=1), ago(days=12), False, "err", ("h1",), ("sys1",),
+                          ago(hours=2), 40)  # fmt: skip
+    assert len(d.novelty([busy], NOW, learning=False)) == 1  # the host logged other things meanwhile
+    assert len(d.novelty([quiet], NOW, learning=False, min_host_hours=0)) == 1
+
+
+def test_deviation_wants_a_real_multiple_of_the_median_not_just_a_wide_mad():
+    wide = [100, 140, 60, 180, 90, 120, 70, 160, 80, 130, 110, 100, 150, 95]  # chatty, swings a lot
+    assert d.deviation([series(250, wide)], learning=False, min_ratio=1) != []  # past median + 4 x MAD
+    assert d.deviation([series(250, wide)], learning=False) == []  # but only about 2.2 x the median
+    assert len(d.deviation([series(420, wide)], learning=False)) == 1  # a real multiple
+
+
+def test_the_ratio_does_not_apply_when_the_usual_count_is_zero():
+    assert len(d.deviation([series(25, [0] * 10)], learning=False)) == 1
+
+
+def test_off_hours_needs_a_real_pattern():
+    assert len(d.off_hours([hours(3, 5, {9, 10})], learning=False)) == 1
+    assert d.off_hours([hours(3, 5, {9, 10}, days=2)], learning=False) == []  # too few days of history
+    assert d.off_hours([hours(3, 5, {9, 10}, events=19)], learning=False) == []  # too few events
+    assert (
+        d.off_hours([hours(3, 5, set(range(4, 16)))], learning=False) == []
+    )  # seen at any hour: no unusual one
+    assert (
+        len(d.off_hours([hours(3, 5, set(range(4, 12)))], learning=False)) == 1
+    )  # eight hours is still a pattern
+
+
+def test_a_signature_that_was_never_regular_is_not_news_when_it_shows_up_again():
+    def row(prior):
+        return d.SignatureRow(1, "app", "t", ago(days=60), ago(hours=1), ago(days=12), False, "err", ("h1",), ("sys1",),
+                              ago(hours=2), 40, prior)  # fmt: skip
+
+    assert len(d.novelty([row(10)], NOW, learning=False)) == 1  # seen on ten days before: it was regular
+    assert (
+        d.novelty([row(2)], NOW, learning=False) == []
+    )  # seen on two days in two months: always "returning"
+    assert len(d.novelty([row(2)], NOW, learning=False, min_prior_days=2)) == 1
+    assert len(d.novelty([row(None)], NOW, learning=False)) == 1  # unknown history: reported

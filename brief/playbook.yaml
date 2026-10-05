@@ -9,9 +9,15 @@ schema: 1
 
 thresholds:
   learning: { days: 7 }        # live days of baseline collection before novelty and deviation findings
-  novelty: { quiet_days_before_return: 7 }
-  deviation: { window_days: 14, min_count: 20, mad_multiple: 4 }
-  off_hours: { window_days: 14, min_count: 3 }
+  # returned = back after quiet_days_before_return of nothing, and only if its host logged other things
+  # (at least host_active_hours_in_gap hours) meanwhile; if the host itself was down, the host returned
+  # and only if it used to be regular (seen on at least min_prior_days days before it went quiet)
+  novelty: { quiet_days_before_return: 7, host_active_hours_in_gap: 3, min_prior_days: 5 }
+  # the baseline counts only windows in which the host logged anything; flag above median + mad_multiple x MAD
+  # AND at least min_ratio x the median (when the median is not zero)
+  deviation: { window_days: 14, min_count: 20, mad_multiple: 4, min_ratio: 3, min_history_days: 3 }
+  # only for signatures with a pattern: enough history and concentrated in at most max_usual_hours hours of the day
+  off_hours: { window_days: 14, min_count: 3, min_history_days: 3, min_history_events: 20, max_usual_hours: 8 }
   absence: { gap_multiple: 3, min_minutes: 30, max_hours: 24 }
   metric_drift: { recent_days: 7, baseline_days: 21, min_change_pct: 20 }
   traffic_spike: { multiple: 5, floor_gb: 2, window_days: 14 }

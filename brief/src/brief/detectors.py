@@ -70,6 +70,8 @@ class SignatureRow:
     hosts: tuple[str, ...] = ()  # the busiest senders in the window
     systems: tuple[str, ...] = ()
     returned_at: str | None = None  # first activity after prev_last_seen (the end of the quiet spell)
+    host_hours_in_gap: int | None = None  # hours its busiest host logged anything while it was away
+    prior_days: int | None = None  # distinct days it was seen on before the quiet spell
 
 
 def novelty(
@@ -78,7 +80,14 @@ def novelty(
     learning: bool,
     quiet_days: int = 7,
     window_hours: int = 24,
+    min_host_hours: int = 3,
+    min_prior_days: int = 5,
 ) -> list[Finding]:
+    """min_prior_days: a signature only "returned" if it used to be regular (seen on at least this many
+    days before the quiet spell); one that shows up every few weeks is always "coming back".
+    min_host_hours: a signature only "returned" if its host kept logging other things (at least
+    this many active hours) while the signature was away. If the host itself was silent, or
+    collection was down, the host came back, not the signature."""
     if learning:
         return []
     since = _iso(now - timedelta(hours=window_hours))
@@ -96,6 +105,8 @@ def novelty(
             and r.returned_at is not None
             and r.returned_at >= since
             and _parse(r.returned_at) - _parse(r.prev_last_seen) >= timedelta(days=quiet_days)
+            and (r.host_hours_in_gap is None or r.host_hours_in_gap >= min_host_hours)
+            and (r.prior_days is None or r.prior_days >= min_prior_days)
         )
         if not (new or returned):
             continue
@@ -145,7 +156,12 @@ def deviation(
     min_count: int = 20,
     mad_multiple: float = 4,
     min_history_days: int = 3,
+    min_ratio: float = 3,
 ) -> list[Finding]:
+    """The history holds one count per earlier window in which the host was logging at all, zeros
+    included for the signature, so an outage does not make everything "usually zero". min_ratio asks
+    for a real multiple of the median as well, because a chatty signature's MAD is wide but its
+    swings of two times are routine."""
     if learning:
         return []
     out = []
@@ -154,7 +170,7 @@ def deviation(
             continue
         median = statistics.median(r.history)
         limit = median + mad_multiple * max(mad(list(r.history)), 1.0)
-        if r.today <= limit:
+        if r.today <= limit or (median > 0 and r.today < min_ratio * median):
             continue
         out.append(
             Finding(
@@ -183,15 +199,31 @@ class HourRow:
     count: int  # in the last 24 hours
     history_hours: frozenset[int]  # hours of day it appeared in over the previous days
     label: str = ""
+    history_days: int = 0  # distinct days it appeared on in the history
+    history_events: int = 0  # how many times it appeared in the history
 
 
-def off_hours(rows: Iterable[HourRow], learning: bool, min_count: int = 3) -> list[Finding]:
+def off_hours(
+    rows: Iterable[HourRow],
+    learning: bool,
+    min_count: int = 3,
+    min_history_days: int = 3,
+    min_history_events: int = 20,
+    max_usual_hours: int = 8,
+) -> list[Finding]:
+    """An hour is only "unusual" for a signature with a real pattern: enough history (days and
+    events) to call an hour unusual, and concentrated in few hours of the day. A signature that
+    turns up at any hour (a random fault, a wandering client) has no hour that is unusual."""
     if learning:
         return []
     out = []
     for r in rows:
         # no history at all means a new signature, which novelty reports
         if r.count < min_count or not r.history_hours or r.hour in r.history_hours:
+            continue
+        if r.history_days < min_history_days or r.history_events < min_history_events:
+            continue
+        if len(r.history_hours) > max_usual_hours:
             continue
         out.append(
             Finding(
