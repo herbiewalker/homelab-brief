@@ -410,3 +410,41 @@ def test_a_migration_with_comments_and_several_statements_runs_whole(tmp_path):
     names = {r["name"] for r in rows(st, "SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert {"one", "two"} <= names
     st.close()
+
+
+def test_the_wal_switch_retries_when_another_process_holds_the_new_database(monkeypatch):
+    import sqlite3
+
+    calls = {"n": 0}
+
+    class Conn:
+        def execute(self, sql):
+            calls["n"] += 1
+            if calls["n"] < 4:
+                raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(s.time, "sleep", lambda _: None)
+    s._wal(Conn())
+    assert calls["n"] == 4  # three refusals, then it worked
+
+
+def test_the_wal_switch_gives_up_on_a_real_error_and_on_a_lock_that_never_clears(monkeypatch):
+    import sqlite3
+
+    import pytest
+
+    monkeypatch.setattr(s.time, "sleep", lambda _: None)
+
+    class Broken:
+        def execute(self, sql):
+            raise sqlite3.OperationalError("disk I/O error")
+
+    with pytest.raises(sqlite3.OperationalError, match="disk I/O"):
+        s._wal(Broken())
+
+    class Stuck:
+        def execute(self, sql):
+            raise sqlite3.OperationalError("database is locked")
+
+    with pytest.raises(sqlite3.OperationalError, match="locked"):
+        s._wal(Stuck(), attempts=5)

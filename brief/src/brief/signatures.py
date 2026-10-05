@@ -1,9 +1,16 @@
 """Message signatures: Drain3 turns near-duplicate lines into one template.
 
 Each message is mined as "<app>: <message>" so templates stay app-specific, and the masking rules
-in drain3.ini (IPs, MACs, numbers) are what collapse thousands of lines into one signature. Drain3
-saves its state to disk on every new cluster or template change, so the miner is always at least as
-new as the database; the pipeline maps Drain3's cluster ids to our own sig_id (see store.py).
+in drain3.ini (IPs, MACs, numbers) are what collapse thousands of lines into one signature.
+
+Drain3 normally rewrites its whole state file (a jsonpickle dump of the template tree) on every new
+cluster or template change. That dominated ingest time (about 88% in a profile of 150k real events,
+and it grows with the number of clusters), so here it saves only when told to: `save()` is called
+once per ingest cycle, just BEFORE the database commit. That keeps the invariant that matters: the
+miner on disk is never older than the database. A crash before the save leaves both as they were;
+a crash between the save and the commit leaves the miner ahead, which is harmless. (A miner that
+lagged the database would hand a used cluster id to a different template.) The pipeline maps
+Drain3's cluster ids to our own sig_id (see store.py).
 
 An exact-match cache in front of the miner makes a storm of identical lines cheap.
 """
@@ -26,8 +33,26 @@ class Cluster:
     template: str
 
 
-def _open(state_path: Path, config: TemplateMinerConfig) -> TemplateMiner:
-    return TemplateMiner(FilePersistence(str(state_path)), config)
+class _DeferredMiner(TemplateMiner):
+    """A TemplateMiner that remembers a save is due instead of serializing the tree on every change."""
+
+    dirty = False
+
+    def save_state(self, snapshot_reason):
+        # add_log_message calls this for every new cluster or template change, and also on a timer
+        if snapshot_reason != "periodic":
+            self.dirty = True
+
+    def write_state(self) -> bool:
+        if not self.dirty:
+            return False
+        super().save_state("end of cycle")
+        self.dirty = False
+        return True
+
+
+def _open(state_path: Path, config: TemplateMinerConfig) -> _DeferredMiner:
+    return _DeferredMiner(FilePersistence(str(state_path)), config)
 
 
 class Signatures:
@@ -66,6 +91,10 @@ class Signatures:
         if len(self._cache) > self._cache_size:
             self._cache.popitem(last=False)
         return cluster
+
+    def save(self) -> bool:
+        """Write the miner state if anything changed since the last save. Call it before the commit."""
+        return self.miner.write_state()
 
     @property
     def cluster_count(self) -> int:

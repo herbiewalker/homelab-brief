@@ -12,6 +12,7 @@ Times are UTC text like 2026-09-26T13:22:33Z, so they compare correctly as strin
 import re
 import sqlite3
 import threading
+import time
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -73,9 +74,23 @@ def _connect(path: str | Path, readonly: bool = False) -> sqlite3.Connection:
     conn.execute("PRAGMA busy_timeout = 5000")
     conn.execute("PRAGMA foreign_keys = ON")
     if not readonly:
-        conn.execute("PRAGMA journal_mode = WAL")
+        _wal(conn)
         conn.execute("PRAGMA synchronous = NORMAL")
     return conn
+
+
+def _wal(conn: sqlite3.Connection, attempts: int = 100, pause: float = 0.05) -> None:
+    """Switch to WAL mode. On a brand-new database, several processes starting at the same instant
+    (the worker and both web servers) race here, and SQLite refuses the switch at once with "locked"
+    without waiting for the busy timeout, so wait a moment and try again."""
+    for attempt in range(attempts):
+        try:
+            conn.execute("PRAGMA journal_mode = WAL")
+            return
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc) or attempt == attempts - 1:
+                raise
+            time.sleep(pause)
 
 
 def _version(conn: sqlite3.Connection) -> int:

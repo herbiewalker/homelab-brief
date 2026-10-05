@@ -240,6 +240,8 @@ class Pipeline:
     # ------------------------------------------------------------------ the one transaction
 
     def _flush(self, acc, result, new_offsets, present, old_offsets, now, signatures_before) -> None:
+        # the miner state goes to disk BEFORE the commit, so it is never older than the database
+        self.signatures.save()
         with self.store.write() as tx:
             sig_ids: dict[int, int] = {}
             for cluster_id, c in acc.clusters.items():

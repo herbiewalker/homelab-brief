@@ -431,3 +431,37 @@ def test_the_learning_banner_counts_days_and_then_clears():
         "of": 7,
     }
     assert learning_status(start, datetime(2026, 9, 29, tzinfo=UTC), days=2)["active"] is False
+
+
+# ---------- the miner state and the commit ----------
+
+
+def test_the_miner_state_is_on_disk_before_the_database_commit_and_never_per_event(rig, monkeypatch):
+    state = rig.tmp / "state" / "drain3.bin"
+    seen = {}
+    real_write = rig.store.write
+
+    def watching_write():
+        seen["state_present_at_commit"] = state.exists()
+        return real_write()
+
+    monkeypatch.setattr(rig.store, "write", watching_write)
+    saves = []
+    miner_cls = type(rig.sigs.miner).__mro__[1]
+    real_save = miner_cls.save_state
+    monkeypatch.setattr(
+        miner_cls, "save_state", lambda self, reason: (saves.append(reason), real_save(self, reason))
+    )
+    rig.add("a.ndjson", [ev(f"distinct thing number {i} " + "x" * i) for i in range(40)])
+    rig.pipe.run_cycle()
+    assert seen["state_present_at_commit"] is True
+    assert saves == ["end of cycle"]  # forty new clusters, one write
+
+
+def test_a_cycle_that_finds_nothing_new_does_not_rewrite_the_state(rig, monkeypatch):
+    rig.add("a.ndjson", [ev("same line again")])
+    rig.pipe.run_cycle()
+    before = (rig.tmp / "state" / "drain3.bin").stat().st_mtime_ns
+    rig.add("a.ndjson", [ev("same line again")])
+    rig.pipe.run_cycle()
+    assert (rig.tmp / "state" / "drain3.bin").stat().st_mtime_ns == before

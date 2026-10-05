@@ -34,7 +34,9 @@ def test_an_untagged_message_is_still_mined(tmp_path):
 
 
 def test_state_survives_a_restart_so_ids_stay_the_same(tmp_path):
-    first = open_sigs(tmp_path).classify("app", "something happened to 7 things")
+    miner = open_sigs(tmp_path)
+    first = miner.classify("app", "something happened to 7 things")
+    miner.save()
     again = open_sigs(tmp_path)
     assert again.state_existed and not again.recovered
     assert again.classify("app", "something happened to 9 things").cluster_id == first.cluster_id
@@ -61,3 +63,34 @@ def test_very_long_lines_are_trimmed_before_mining(tmp_path):
     s = open_sigs(tmp_path)
     assert s.classify("a", "word " * 5000).template
     assert s.cluster_count == 1
+
+
+def test_the_state_is_written_only_when_save_is_called_and_only_if_something_changed(tmp_path, monkeypatch):
+    s = open_sigs(tmp_path)
+    writes = []
+    real = type(s.miner).__mro__[1].save_state  # drain3's own save_state
+    monkeypatch.setattr(
+        type(s.miner).__mro__[1],
+        "save_state",
+        lambda self, reason: (writes.append(reason), real(self, reason)),
+    )
+    for i in range(50):
+        s.classify("app", f"unique shape number {i} " + "word " * (i % 7) + f"tail{i}")
+    assert writes == [] and not (tmp_path / "drain3.bin").exists()  # nothing written per message
+    assert s.save() is True and writes == ["end of cycle"] and (tmp_path / "drain3.bin").exists()
+    assert s.save() is False and len(writes) == 1  # nothing changed since
+
+
+def test_a_periodic_snapshot_request_does_not_force_a_save(tmp_path):
+    s = open_sigs(tmp_path)
+    s.miner.save_state("periodic")
+    assert s.save() is False
+
+
+def test_a_saved_state_reloads_with_the_same_clusters(tmp_path):
+    s = open_sigs(tmp_path)
+    ids = {s.classify("app", f"event kind{i} happened on host{i}").cluster_id for i in range(5)}
+    s.save()
+    again = open_sigs(tmp_path)
+    assert again.cluster_count == s.cluster_count
+    assert again.classify("app", "event kind3 happened on host3").cluster_id in ids
