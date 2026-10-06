@@ -1,0 +1,31 @@
+{% extends "admin_layout.html" %}
+{% block title %}Findings and alerts{% endblock %}
+{% block body %}
+<h1>Findings and alerts</h1>
+<h2>Stories from the last daily brief{% if generated %} <span class="muted">({{ generated }})</span>{% endif %}</h2>
+<div class="card scroll">
+{% if not run_ok %}<div class="error">The last run did not have enough data to say anything: {{ headline }}</div>
+{% elif stories %}
+<table class="wide">
+  <thead><tr><th>#</th><th>Story</th><th>System</th><th>Route</th><th class="num">Findings</th></tr></thead>
+  {% for s in stories %}<tr><td>{{ s.rank }}</td><td>{{ s.title }}</td><td>{{ s.system or '' }}</td><td><span class="badge {{ 'bad' if s.route == 'push_now' else '' }}">{{ s.route }}</span></td><td class="num">{{ s.count }}</td></tr>{% endfor %}
+</table>
+{% else %}Nothing needs a look.{% endif %}
+</div>
+{% if developing %}
+<h2>Developing</h2>
+<div class="card"><table class="plain">{% for d in developing %}<tr><td>{{ d.id }}</td><td>day {{ d.days }}, {{ d.trend }}</td></tr>{% endfor %}</table></div>
+{% endif %}
+<h2>Alerts</h2>
+<div class="card scroll">
+<table class="wide" id="alerts">
+  <thead><tr><th>Alert</th><th>State</th><th>Level</th><th>Opened</th><th class="num">Notified</th><th></th></tr></thead>
+  <tbody>
+  {% for a in alerts %}{% include "_alert_row.html" %}{% else %}
+  <tr><td colspan="6" class="muted">No open alerts.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted">Acknowledging stops the repeats until a finding gets worse. Snoozing keeps it quiet for the time you choose, or until it gets worse. Both are recorded in the audit log.</p>
+{% endblock %}

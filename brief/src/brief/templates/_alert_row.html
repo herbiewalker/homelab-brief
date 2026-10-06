@@ -1,0 +1,16 @@
+<tr>
+  <td>{{ a.title }}<div class="muted">{{ a.kind }}</div></td>
+  <td><span class="badge {{ 'bad' if a.state == 'open' else 'ok' }}">{{ a.state }}</span>{% if a.snooze_until %}<div class="muted">until {{ a.snooze_until }}</div>{% endif %}</td>
+  <td>{{ a.level }}</td>
+  <td title="{{ a.opened }}">{{ a.opened_text }}</td>
+  <td class="num">{{ a.pushed }}</td>
+  <td>
+    <form class="inline" method="post" action="/admin/alerts/act" hx-post="/admin/alerts/act" hx-target="closest tr" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input type="hidden" name="finding_id" value="{{ a.id }}">
+      <button class="small quiet" name="action" value="ack" type="submit">Acknowledge</button>
+      <button class="small quiet" name="action" value="snooze_24h" type="submit">Snooze 24 h</button>
+      <button class="small quiet" name="action" value="snooze_7d" type="submit">Snooze 7 d</button>
+    </form>
+  </td>
+</tr>

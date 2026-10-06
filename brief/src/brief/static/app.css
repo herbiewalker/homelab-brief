@@ -1,33 +1,85 @@
-/* One small stylesheet for the status page and the admin pages. No scripts anywhere. */
+/* One stylesheet for the status page and the admin pages. Light and dark follow the system, and the
+   theme button in the admin pages can force either (data-theme on the root element). */
 :root {
   color-scheme: light dark;
-  --bg: #f6f7f9; --fg: #1b1f24; --muted: #5b6573; --card: #ffffff; --line: #d8dde4;
-  --accent: #2457c5; --ok: #1a7f37; --warn: #9a6700; --bad: #c62828;
+  --bg: #f6f7f9; --fg: #1b1f24; --muted: #5b6573; --card: #ffffff; --line: #d8dde4; --soft: #eef1f5;
+  --accent: #2457c5; --ok: #1a7f37; --warn: #9a6700; --bad: #c62828; --code: #f0f2f5;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12151a; --fg: #e6e9ee; --muted: #9aa5b4; --card: #1b2028; --line: #2d3541;
-    --accent: #7aa2ff; --ok: #4ac26b; --warn: #e3b341; --bad: #ff7b72;
+  :root:not([data-theme="light"]) {
+    --bg: #12151a; --fg: #e6e9ee; --muted: #9aa5b4; --card: #1b2028; --line: #2d3541; --soft: #232a34;
+    --accent: #7aa2ff; --ok: #4ac26b; --warn: #e3b341; --bad: #ff7b72; --code: #161a20;
   }
 }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12151a; --fg: #e6e9ee; --muted: #9aa5b4; --card: #1b2028; --line: #2d3541; --soft: #232a34;
+  --accent: #7aa2ff; --ok: #4ac26b; --warn: #e3b341; --bad: #ff7b72; --code: #161a20;
+}
+:root[data-theme="light"] { color-scheme: light; }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+a { color: var(--accent); }
 main { max-width: 46rem; margin: 0 auto; padding: 1rem; }
 header.top { display: flex; gap: 1rem; align-items: baseline; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid var(--line); background: var(--card); }
 header.top a { color: var(--accent); text-decoration: none; margin-right: 1rem; }
 h1 { font-size: 1.4rem; margin: 1rem 0 0.5rem; }
 h2 { font-size: 1.05rem; margin: 1.25rem 0 0.4rem; color: var(--muted); font-weight: 600; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 0.75rem 1rem; margin: 0.75rem 0; }
+.card > h2:first-child { margin-top: 0.1rem; }
 table { width: 100%; border-collapse: collapse; }
-td, th { text-align: left; padding: 0.3rem 0.25rem; border-bottom: 1px solid var(--line); }
+td, th { text-align: left; padding: 0.3rem 0.25rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
 td:last-child { text-align: right; }
+table.plain td:last-child, table.wide td:last-child { text-align: left; }
+.num { text-align: right; font-variant-numeric: tabular-nums; }
 .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
 .muted { color: var(--muted); font-size: 0.9rem; }
 .banner { border-left: 4px solid var(--warn); }
 label { display: block; margin: 0.75rem 0 0.2rem; font-weight: 600; }
-input[type=text], input[type=password] { width: 100%; padding: 0.55rem; font: inherit; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
-button { margin-top: 1rem; padding: 0.55rem 1.1rem; font: inherit; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+input[type=text], input[type=password], input[type=search], select, textarea { width: 100%; padding: 0.55rem; font: inherit; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+textarea { font: 0.9rem/1.45 ui-monospace, Menlo, Consolas, monospace; min-height: 22rem; tab-size: 2; }
+button, .button { margin-top: 1rem; padding: 0.55rem 1.1rem; font: inherit; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; text-decoration: none; display: inline-block; }
+button.quiet { background: var(--soft); color: var(--fg); border: 1px solid var(--line); }
+button.danger { background: var(--bad); }
+button.small { margin: 0; padding: 0.2rem 0.6rem; font-size: 0.85rem; }
 button.link { background: none; color: var(--accent); padding: 0; margin: 0; }
 .error { border-left: 4px solid var(--bad); }
 .notice { border-left: 4px solid var(--ok); }
 form.inline { display: inline; }
+code, pre { background: var(--code); border-radius: 4px; font: 0.88rem ui-monospace, Menlo, Consolas, monospace; }
+code { padding: 0.05rem 0.3rem; }
+pre { padding: 0.6rem 0.8rem; overflow-x: auto; margin: 0.4rem 0; white-space: pre-wrap; word-break: break-word; }
+.badge { display: inline-block; padding: 0 0.5rem; border-radius: 999px; font-size: 0.78rem; border: 1px solid var(--line); background: var(--soft); }
+.badge.ok { border-color: var(--ok); } .badge.warn { border-color: var(--warn); } .badge.bad { border-color: var(--bad); }
+.grid { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.grid .card { margin: 0; }
+.scroll { overflow-x: auto; }
+.row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.row input, .row select { width: auto; flex: 1 1 10rem; }
+.row button { margin: 0; }
+
+/* admin layout: a side menu on wide screens, a drop-down menu on narrow ones */
+.shell { display: flex; min-height: 100vh; }
+.side { width: 13rem; flex: none; background: var(--card); border-right: 1px solid var(--line); padding: 0.75rem; }
+.side a { display: block; padding: 0.4rem 0.6rem; border-radius: 6px; color: var(--fg); text-decoration: none; }
+.side a:hover { background: var(--soft); }
+.side a.active { background: var(--accent); color: #fff; }
+.side .brand { font-weight: 700; padding: 0.4rem 0.6rem 0.8rem; }
+.side .who { margin-top: 1rem; padding: 0.4rem 0.6rem; border-top: 1px solid var(--line); }
+.content { flex: 1; min-width: 0; }
+.content main { max-width: 64rem; }
+.menu-button { display: none; margin: 0; }
+@media (max-width: 760px) {
+  .shell { display: block; }
+  .menu-button { display: inline-block; margin: 0.5rem; }
+  .side { display: none; width: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .side.open { display: block; }
+}
+
+/* configuration editor and diffs */
+.diff { font: 0.85rem/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; }
+.diff .add { background: color-mix(in srgb, var(--ok) 22%, transparent); display: block; }
+.diff .del { background: color-mix(in srgb, var(--bad) 22%, transparent); display: block; }
+.diff .ctx { color: var(--muted); display: block; }
+.spaced { margin-top: 0.75rem; }

@@ -255,6 +255,24 @@ def test_a_request_from_another_site_is_rejected_even_with_a_valid_token(env):
     assert ok.status_code == 303
 
 
+def test_a_browser_that_sends_origin_null_on_a_same_site_post_can_still_sign_in(env):
+    """Chromium sends "Origin: null" on form posts under Referrer-Policy: no-referrer. The browser's own
+    Sec-Fetch-Site header (which a page cannot forge) vouches for a post that really came from this site."""
+    env.admin()
+    c = env.https()
+    token = csrf_from(c.get("/admin/login"))
+    data = {"username": "admin", "password": GOOD, "csrf_token": token}
+    for site in ("cross-site", "same-site", "none", None):
+        headers = {"origin": "null", **({"sec-fetch-site": site} if site else {})}
+        assert c.post("/admin/login", data=data, headers=headers).status_code == 403, site
+    ok = c.post("/admin/login", data=data, headers={"origin": "null", "sec-fetch-site": "same-origin"})
+    assert ok.status_code == 303
+
+
+def test_the_referrer_policy_lets_the_browser_send_a_real_origin_to_this_site(env):
+    assert env.https().get("/admin/login").headers["referrer-policy"] == "same-origin"
+
+
 # ======================================================================== signing in and out
 
 
@@ -267,7 +285,7 @@ def test_a_good_login_sets_a_hardened_session_cookie_and_opens_the_admin_page(en
     assert "__host-brief_session=" in cookie and "secure" in cookie and "httponly" in cookie
     assert "samesite=strict" in cookie and "path=/" in cookie and "domain" not in cookie
     page = c.get("/admin")
-    assert page.status_code == 200 and "Signed in as" in page.text and "admin" in page.text
+    assert page.status_code == 200 and "Overview" in page.text and "admin" in page.text
 
 
 def test_the_session_cookie_value_is_not_in_the_database(env):

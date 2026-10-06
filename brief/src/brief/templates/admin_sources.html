@@ -1,0 +1,27 @@
+{% extends "admin_layout.html" %}
+{% block title %}Sources{% endblock %}
+{% block body %}
+<h1>Sources</h1>
+<p class="muted">Every sender that has reached the receiver. A sender that is not in <code>systems.yaml</code> is listed first, so you can name it. Counts are events in the last 24 hours and in the last hour, including those an ignore rule removed.</p>
+<div class="card scroll">
+<table class="wide">
+  <thead><tr><th>Sender</th><th>System</th><th>Last line</th><th class="num">24 h</th><th class="num">1 h</th><th>Normal gap</th><th></th></tr></thead>
+  <tbody>
+  {% for h in rows %}
+  <tr>
+    <td><code>{{ h.host }}</code></td>
+    <td>{% if h.known %}{{ h.system }}{% else %}<span class="badge warn">unknown</span>{% endif %}</td>
+    <td title="{{ h.last_seen }}">{{ h.last_seen_text }}</td>
+    <td class="num">{{ '{:,}'.format(h.events_24h) }}</td>
+    <td class="num">{{ '{:,}'.format(h.events_hour) }}</td>
+    <td>{% if h.gap_min %}{{ h.gap_min }} min{% else %}<span class="muted">not learned</span>{% endif %}</td>
+    <td>{% if h.silent %}<span class="badge bad">silent</span>{% endif %}</td>
+  </tr>
+  {% else %}
+  <tr><td colspan="7" class="muted">Nothing has been received yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if unknown %}<div class="card banner">{{ unknown }} sender{{ '' if unknown == 1 else 's' }} not mapped to a system. Add {{ 'it' if unknown == 1 else 'them' }} to <code>systems.yaml</code>.</div>{% endif %}
+{% endblock %}

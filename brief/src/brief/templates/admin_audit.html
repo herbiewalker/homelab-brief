@@ -1,0 +1,20 @@
+{% extends "admin_layout.html" %}
+{% block title %}Audit log{% endblock %}
+{% block body %}
+<h1>Audit log</h1>
+<form class="card row" method="get" action="/admin/audit">
+  <select name="user" aria-label="User"><option value="">All users</option>{% for u in users %}<option value="{{ u }}"{% if u == user %} selected{% endif %}>{{ u }}</option>{% endfor %}</select>
+  <input type="search" name="q" value="{{ q }}" placeholder="Search actions and details" aria-label="Search">
+  <button class="quiet" type="submit">Filter</button>
+</form>
+<div class="card scroll">
+<table class="wide">
+  <thead><tr><th>Time (UTC)</th><th>User</th><th>Action</th><th>Detail</th></tr></thead>
+  <tbody>
+  {% for r in rows %}<tr><td>{{ r.ts }}</td><td>{{ r.user }}</td><td><code>{{ r.action }}</code></td><td>{{ r.detail or '' }}</td></tr>
+  {% else %}<tr><td colspan="4" class="muted">Nothing matches.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% if next %}<a class="button quiet" href="/admin/audit?before={{ next }}&amp;user={{ user|urlencode }}&amp;q={{ q|urlencode }}">Older</a>{% endif %}
+{% endblock %}

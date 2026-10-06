@@ -1,0 +1,59 @@
+{% set s = data.status %}
+{% set p = s.pipeline %}
+{% if not s.run_ok %}<div class="card error"><strong>{{ s.headline }}</strong><div class="muted">Nothing below is a statement that the network is fine.</div></div>
+{% else %}<div class="card"><strong>{{ s.headline }}</strong></div>{% endif %}
+{% if data.config_errors %}
+<div class="card error"><h2>Configuration errors</h2>
+{% for name, e in data.config_errors.items() %}<div><code>{{ name }}</code>: {{ e.error }} <span class="muted">(using {{ e.using }})</span></div>{% endfor %}
+<div class="muted"><a href="/admin/config">Fix them in the config editor</a>.</div></div>
+{% endif %}
+<div class="grid">
+  <div class="card"><h2>Health</h2>
+    <table class="plain">
+      <tr><td>Overall</td><td class="{{ 'ok' if data.health.status == 'ok' else 'bad' }}">{{ data.health.status }}</td></tr>
+      {% for name, c in data.health.checks.items() %}<tr><td>{{ name }}</td><td class="{{ 'ok' if c.ok else 'bad' }}">{{ c.state or ('ok' if c.ok else 'failing') }}</td></tr>{% endfor %}
+      <tr><td>Version</td><td>{{ version }}</td></tr>
+      <tr><td>Up</td><td>{{ uptime }}</td></tr>
+    </table>
+  </div>
+  <div class="card"><h2>Last runs</h2>
+    <table class="plain">
+      {% for r in data.runs %}<tr><td>{{ r.job }}</td><td class="{{ 'ok' if r.ok else ('bad' if r.ok is false else 'muted') }}">{{ r.when_text }}{% if r.note %} <span class="muted">{{ r.note }}</span>{% endif %}</td></tr>{% endfor %}
+    </table>
+  </div>
+  <div class="card"><h2>Pipeline</h2>
+    <table class="plain">
+      <tr><td>Events, 24 h</td><td class="num">{{ '{:,}'.format(p.events_24h or 0) }}</td></tr>
+      <tr><td>Events, last hour</td><td class="num">{{ p.events_last_hour if p.events_last_hour is not none else '-' }}</td></tr>
+      <tr><td>New signatures, 24 h</td><td class="num">{{ p.new_signatures_24h }}</td></tr>
+      <tr><td>Parse failures, 24 h</td><td class="num">{{ p.parse_failed_24h if p.parse_failed_24h is not none else '-' }}</td></tr>
+      <tr><td>Ingest lag</td><td class="num">{{ (p.ingest_lag_s ~ ' s') if p.ingest_lag_s is not none else '-' }}</td></tr>
+      <tr><td>Silent hosts</td><td class="num {{ 'bad' if p.hosts_silent else '' }}">{{ p.hosts_silent }} of {{ p.hosts_checked }}</td></tr>
+    </table>
+  </div>
+  <div class="card"><h2>Resources</h2>
+    <table class="plain">
+      <tr><td>Memory</td><td class="num">{% if p.memory_mb is not none %}{{ p.memory_mb }} MB{% if p.memory_limit_mb %} of {{ p.memory_limit_mb }} MB{% endif %}{% else %}-{% endif %}</td></tr>
+      <tr><td>Database</td><td class="num">{{ (p.db_mb ~ ' MB') if p.db_mb is not none else '-' }}</td></tr>
+      <tr><td>Log archive</td><td class="num">{{ (p.archive_mb ~ ' MB') if p.archive_mb is not none else '-' }}</td></tr>
+      <tr><td>Archive disk free</td><td class="num">{{ (p.archive_free_gb ~ ' GB') if p.archive_free_gb is not none else '-' }}{% if p.archive_free_pct is not none %} ({{ p.archive_free_pct }}%){% endif %}</td></tr>
+      <tr><td>Days until full</td><td class="num {{ 'warn' if p.storage_days_left is not none and p.storage_days_left < 30 else '' }}">{{ p.storage_days_left if p.storage_days_left is not none else 'not enough history' }}</td></tr>
+    </table>
+  </div>
+</div>
+<div class="grid spaced">
+  <div class="card"><h2>Busiest senders, last hour</h2>
+    {% if data.top_sources %}<table class="plain">
+      {% for host, n in data.top_sources %}<tr><td><code>{{ host }}</code></td><td class="num">{{ '{:,}'.format(n) }}</td></tr>{% endfor %}
+    </table><div class="muted"><a href="/admin/sources">All sources</a></div>
+    {% else %}<div class="muted">Nothing received in the last hour.</div>{% endif %}
+  </div>
+  <div class="card"><h2>Open items</h2>
+    <table class="plain">
+      <tr><td>Alerts open, acknowledged or snoozed</td><td class="num"><a href="/admin/findings">{{ data.open_alerts }}</a></td></tr>
+      <tr><td>Stories in the last daily brief</td><td class="num">{{ s.stories|length }}</td></tr>
+      <tr><td>AI calls, last 24 h</td><td class="num">{{ data.ai_calls_today }}</td></tr>
+    </table>
+  </div>
+</div>
+<p class="muted">Updated {{ s.generated_at }} (UTC). This panel refreshes every 30 seconds.</p>

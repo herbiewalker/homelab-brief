@@ -168,7 +168,18 @@ def main(argv):
             f"cookie flags: {cookie}",
         )
         code, _, page = me.get(f"{https_url}/admin")
-        check(code == 200 and "Signed in as" in page, f"/admin after sign-in was {code}")
+        check(code == 200 and "Overview" in page, f"/admin after sign-in was {code}")
+        for path in ("/admin/sources", "/admin/findings", "/admin/audit", "/admin/overview/live"):
+            code, headers, body = me.get(f"{https_url}{path}")
+            check(code == 200, f"{path} was {code}")
+            csp = headers.get("Content-Security-Policy", "")
+            check("script-src 'self'" in csp and "unsafe" not in csp, f"{path} CSP: {csp}")
+        for path in (
+            "/static/admin.js",
+            "/static/vendor/htmx-2.0.11.min.js",
+            "/static/vendor/alpine-csp-3.17.4.min.js",
+        ):
+            check(anon.get(f"{https_url}{path}")[0] == 200, f"{path} is not served")
         session_csrf = csrf_in(me.get(f"{https_url}/admin/account")[2])
         code, _, _ = me.post(
             f"{https_url}/admin/account", {"current": GOOD, "password": CHANGED, "confirm": CHANGED}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="htmx-config" content='{"allowEval": false, "includeIndicatorStyles": false}'>
+<title>{% block title %}Admin{% endblock %} - homelab-brief</title>
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+<script defer src="/static/admin.js"></script>
+<script defer src="/static/vendor/htmx-2.0.11.min.js"></script>
+<script defer src="/static/vendor/alpine-csp-3.17.4.min.js"></script>
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf }}"}' x-data="shell">
+<div class="shell">
+  <button class="menu-button quiet" type="button" @click="toggleMenu">Menu</button>
+  <nav :class="menuClass" class="side" aria-label="Admin">
+    <div class="brand">homelab-brief</div>
+    {% for key, href, label in nav %}<a href="{{ href }}"{% if key == active %} class="active" aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+    <a href="/">Public status page</a>
+    <div class="who muted">
+      {{ session.username }}
+      <form class="inline" method="post" action="/admin/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button class="link" type="submit">Sign out</button>
+      </form>
+      <div><button class="link" type="button" @click="cycleTheme" x-text="themeLabel">Theme</button></div>
+    </div>
+  </nav>
+  <div class="content">
+    <main>
+{% block body %}{% endblock %}
+    </main>
+  </div>
+</div>
+</body>
+</html>

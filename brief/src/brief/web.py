@@ -27,6 +27,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 
 from brief import __version__, api, health, registry, selfmon
+from brief import admin as admin_pages
 from brief.auth import Auth, AuthError, BadCredentials, Session, Throttled
 from brief.config import ConfigError, config_file
 from brief.jsonlog import log
@@ -53,7 +54,7 @@ VIEWS = {
 HOST_RE = re.compile(r"^[A-Za-z0-9.\-]+$")
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
-    "Referrer-Policy": "no-referrer",
+    "Referrer-Policy": "same-origin",  # no-referrer makes Chromium send "Origin: null" on form posts
     "X-Frame-Options": "DENY",
     "Cross-Origin-Opener-Policy": "same-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
@@ -62,6 +63,12 @@ SECURITY_HEADERS = {
         "frame-ancestors 'none'; base-uri 'none'"
     ),
 }
+# The admin pages run two small scripts of ours (htmx and Alpine, vendored): scripts and requests from this
+# origin only, no inline script, no eval.
+ADMIN_CSP = (
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+    "form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+)
 
 
 class LoginRequired(Exception):
@@ -103,7 +110,9 @@ def origin_ok(request: Request) -> bool:
         parts = urlsplit(referer)
         origin = f"{parts.scheme}://{parts.netloc}"
     if origin == "null":
-        return False
+        # Some browsers send "null" even for a same-site form post. Sec-Fetch-Site is set by the browser
+        # itself (a page cannot forge it), so "same-origin" is as good as a matching Origin.
+        return request.headers.get("sec-fetch-site") == "same-origin"
     parts = urlsplit(origin)
     # The scheme counts too: a plain-HTTP page claiming to be this site is not this site.
     return (
@@ -149,6 +158,8 @@ def create_app(
 
     def render(request: Request, name: str, status: int = 200, **ctx) -> HTMLResponse:
         session = getattr(request.state, "session", None)
+        ctx.setdefault("nav", admin_pages.NAV)
+        ctx.setdefault("active", "")
         html = templates.get_template(name).render(session=session, csrf=ctx.pop("csrf", None), **ctx)
         return HTMLResponse(html, status_code=status)
 
@@ -159,6 +170,7 @@ def create_app(
             response.headers.setdefault(key, value)  # a view may set its own (inline CSS, no scripts)
         if request.url.path.startswith("/admin"):
             response.headers["Cache-Control"] = "no-store"
+            response.headers["Content-Security-Policy"] = ADMIN_CSP
         return response
 
     # ------------------------------------------------------------------ read-only views
@@ -424,13 +436,23 @@ def create_app(
             return again(400, str(exc))
         return RedirectResponse("/admin/login?notice=" + quote("Account created. Sign in."), status_code=303)
 
-    @admin.get("", response_class=HTMLResponse)
-    def dashboard(request: Request):
-        return render(request, "dashboard.html", csrf=current_session(request).csrf)
+    admin_pages.register(
+        admin,
+        admin_pages.Deps(
+            store=store,
+            settings=settings,
+            started=lambda: app.state.started,
+            current_status=current_status,
+            render=render,
+            session=current_session,
+        ),
+    )
 
     @admin.get("/account", response_class=HTMLResponse)
     def account_form(request: Request):
-        return render(request, "account.html", csrf=current_session(request).csrf, error=None)
+        return render(
+            request, "account.html", csrf=current_session(request).csrf, error=None, active="account"
+        )
 
     @admin.post("/account")
     async def account_submit(request: Request):
@@ -438,7 +460,7 @@ def create_app(
         form = await request.form()
 
         def again(status: int, error: str):
-            return render(request, "account.html", status, csrf=session.csrf, error=error)
+            return render(request, "account.html", status, csrf=session.csrf, error=error, active="account")
 
         if form.get("password") != form.get("confirm"):
             return again(400, "The two new passwords do not match.")
