@@ -11,6 +11,9 @@ BRIEF = Path(__file__).resolve().parents[1]
 def make_env(tmp_path, **extra):
     config = tmp_path / "config"
     (config / "brief").mkdir(parents=True)
+    (config / "brief" / "registry.yaml").write_bytes(
+        (BRIEF / "registry.yaml").read_bytes()
+    )  # the shipped sensors
     return {
         "BRIEF_CONFIG_DIR": str(config),
         "BRIEF_DEFAULTS_DIR": str(BRIEF.parent / "nonexistent"),

@@ -6,6 +6,7 @@ MQTT_HOST set and a 5-second publish interval, and checks what a Home Assistant 
   - availability is `online` and retained once the container is up;
   - a retained discovery config and a retained numeric state exist for each derived sensor;
   - /status.json answers on the HTTP port and agrees with the sensors' run;
+  - /metrics and /api/v1/metrics answer from the same run;
   - `docker stop` (clean shutdown) flips availability to `offline`;
   - `docker kill` (a crash) flips it to `offline` through the last will;
   - the ACL holds: the `ha` user can read but not write the sensor topics.
@@ -148,6 +149,23 @@ def main(argv):
             ):
                 problems.append(f"status.json looks wrong: {doc}")
         print(f"[status.json] run_ok={doc['run_ok']} headline={doc['headline']!r}")
+
+        # the other interfaces describe the same run as the sensors
+        base = f"http://127.0.0.1:{args.http_port}"
+        with urllib.request.urlopen(f"{base}/metrics", timeout=10) as r:
+            prom = r.read().decode()
+            if not r.headers.get("Content-Type", "").startswith("text/plain; version=0.0.4"):
+                problems.append(f"/metrics has the wrong content type: {r.headers.get('Content-Type')}")
+        with urllib.request.urlopen(f"{base}/api/v1/metrics", timeout=10) as r:
+            api = {m["id"]: m["value"] for m in json.load(r)["metrics"]}
+        for s in SENSORS:
+            if f"homelab_brief_{s} " not in prom:
+                problems.append(f"/metrics has no {s}")
+            if api.get(s) is None:
+                problems.append(f"/api/v1/metrics has no value for {s}")
+        if "homelab_brief_run_ok 1" not in prom:
+            problems.append("/metrics does not say run_ok 1")
+        print(f"[interfaces] /metrics and /api/v1/metrics answer; api events_24h={api.get('events_24h')}")
 
         denied = docker("exec", BROKER, "mosquitto_pub", "-h", "localhost", "-u", "ha", "-P", USERS["ha"],
                         "-t", "homelab/brief/events_24h/state", "-m", "999999", "-r", check=False)  # fmt: skip

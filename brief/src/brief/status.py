@@ -24,8 +24,6 @@ from brief.systems import Systems
 SCHEMA = 1
 MAX_LISTED_SILENT = 10
 
-# The registry ids this module can compute. The MQTT publisher only offers these.
-DERIVED_METRICS = ("events_24h", "new_signatures_24h", "hosts_silent")
 
 silent_limit = detectors.silent_limit  # the absence rule lives in brief.detectors
 
@@ -69,6 +67,26 @@ def derive(store: Store, systems: Systems, rules: dict, now: datetime | None = N
     }
 
 
+def extra_numbers(store: Store, now: datetime, state_dir: Path | str | None = None) -> dict:
+    """parse_failed_24h, ingest_lag_s and db_mb: the pipeline numbers that are not about hosts or events."""
+    cutoff = iso(now - timedelta(hours=24))
+    with store.read() as db:
+        failed = db.execute(
+            "SELECT COALESCE(SUM(value), 0) FROM metric WHERE metric_id = 'ingest.parse_failed' AND ts >= ?",
+            (cutoff,),
+        ).fetchone()[0]
+        lag = db.execute(
+            "SELECT value FROM metric WHERE metric_id = 'ingest.lag_seconds' ORDER BY ts DESC LIMIT 1"
+        ).fetchone()
+    path = Path(state_dir or os.environ.get("BRIEF_STATE", "/state")) / "baseline.db"
+    size = round(path.stat().st_size / 1e6, 1) if path.exists() else None
+    return {
+        "parse_failed_24h": int(failed),
+        "ingest_lag_s": int(lag["value"]) if lag else None,
+        "db_mb": size,
+    }
+
+
 def headline(run_ok: bool, problems: list[str], numbers: dict, learning: dict) -> str:
     if not run_ok:
         return "No data: " + ("; ".join(problems) if problems else "the pipeline is not healthy")
@@ -91,6 +109,7 @@ def build_status(
     now: datetime | None = None,
     network: dict | None = None,
     previous: dict | None = None,
+    state_dir: Path | str | None = None,
 ) -> dict:
     now = now or datetime.now(UTC)
     report = health.check_health(store, syslog_port, interval, uptime_s, now)
@@ -117,6 +136,10 @@ def build_status(
             "hosts_checked": 0,
         }
     silent = numbers.pop("silent")
+    try:
+        extras = extra_numbers(store, now, state_dir)
+    except Exception:  # the database is unreadable (said above); these numbers just stay empty
+        extras = {"parse_failed_24h": None, "ingest_lag_s": None, "db_mb": None}
     live = {
         "schema": SCHEMA,
         "generated_at": iso(now),
@@ -128,19 +151,12 @@ def build_status(
             "new_signatures_24h": numbers["new_signatures_24h"],
             "hosts_silent": numbers["hosts_silent"],
             "hosts_checked": numbers["hosts_checked"],
+            **extras,
         },
         "silent_hosts": silent[:MAX_LISTED_SILENT],
         "network": network,
     }
     return merge_daily(live, previous, now)
-
-
-def metric_values(status: dict) -> dict[str, int]:
-    """The sensor values, or nothing at all when the run failed (the sensors then expire instead of
-    showing a calm network)."""
-    if not status["run_ok"]:
-        return {}
-    return {k: status["pipeline"][k] for k in DERIVED_METRICS}
 
 
 def write_status(status: dict, out_dir: Path) -> Path:

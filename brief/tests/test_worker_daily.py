@@ -200,6 +200,9 @@ class Channel:
     def publish(self, values):
         self.published.append(values)
 
+    def set_metrics(self, metrics):
+        self.metrics = metrics
+
     def forget(self):
         pass
 

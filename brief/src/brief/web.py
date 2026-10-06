@@ -26,11 +26,13 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from brief import __version__, health
+from brief import __version__, api, health, registry
 from brief.auth import Auth, AuthError, BadCredentials, Session, Throttled
 from brief.config import ConfigError, config_file
 from brief.jsonlog import log
 from brief.learning import learning_status
+from brief.metrics import CONTENT_TYPE as PROMETHEUS_TYPE
+from brief.metrics import render as metrics_text
 from brief.netinfo import network_info, with_detected_address
 from brief.outputs import read_json
 from brief.settings import Settings
@@ -201,24 +203,44 @@ def create_app(
         report.update(version=__version__, uptime_s=int(uptime))
         return JSONResponse(report, status_code=200 if report["status"] == "ok" else 503)
 
-    @app.get("/status.json")
-    def status_json() -> JSONResponse:
-        """The same document the worker writes hourly, computed now (read-only, no login)."""
+    def load_systems() -> Systems:
         try:
-            systems = Systems.load(config_file("systems.yaml"))
+            return Systems.load(config_file("systems.yaml"))
         except (ConfigError, OSError):
-            systems = Systems()
-        uptime = time.monotonic() - app.state.started
+            return Systems()
+
+    def current_status() -> tuple[dict, Systems, list[dict]]:
+        """The status document computed now, with the systems and sensors it is read against."""
+        systems = load_systems()
         doc = build_status(
             store,
             systems,
             settings.syslog_port,
             settings.interval,
-            uptime,
+            time.monotonic() - app.state.started,
             network=network_info(settings),
             previous=read_json(settings.out_dir / "latest" / "status.json"),
+            state_dir=settings.state_dir,
         )
-        return JSONResponse(doc, headers={"Cache-Control": "no-cache"})
+        try:
+            metrics = registry.load(None, systems)
+        except (ConfigError, OSError):
+            metrics = []
+        return doc, systems, metrics
+
+    @app.get("/status.json")
+    def status_json() -> JSONResponse:
+        """The same document the worker writes hourly, computed now (read-only, no login)."""
+        return JSONResponse(current_status()[0], headers={"Cache-Control": "no-cache"})
+
+    @app.get("/metrics")
+    def prometheus() -> Response:
+        doc, _, metrics = current_status()
+        text = metrics_text(doc, metrics, __version__, api.open_alert_count(store))
+        return Response(text, media_type=PROMETHEUS_TYPE, headers={"Cache-Control": "no-cache"})
+
+    app.state.api_router = api.build_router(current_status, store)  # kept so tests can walk its routes
+    app.include_router(app.state.api_router)
 
     @app.get("/", response_class=HTMLResponse)
     def status_page(request: Request) -> HTMLResponse:

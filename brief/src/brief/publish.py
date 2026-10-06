@@ -1,7 +1,7 @@
 """MQTT publisher: Home Assistant discovery, retained states, and availability with a last will.
 
 The sensors come from brief/registry.yaml (restricted to the metrics the program can compute, see
-status.DERIVED_METRICS). Topics follow docs/guide/04-publish.md:
+the registry). Topics follow docs/guide/04-publish.md:
 
   homelab/brief/availability                online | offline (retained; offline is the last will)
   homelab/brief/<metric_id>/state           the latest value (retained)
@@ -21,9 +21,8 @@ import queue
 import re
 import threading
 from collections.abc import Mapping
-from pathlib import Path
 
-from brief.config import ConfigError, config_file, load_mapping
+from brief import registry
 from brief.jsonlog import log
 
 BASE_TOPIC = "homelab/brief"
@@ -35,19 +34,12 @@ FEEDBACK_ACTION = re.compile(r"^[a-z0-9_]{1,32}$")
 
 
 def load_registry(env: Mapping[str, str] | None = None, only: tuple[str, ...] | None = None) -> list[dict]:
-    path: Path = config_file("registry.yaml", env)
-    metrics = load_mapping(path).get("metrics") or []
-    if not isinstance(metrics, list):
-        raise ConfigError(f"{path.name}: metrics must be a list")
-    out = []
-    for item in metrics:
-        if not isinstance(item, dict) or not item.get("id"):
-            raise ConfigError(f"{path.name}: every metric needs an id")
-        if item.get("kind", "number") != "number":
-            continue  # state and text sensors arrive with the systems tiles (Task 11)
-        if only is None or item["id"] in only:
-            out.append(item)
-    return out
+    """The number metrics of registry.yaml (see brief.registry.load for the full set with system states)."""
+    return [
+        m
+        for m in registry.read_file(env)
+        if m.get("kind", "number") == "number" and (only is None or m["id"] in only)
+    ]
 
 
 def discovery_payload(metric: dict, base: str = BASE_TOPIC) -> dict:
@@ -57,10 +49,14 @@ def discovery_payload(metric: dict, base: str = BASE_TOPIC) -> dict:
         "unique_id": f"{NODE_ID}_{metric['id']}",
         "state_topic": f"{base}/{metric['id']}/state",
         "availability_topic": f"{base}/availability",
-        "state_class": "measurement",
         "expire_after": 2 * interval,
         "device": {"identifiers": [NODE_ID], "name": "Homelab Brief"},
     }
+    if metric.get("kind") == "state":  # green | yellow | red | unknown
+        payload["device_class"] = "enum"
+        payload["options"] = list(registry.STATES)
+    else:
+        payload["state_class"] = "measurement"
     if metric.get("unit"):
         payload["unit_of_measurement"] = str(metric["unit"])
     return payload
@@ -81,7 +77,7 @@ class Publisher:
         self.metrics = list(metrics or [])
         self._lock = threading.Lock()
         self._feedback: queue.SimpleQueue = queue.SimpleQueue()
-        self._latest: dict[str, int | float] = {}
+        self._latest: dict[str, int | float | str] = {}
         self.connected = False
         if client is None:
             import paho.mqtt.client as mqtt
@@ -131,7 +127,7 @@ class Publisher:
             topic = f"{DISCOVERY_PREFIX}/sensor/{NODE_ID}/{metric['id']}/config"
             self.client.publish(topic, json.dumps(discovery_payload(metric, self.base)), qos=1, retain=True)
 
-    def _send_states(self, values: Mapping[str, int | float]) -> None:
+    def _send_states(self, values: Mapping[str, int | float | str]) -> None:
         for metric_id, value in values.items():
             self.client.publish(f"{self.base}/{metric_id}/state", str(value), qos=1, retain=True)
 
@@ -141,7 +137,28 @@ class Publisher:
         self.client.connect_async(self.host, self.port, keepalive=60)
         self.client.loop_start()
 
-    def publish(self, values: Mapping[str, int | float]) -> None:
+    def set_metrics(self, metrics: list[dict]) -> None:
+        """Use a new sensor list (systems.yaml changed): announce the new sensors and withdraw the ones
+        that are gone (an empty retained discovery message removes a sensor from Home Assistant)."""
+        with self._lock:
+            old = {m["id"] for m in self.metrics}
+            new = {m["id"] for m in metrics}
+            if old == new:
+                self.metrics = list(metrics)
+                return
+            gone = old - new
+            self.metrics = list(metrics)
+            for metric_id in gone:
+                self._latest.pop(metric_id, None)
+                if self.connected:
+                    self.client.publish(
+                        f"{DISCOVERY_PREFIX}/sensor/{NODE_ID}/{metric_id}/config", "", qos=1, retain=True
+                    )
+                    self.client.publish(f"{self.base}/{metric_id}/state", "", qos=1, retain=True)
+            if self.connected:
+                self._send_discovery()
+
+    def publish(self, values: Mapping[str, int | float | str]) -> None:
         """Remember the values and send them now when connected (otherwise on the next connect)."""
         known = {m["id"] for m in self.metrics}
         values = {k: v for k, v in values.items() if k in known}

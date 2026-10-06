@@ -11,13 +11,16 @@ from brief import worker as w
 
 class FakePublisher:
     def __init__(self):
-        self.published, self.forgotten, self.started = [], 0, False
+        self.published, self.forgotten, self.started, self.metrics = [], 0, False, []
 
     def start(self):
         self.started = True
 
     def publish(self, values):
         self.published.append(values)
+
+    def set_metrics(self, metrics):
+        self.metrics = metrics
 
     def forget(self):
         self.forgotten += 1
@@ -51,9 +54,11 @@ def test_the_hourly_job_writes_status_json_and_publishes_the_sensors(tmp_path, m
     written = json.loads((tmp_path / "out" / "latest" / "status.json").read_text(encoding="utf-8"))
     assert written == doc and doc["run_ok"] is True
     pipeline = doc["pipeline"]  # the sample events are from 2026-09-26, so the 24-hour counts are 0
-    assert worker.publisher.published == [
-        {k: pipeline[k] for k in ("events_24h", "new_signatures_24h", "hosts_silent")}
-    ]
+    published = worker.publisher.published
+    assert len(published) == 1 and set(published[0]) == {
+        "events_24h", "new_signatures_24h", "hosts_silent", "parse_failed_24h", "ingest_lag_s", "db_mb",
+    }  # fmt: skip
+    assert all(published[0][k] == pipeline[k] for k in published[0])
 
 
 def test_a_failed_run_publishes_no_values(tmp_path, monkeypatch):

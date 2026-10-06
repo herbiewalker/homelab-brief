@@ -6,7 +6,7 @@ from datetime import timedelta
 import golden_day as g
 import pytest
 
-from brief import detect, outputs, status
+from brief import detect, outputs, registry, status
 from brief.store import Store
 
 
@@ -188,7 +188,7 @@ def test_a_stale_daily_run_is_a_failure_not_yesterdays_calm(day, monkeypatch):
     previous = json.loads((out / "latest" / "status.json").read_text())
     doc = live_status(store, previous, g.RUN_AT + timedelta(hours=40))
     assert doc["run_ok"] is False and "the daily run has not completed for 40 hours" in doc["headline"]
-    assert status.metric_values(doc) == {}
+    assert registry.values(doc, registry.load()) == {}
 
 
 def test_a_failed_daily_run_stays_failed_in_the_hourly_status(tmp_path, monkeypatch):

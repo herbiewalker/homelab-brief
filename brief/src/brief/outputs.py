@@ -14,7 +14,7 @@ previous state.json so a failed night does not resolve real issues.
 
 import json
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 from brief import ai, alerts, detect, grouping, issues, render, status
@@ -23,7 +23,7 @@ from brief.detectors import Finding, short_label
 from brief.jsonlog import log
 from brief.render_md import HostFacts, digest_markdown, host_markdown
 from brief.routing import Priorities
-from brief.store import Store, iso
+from brief.store import Store
 from brief.systems import Systems
 
 TOP_SIGNATURES = 10
@@ -63,27 +63,12 @@ def pipeline_numbers(
     store: Store, systems: Systems, now: datetime, env=None, state_dir: Path | None = None
 ) -> dict:
     nums = status.derive(store, systems, status.absence_thresholds(env), now)
-    cutoff = iso(now - timedelta(hours=24))
-    with store.read() as db:
-        failed = db.execute(
-            "SELECT COALESCE(SUM(value), 0) FROM metric WHERE metric_id = 'ingest.parse_failed' AND ts >= ?",
-            (cutoff,),
-        ).fetchone()[0]
-        lag = db.execute(
-            "SELECT value FROM metric WHERE metric_id = 'ingest.lag_seconds' ORDER BY ts DESC LIMIT 1"
-        ).fetchone()
-    size = None
-    path = Path(state_dir or os.environ.get("BRIEF_STATE", "/state")) / "baseline.db"
-    if path.exists():
-        size = round(path.stat().st_size / 1e6, 1)
     return {
         "events_24h": nums["events_24h"],
         "new_signatures_24h": nums["new_signatures_24h"],
         "hosts_silent": nums["hosts_silent"],
         "hosts_checked": nums["hosts_checked"],
-        "parse_failed_24h": int(failed),
-        "ingest_lag_s": int(lag["value"]) if lag else None,
-        "db_mb": size,
+        **status.extra_numbers(store, now, state_dir),
     }
 
 

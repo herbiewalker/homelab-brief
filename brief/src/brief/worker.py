@@ -13,7 +13,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from brief import __version__, detect
+from brief import __version__, detect, registry
 from brief.alerts import drain_feedback
 from brief.config import ConfigError, config_file, load_mapping
 from brief.ignore import IgnoreRules
@@ -21,10 +21,10 @@ from brief.ingest import CycleResult, Pipeline
 from brief.jsonlog import log
 from brief.netinfo import network_info
 from brief.outputs import read_json, run_daily, run_hourly_alerts
-from brief.publish import Publisher, load_registry
+from brief.publish import Publisher
 from brief.settings import Settings
 from brief.signatures import Signatures
-from brief.status import DERIVED_METRICS, build_status, health_problems, metric_values, write_status
+from brief.status import build_status, health_problems, write_status
 from brief.store import Store
 from brief.systems import Systems
 
@@ -57,7 +57,7 @@ class Worker:
 
     def _make_publisher(self) -> Publisher | None:
         try:
-            return Publisher.from_env(self.env, load_registry(self.env, only=DERIVED_METRICS))
+            return Publisher.from_env(self.env, registry.load(self.env, self.systems))
         except Exception as exc:  # a bad MQTT setting must not stop ingest
             log("mqtt_config_error", error=f"{type(exc).__name__}: {exc}")
             return None
@@ -118,14 +118,21 @@ class Worker:
             self.env,
             network=network_info(self.settings),
             previous=read_json(self.out_dir / "latest" / "status.json"),
+            state_dir=self.state,
         )
         write_status(status, self.out_dir)
         try:
             run_hourly_alerts(self.store, self.systems, datetime.now(UTC), self.env, status, self.publisher)
         except Exception as exc:  # alerts are secondary to ingest and status; the next hour tries again
             log("alerts_failed", error=f"{type(exc).__name__}: {exc}")
-        values = metric_values(status)
+        try:
+            metrics = registry.load(self.env, self.systems)
+        except (ConfigError, OSError) as exc:
+            log("config_error", file="registry.yaml", error=str(exc), kept="last good version")
+            metrics = self.publisher.metrics if self.publisher is not None else []
+        values = registry.values(status, metrics)
         if self.publisher is not None:
+            self.publisher.set_metrics(metrics)
             if values:
                 self.publisher.publish(values)
             else:

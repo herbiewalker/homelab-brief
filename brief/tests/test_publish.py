@@ -188,7 +188,7 @@ def test_registry_loading_filters_and_validates(tmp_path):
 def test_the_shipped_registry_offers_the_derived_sensors(tmp_path):
     from pathlib import Path
 
-    from brief.status import DERIVED_METRICS
+    derived = ("events_24h", "new_signatures_24h", "hosts_silent")
 
     shipped = (
         Path(__file__).resolve().parents[1] / "registry.yaml"
@@ -196,8 +196,8 @@ def test_the_shipped_registry_offers_the_derived_sensors(tmp_path):
     folder = tmp_path / "brief"
     folder.mkdir()
     (folder / "registry.yaml").write_bytes(shipped.read_bytes())
-    ids = [m["id"] for m in p.load_registry({"BRIEF_DEFAULTS_DIR": str(tmp_path)}, only=DERIVED_METRICS)]
-    assert set(ids) == set(DERIVED_METRICS)
+    ids = [m["id"] for m in p.load_registry({"BRIEF_DEFAULTS_DIR": str(tmp_path)}, only=derived)]
+    assert set(ids) == set(derived)
 
 
 # ---------------------------------------------------------------- alerts, headline, feedback

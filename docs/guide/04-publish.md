@@ -110,8 +110,8 @@ Set `expire_after` to about twice the metric's interval so a stalled pipeline tu
 The container's own web server (FastAPI on Uvicorn) replaces the separate nginx container. On the container's IP:
 
 - `http://<container-ip>/` serves the read-only views: `brief.html`, `status.png`, `status.json`, and the static map. Tablets and HA webpage or picture cards fetch these.
-- `http://<container-ip>/api/v1/...` serves read-only JSON (status, findings, systems, map).
-- `http://<container-ip>/metrics` serves Prometheus/OpenMetrics text for any scraper.
+- `http://<container-ip>/api/v1/...` serves read-only JSON: `status`, `systems`, `findings`, `metrics`, `alerts` (the map arrives with the map task). No write endpoints.
+- `http://<container-ip>/metrics` serves Prometheus text for any scraper: the same sensors as MQTT, plus `homelab_brief_system_status{system}` (0 green, 1 yellow, 2 red) and `homelab_brief_run_ok`.
 - `https://<container-ip>/admin` is the admin GUI (login required). See `08-admin-and-access.md`.
 - Optional Apprise notifications (ntfy, Gotify, email, and others) are configured in `brief/notify.yaml`, off by default.
 

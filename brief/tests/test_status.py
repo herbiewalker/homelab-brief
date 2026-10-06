@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from brief import health, status
+from brief import health, registry, status
 from brief.store import Store
 from brief.systems import System, Systems
 
@@ -87,7 +87,15 @@ def test_status_is_ok_with_schema_and_a_summary_headline(store, monkeypatch):
     assert doc["schema"] == 1 and doc["run_ok"] is True
     assert doc["generated_at"] == "2026-10-03T12:00:00Z"
     assert "0 events in 24 hours" in doc["headline"] and "learning" in doc["headline"]
-    assert set(doc["pipeline"]) == {"events_24h", "new_signatures_24h", "hosts_silent", "hosts_checked"}
+    assert set(doc["pipeline"]) == {
+        "events_24h",
+        "new_signatures_24h",
+        "hosts_silent",
+        "hosts_checked",
+        "parse_failed_24h",
+        "ingest_lag_s",
+        "db_mb",
+    }
 
 
 def test_a_dead_receiver_gives_run_ok_false_and_no_sensor_values(store, monkeypatch):
@@ -95,7 +103,7 @@ def test_a_dead_receiver_gives_run_ok_false_and_no_sensor_values(store, monkeypa
     doc = build(store)
     assert doc["run_ok"] is False
     assert doc["headline"].startswith("No data:") and "receiver" in doc["headline"]
-    assert status.metric_values(doc) == {}  # the sensors expire, they never claim a calm network
+    assert registry.values(doc, registry.load()) == {}  # the sensors expire, never a calm network
 
 
 def test_a_stale_worker_is_reported_after_the_grace_period(store, monkeypatch):
@@ -115,9 +123,14 @@ def test_an_unreadable_database_is_run_ok_false_not_zeros(store, monkeypatch):
     assert doc["run_ok"] is False and "database RuntimeError" in doc["headline"]
 
 
-def test_metric_values_when_ok(store, monkeypatch):
+def test_metric_values_when_ok(store, monkeypatch, tmp_path):
     healthy(monkeypatch)
-    assert status.metric_values(build(store)) == {"events_24h": 0, "new_signatures_24h": 0, "hosts_silent": 0}
+    values = registry.values(build(store), registry.load(shipped_registry(tmp_path)))
+    assert {k: values[k] for k in ("events_24h", "new_signatures_24h", "hosts_silent")} == {
+        "events_24h": 0,
+        "new_signatures_24h": 0,
+        "hosts_silent": 0,
+    }
 
 
 def test_write_status_is_atomic_and_valid_json(tmp_path):
@@ -140,3 +153,15 @@ def test_thresholds_come_from_playbook_yaml_with_defaults_when_missing(tmp_path)
     assert status.learning_days(env) == 3
     (folder / "playbook.yaml").write_text("thresholds: [not, a, map", encoding="utf-8")
     assert status.absence_thresholds(env) == RULES  # a broken edit falls back, it does not crash
+
+
+def shipped_registry(tmp_path):
+    """An environment whose defaults are the registry.yaml that ships with the product."""
+    from pathlib import Path
+
+    folder = tmp_path / "defaults" / "brief"
+    folder.mkdir(parents=True)
+    (folder / "registry.yaml").write_bytes(
+        (Path(__file__).resolve().parents[1] / "registry.yaml").read_bytes()
+    )
+    return {"BRIEF_DEFAULTS_DIR": str(tmp_path / "defaults"), "BRIEF_CONFIG_DIR": str(tmp_path / "none")}
