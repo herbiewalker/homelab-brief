@@ -272,6 +272,26 @@ def run_weekly(args, state: Path, out=print, out_dir: Path | None = None) -> int
     return 0
 
 
+def run_notify_test(args, state: Path) -> int:
+    """Send one test message through Apprise, so a new setup can be proven without waiting for an alert."""
+    from brief.notify import AppriseChannel
+
+    channel = AppriseChannel.from_env(os.environ)
+    if channel is None:
+        print(
+            "Apprise is off or has no usable URL. Set `apprise.enabled: true` in notify.yaml and put the "
+            "URLs in the template variable it names (APPRISE_URLS by default)."
+        )
+        return 1
+    ok = channel.test()
+    print(
+        f"Test message sent to {channel.destinations} destination(s)."
+        if ok
+        else "A destination did not accept it."
+    )
+    return 0 if ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="brief", description="homelab-brief command line")
     sub = parser.add_subparsers(dest="group", required=True)
@@ -326,10 +346,16 @@ def main(argv: list[str] | None = None) -> int:
     wk = sub.add_parser("weekly", help="write the weekly trend report to /out/weekly")
     wk.add_argument("--week", help="an ISO week like 2026-W40 (default: the last complete week)")
     wk.add_argument("--dry-run", action="store_true", help="print the report, write nothing")
+    nt = sub.add_parser("notify", help="notification channels outside Home Assistant").add_subparsers(
+        dest="cmd", required=True
+    )
+    nt.add_parser("test", help="send a test message through Apprise")
     args = parser.parse_args(argv)
     state = Path(os.environ.get("BRIEF_STATE", "/state"))
     if args.group == "replay":
         return run_replay(args, state)
+    if args.group == "notify":
+        return run_notify_test(args, state)
     if args.group == "alerts":
         return run_alerts(args, state)
     if args.group in ("ack", "snooze"):

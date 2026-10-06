@@ -1,12 +1,13 @@
 # Optional notifications outside Home Assistant, through Apprise (ntfy, Gotify, email, and
 # many others). Off by default. URLs contain credentials, so they come from template
 # variables, never from this file. Routing still follows priorities.yaml and the alert
-# lifecycle; this file only adds delivery channels.
+# lifecycle; this file only adds delivery channels. Prove a setup with: brief notify test
 schema: 1
 apprise:
   enabled: false
   urls_var: APPRISE_URLS        # comma-separated Apprise URLs in the template variable
   routes: [push_now]            # which routes also go to Apprise: push_now, daily_headline
   include_resolved: true
+  include_body: false           # false: title and level only; true adds the story detail (hosts, counts)
 mqtt:
-  enabled: true                 # Home Assistant via MQTT stays the primary channel
+  enabled: true                 # Home Assistant via MQTT stays the primary channel (false: sensors only)

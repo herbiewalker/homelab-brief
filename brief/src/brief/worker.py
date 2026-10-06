@@ -20,6 +20,7 @@ from brief.ignore import IgnoreRules
 from brief.ingest import CycleResult, Pipeline
 from brief.jsonlog import log
 from brief.netinfo import network_info
+from brief.notify import AppriseChannel, Channels
 from brief.outputs import read_json, run_daily, run_hourly_alerts
 from brief.publish import Publisher
 from brief.settings import Settings
@@ -54,6 +55,39 @@ class Worker:
         self.out_dir = Path(self.env.get("BRIEF_OUT", "/out"))
         self.started = time.monotonic()
         self.publisher = self._make_publisher()
+
+    @property
+    def notifier(self):
+        """Where alerts go: MQTT (unless notify.yaml turns it off for alerts) and Apprise when it is on.
+        None when neither is available, which makes the lifecycle log the decision instead."""
+        try:
+            cfg = load_mapping(config_file("notify.yaml", self.env))
+        except (ConfigError, OSError):
+            cfg = {}
+        channels = []
+        if self.publisher is not None and (cfg.get("mqtt") or {}).get("enabled", True):
+            channels.append(self.publisher)
+        apprise = self._apprise(cfg)
+        if apprise is not None:
+            channels.append(apprise)
+        return Channels(channels) if len(channels) > 1 else (channels[0] if channels else None)
+
+    def _apprise(self, cfg: dict):
+        """The Apprise channel, rebuilt only when its settings or URLs change (config reloads safely)."""
+        key = (
+            repr(cfg.get("apprise")),
+            self.env.get((cfg.get("apprise") or {}).get("urls_var") or "APPRISE_URLS"),
+        )
+        if getattr(self, "_apprise_key", None) != key:
+            self._apprise_key = key
+            try:
+                self._apprise_channel = AppriseChannel.from_env(self.env)
+            except Exception as exc:  # a broken Apprise setup must not stop alerts through MQTT
+                log("apprise_config_error", error=type(exc).__name__)
+                self._apprise_channel = None
+            if self._apprise_channel is not None:
+                log("apprise_enabled", destinations=self._apprise_channel.destinations)
+        return self._apprise_channel
 
     def _make_publisher(self) -> Publisher | None:
         try:
@@ -122,7 +156,7 @@ class Worker:
         )
         write_status(status, self.out_dir)
         try:
-            run_hourly_alerts(self.store, self.systems, datetime.now(UTC), self.env, status, self.publisher)
+            run_hourly_alerts(self.store, self.systems, datetime.now(UTC), self.env, status, self.notifier)
         except Exception as exc:  # alerts are secondary to ingest and status; the next hour tries again
             log("alerts_failed", error=f"{type(exc).__name__}: {exc}")
         try:
@@ -182,7 +216,7 @@ class Worker:
             state_dir=self.state,
             extra_problems=problems,
             network=network_info(self.settings),
-            notifier=self.publisher,
+            notifier=self.notifier,
             alerts_on=True,
         )
         with self.store.write() as tx:

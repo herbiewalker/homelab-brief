@@ -101,9 +101,9 @@ Phase 1 runs in order. Ingestion is deployed early (Task 7) so real history accu
 - [x] MQTT: registry-driven HA discovery (`registry.py`), retained states, availability with last-will, and a state sensor per system from `systems.yaml` (an enum sensor: green, yellow, red, unknown). A changed `systems.yaml` announces the new sensor and withdraws the removed one on the next hourly run, no restart. The hourly status now also carries `parse_failed_24h`, `ingest_lag_s` and `db_mb`, so every registry sensor is live.
 - [x] Prometheus text `/metrics` (`metrics.py`): the registry gauges, `homelab_brief_system_status{system}` (0 green, 1 yellow, 2 red, unknown left out), `run_ok`, open alerts, and timestamps. A failed run exports `run_ok 0` and no values.
 - [x] Versioned read-only JSON API `/api/v1` (`api.py`): `status`, `systems`, `findings`, `metrics`, `alerts`. GET only, no login; there are no write endpoints (writes stay under `/admin`). Not yet: `/map` (the map arrives with Task 19).
-- [ ] Optional notifications through Apprise (ntfy, Gotify, email, and others), configured in `notify.yaml`.
+- [x] Optional notifications through Apprise (ntfy, Gotify, email, and others), configured in `notify.yaml`.
 - Accept: MQTT topics, `/metrics`, and the API all reflect the same run; Apprise is off by default and sends a test message when enabled.
-- Status: MQTT, `/metrics` and `/api/v1` are built and tested against one status document (a test and `scripts/e2e_mqtt.py` check they agree). Apprise waits on the dependency decision (see DECISIONS).
+- Status: done. MQTT, `/metrics` and `/api/v1` are built and tested against one status document (a test and `scripts/e2e_mqtt.py` check they agree). Apprise (`notify.py`, pinned 2.0.1): off by default, `notify.yaml` sets routes (`push_now`, `daily_headline`), resolved messages, and whether the story detail is included; URLs come from `APPRISE_URLS`; `brief notify test` sends a test message. Not done (later): the GUI "send test" button (Task 15), `/map` in the API (Task 19).
 
 ## Task 14: Scheduler, config reload, self-monitoring
 - [ ] Hourly, daily, and weekly runs; config reload every run with validation and last-good fallback (`config_error` finding); self-metrics (memory, database size, ingest lag, parse failures, receive rate per source).
