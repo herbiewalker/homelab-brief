@@ -1,0 +1,12 @@
+# The static views: brief.html (full brief), board.html (tablet board), status.png (picture board).
+# Editable here or in the admin GUI. Reloaded every run. Pages have no JavaScript and no external files.
+schema: 1
+
+png:
+  width: 1024        # pixels; match the tablet's screen so the board is not scaled
+  height: 600
+  font: ""           # path to a monospace .ttf in /config; empty uses the font built into the image
+
+board:
+  refresh_s: 300     # the page reloads itself this often (a meta tag, not a script); 0 turns it off
+  stories: 3         # how many top stories the board lists

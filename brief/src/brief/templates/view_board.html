@@ -1,0 +1,14 @@
+{% extends "view_base.html" %}
+{% block title %}Homelab status{% endblock %}
+{% block body %}
+<div class="headline {{ overall }}">{{ headline }}</div>
+<div class="tiles">
+{% for s in systems %}<div class="tile {{ s.state }}"><b>{{ s.name }}</b>{{ s.state|upper }}</div>
+{% endfor %}
+</div>
+{% for s in stories %}
+<div class="story {{ s.route }}"><b>{{ loop.index }}. {{ s.title }}</b></div>
+{% endfor %}
+{% if run_ok and not stories %}<p>Nothing needs a look.</p>{% endif %}
+<div class="meta">Updated {{ generated }} (UTC){% if refresh %}; reloads every {{ refresh }} s{% endif %}</div>
+{% endblock %}

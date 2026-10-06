@@ -327,6 +327,26 @@ class Tx:
             (iso(ts), finding_id, state, channel, level, title, int(urgent), int(delivered)),
         )
 
+    def add_ai_call(
+        self,
+        ts: datetime | str,
+        task: str,
+        provider: str,
+        model: str | None,
+        locality: str | None,
+        outcome: str,
+        latency_ms: int | None = None,
+        tokens_in: int | None = None,
+        tokens_out: int | None = None,
+        detail: str | None = None,
+    ) -> None:
+        """Record one model call attempt (metadata only, never the content)."""
+        self.db.execute(
+            "INSERT INTO ai_call (ts, task, provider, model, locality, latency_ms, tokens_in, tokens_out, "
+            "outcome, detail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (iso(ts), task, provider, model, locality, latency_ms, tokens_in, tokens_out, outcome, detail),
+        )
+
     def add_feedback(self, finding_id: str, action: str, ts: datetime | str | None = None) -> None:
         self.db.execute(
             "INSERT INTO feedback (ts, finding_id, action) VALUES (?, ?, ?)",

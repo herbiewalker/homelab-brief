@@ -2,6 +2,7 @@
 
   latest/status.json           machine-readable state for Home Assistant and dashboards
   latest/digest.md             ranked stories for people and AI assistants
+  latest/brief.html, board.html, status.png   the static views (render.py); brief.html may carry AI prose
   YYYY-MM-DD/digest.md         the same, dated
   YYYY-MM-DD/hosts/<host>.md   one page per host with findings (or all hosts, see HOST_PAGES)
   state.json                   developing issues carried between days
@@ -16,7 +17,7 @@ import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brief import alerts, detect, grouping, issues, status
+from brief import ai, alerts, detect, grouping, issues, render, status
 from brief import digest as dg
 from brief.detectors import Finding
 from brief.jsonlog import log
@@ -186,6 +187,10 @@ def run_daily(
         write_daily(store, systems, d, state if d.run_ok else prev_state, out, now, env, network)
         if alerts_on:
             run_daily_alerts(store, d, Priorities.load(env), now, notifier)
+        # last, so a slow or broken model can only delay the prose, never the files, status, or alerts
+        prose = ai.morning_brief(store, d, now.strftime("%Y-%m-%d"), now, env)
+        if prose:
+            render.write_views(d, out, now.strftime("%Y-%m-%d"), prose, env, only=("brief.html",))
     return d
 
 
@@ -207,6 +212,7 @@ def write_daily(
             write_lines(out / day / "hosts" / dg.host_file(host), host_markdown(facts, found, True))
         if state is not None:
             write_json(out / "state.json", state)
+    render.write_views(d, out, day, env=env)  # the template views; a prose rewrite replaces brief.html later
     doc = status.status_document(d, network=network)
     write_json(out / "latest" / "status.json", doc)
     log("daily_written", run_ok=d.run_ok, stories=len(d.stories), headline=d.headline)

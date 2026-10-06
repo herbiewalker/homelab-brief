@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% if refresh %}<meta http-equiv="refresh" content="{{ refresh }}">{% endif %}
+<title>{% block title %}Homelab brief{% endblock %}</title>
+<style>
+body { margin: 0; padding: 12px; background: #111; color: #e6e6e6; font: 16px/1.4 "DejaVu Sans Mono", Menlo, Consolas, monospace; }
+h1 { font-size: 1.25em; margin: 0 0 4px; }
+h2 { font-size: 1.05em; margin: 20px 0 6px; border-bottom: 1px solid #444; padding-bottom: 2px; }
+.meta { color: #9a9a9a; font-size: 0.85em; }
+.headline { font-size: 1.2em; font-weight: bold; margin: 10px 0; padding: 8px 10px; border-left: 8px solid #2e7d32; background: #1b1b1b; }
+.headline.yellow { border-color: #f9a825; }
+.headline.red, .headline.failed { border-color: #c62828; }
+.headline.unknown { border-color: #757575; }
+.tiles { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.tile { flex: 1 1 200px; padding: 10px; color: #fff; background: #2e7d32; }
+.tile.yellow { background: #f9a825; color: #111; }
+.tile.red { background: #c62828; }
+.tile.unknown { background: #616161; }
+.tile b { display: block; font-size: 1.1em; }
+.story { margin: 10px 0; padding-left: 10px; border-left: 4px solid #555; }
+.story.push_now { border-color: #c62828; }
+.story small { color: #9a9a9a; display: block; }
+.prose { background: #1b1b1b; padding: 4px 12px 10px; border: 1px solid #333; }
+.note { color: #9a9a9a; font-size: 0.85em; }
+ul { margin: 4px 0; padding-left: 22px; }
+</style>
+</head>
+<body>
+{% block body %}{% endblock %}
+</body>
+</html>

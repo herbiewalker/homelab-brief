@@ -43,6 +43,11 @@ COOKIE_SESSION = "__Host-brief_session"
 COOKIE_CSRF = "__Host-brief_csrf"
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 PUBLIC_ADMIN_PATHS = {"/admin/login", "/admin/setup"}
+VIEWS = {
+    "brief.html": "text/html; charset=utf-8",
+    "board.html": "text/html; charset=utf-8",
+    "status.png": "image/png",
+}
 HOST_RE = re.compile(r"^[A-Za-z0-9.\-]+$")
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -149,7 +154,7 @@ def create_app(
     async def security_headers(request: Request, call_next):
         response = await call_next(request)
         for key, value in SECURITY_HEADERS.items():
-            response.headers[key] = value
+            response.headers.setdefault(key, value)  # a view may set its own (inline CSS, no scripts)
         if request.url.path.startswith("/admin"):
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -219,6 +224,26 @@ def create_app(
     def status_page(request: Request) -> HTMLResponse:
         data = status_data()
         return render(request, "status.html", version=__version__, uptime=_uptime(data["uptime_s"]), **data)
+
+    def static_view(name: str, media: str) -> None:
+        """One generated file from /out/latest, by fixed name only (no path comes from the request)."""
+
+        @app.get(f"/{name}", name=f"view_{name}")
+        def view() -> Response:
+            try:
+                data = (settings.out_dir / "latest" / name).read_bytes()
+            except OSError:
+                return Response("Not generated yet.", status_code=404, media_type="text/plain")
+            headers = {"Cache-Control": "no-cache"}
+            if media.startswith("text/html"):  # inline CSS only: still no scripts, frames, or requests out
+                headers["Content-Security-Policy"] = (
+                    "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; "
+                    "frame-ancestors 'none'; base-uri 'none'"
+                )
+            return Response(data, media_type=media, headers=headers)
+
+    for view_name, view_media in VIEWS.items():
+        static_view(view_name, view_media)
 
     # ------------------------------------------------------------------ HTTP: never serve /admin
 

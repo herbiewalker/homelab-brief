@@ -1,0 +1,51 @@
+{% extends "view_base.html" %}
+{% block title %}Homelab brief for {{ day }}{% endblock %}
+{% block body %}
+<h1>Homelab brief for {{ day }}</h1>
+<div class="meta">Generated {{ generated }} (UTC). {% if run_ok %}Run ok.{% else %}RUN FAILED.{% endif %}</div>
+<div class="headline {{ overall }}">{{ headline }}</div>
+
+{% if prose %}
+<div class="prose">
+<p><b>{{ prose.headline }}</b></p>
+{% for p in prose.paragraphs %}<p>{{ p }}</p>
+{% endfor %}
+<div class="note">Rewritten from the rule-based findings below by {{ prose.model }} ({{ prose.provider }}). The findings below are what was detected.</div>
+</div>
+{% endif %}
+
+{% if not run_ok %}
+<h2>What went wrong</h2>
+<ul>{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul>
+<p>Nothing here is a statement that the network is fine: there is not enough data to say.</p>
+{% else %}
+<h2>Systems</h2>
+<div class="tiles">
+{% for s in systems %}<div class="tile {{ s.state }}"><b>{{ s.name }}</b>{{ s.state|upper }}: {{ s.summary }}</div>
+{% endfor %}
+</div>
+
+<h2>Stories ({{ stories|length }}, most important first)</h2>
+{% if not stories %}<p>Nothing needs a look.</p>{% endif %}
+{% for s in stories %}
+<div class="story {{ s.route }}">
+<b>{{ loop.index }}. {{ s.title }}</b>{% if s.system %} ({{ s.system }}){% endif %}
+<small>{{ s.route }}, rank {{ s.rank }}</small>
+{% if s.grouped %}<ul>{% for t in s.top %}<li>{{ t }}</li>{% endfor %}{% if s.more %}<li>and {{ s.more }} more</li>{% endif %}</ul>{% endif %}
+</div>
+{% endfor %}
+
+{% if developing %}
+<h2>Developing (open more than one day)</h2>
+<ul>{% for x in developing %}<li>{{ x.title }}: day {{ x.days }}, {{ x.trend }}</li>{% endfor %}</ul>
+{% endif %}
+
+<h2>Quiet</h2>
+<ul>{% for q in quiet %}<li>{{ q }}</li>{% endfor %}</ul>
+{% endif %}
+
+{% if pipeline %}
+<h2>Pipeline</h2>
+<ul>{% for line in pipeline %}<li>{{ line }}</li>{% endfor %}</ul>
+{% endif %}
+{% endblock %}
