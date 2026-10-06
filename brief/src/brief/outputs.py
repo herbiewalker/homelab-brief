@@ -19,7 +19,7 @@ from pathlib import Path
 
 from brief import ai, alerts, detect, grouping, issues, render, status
 from brief import digest as dg
-from brief.detectors import Finding
+from brief.detectors import Finding, short_label
 from brief.jsonlog import log
 from brief.render_md import HostFacts, digest_markdown, host_markdown
 from brief.routing import Priorities
@@ -117,7 +117,7 @@ def host_facts(
             f"WHERE h.host = ? AND {HOURLY_IDX} BETWEEN ? AND ? GROUP BY h.sig_id ORDER BY n DESC LIMIT ?"
         )
         for r in db.execute(query, (host, lo, now_h, TOP_SIGNATURES)):
-            label = f"{r['app'] + ': ' if r['app'] else ''}{r['template'] or ''}"[:140]
+            label = short_label(r["app"], r["template"], 140)
             top.append(
                 {"sig_id": r["sig_id"], "label": label, "count": r["n"], "worst": SEVERITIES[r["worst"]]}
             )

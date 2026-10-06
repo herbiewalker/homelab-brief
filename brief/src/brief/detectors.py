@@ -21,6 +21,7 @@ Analysis windows are rolling: "the last 24 hours" and the 24-hour windows before
 days, which avoids day-boundary and daylight-saving bugs.
 """
 
+import re
 import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -341,9 +342,30 @@ def expected_gap(active_hours: list[int], min_hours_seen: int = 24, percentile: 
     return gaps[index] * 60
 
 
-def short_label(app: str | None, template: str | None) -> str:
-    text = f"{app + ': ' if app else ''}{template or '(no template)'}"
-    return text if len(text) <= 110 else text[:107] + "..."
+_STAMP = re.compile(r"^(?:<NUM>[-:./ ]+){2,}<NUM>\s*(?:<\w>:?)?\s*")  # a masked date and time at the start
+_CALL = re.compile(r"^(?:\[[^\]]+\])?[\w.\-]*\(\):\s*")  # "[TAG].function():" or "mod.function():"
+_PAIR = re.compile(r'"(\w+)"\s*:\s*"([^"]*)"')
+_WILD_RUN = re.compile(r"(?:<\*>\s*){2,}")
+_JSON_KEYS = 3
+
+
+def tidy_template(template: str) -> str:
+    """A log template made readable for a person: no masked timestamp or `[TAG].function():` prefix, a
+    JSON payload shown as its first few values, and runs of wildcards folded into one."""
+    text = template.strip()
+    text = _STAMP.sub("", text)
+    text = _CALL.sub("", text)
+    if text.startswith("{"):
+        values = [v for _, v in _PAIR.findall(text) if v and "<" not in v]
+        if values:
+            text = ", ".join(values[:_JSON_KEYS])
+    return _WILD_RUN.sub("<*> ", text).strip() or template.strip()
+
+
+def short_label(app: str | None, template: str | None, limit: int = 110) -> str:
+    body = tidy_template(template) if template else "(no template)"
+    text = f"{app + ': ' if app else ''}{body}"
+    return text if len(text) <= limit else text[: limit - 3] + "..."
 
 
 def _duration(minutes: int) -> str:

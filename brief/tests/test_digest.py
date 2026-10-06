@@ -291,3 +291,15 @@ def test_two_groups_on_one_system_say_which_host():
     ]
     (only,) = grouping.build_stories(a, PRIORITIES, {"gw": "Gateway"})
     assert only.title == "4 signatures far above normal on Gateway"  # one host: no need to say
+
+
+def test_the_headline_is_cut_at_a_word_not_in_the_middle_of_one():
+    from brief import digest as dg
+    from brief import grouping
+
+    long_title = "Returned after a quiet spell: " + "wordy " * 30
+    story = grouping.Story("id", "novelty", long_title, None, None, 55, "digest_only", False, None, ())
+    text = dg._headline(True, [], [story], {"hosts_checked": 1}, {"active": False})
+    first = text.split("first: ", 1)[1]
+    assert first.endswith("...") and len(first) <= dg.HEADLINE_TITLE_CHARS
+    assert not first[:-3].endswith("wor") and first[:-3].split()[-1] == "wordy"

@@ -88,7 +88,8 @@ def _headline(
         text = f"Quiet: {plural(checked, 'host')} checked, nothing needs a look"
     else:
         top = stories[0].title
-        top = top if len(top) <= HEADLINE_TITLE_CHARS else top[: HEADLINE_TITLE_CHARS - 3] + "..."
+        if len(top) > HEADLINE_TITLE_CHARS:  # cut at a word, not in the middle of one
+            top = top[: HEADLINE_TITLE_CHARS - 3].rsplit(" ", 1)[0].rstrip(",:;") + "..."
         count = len(stories)
         text = f"{plural(count, 'thing needs', 'things need')} a look; first: {top}"
     if learning.get("active"):

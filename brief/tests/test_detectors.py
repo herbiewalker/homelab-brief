@@ -1,5 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from brief import detectors as d
 
 NOW = datetime(2026, 10, 4, 12, 0, 0, tzinfo=UTC)
@@ -250,3 +252,45 @@ def test_a_signature_that_was_never_regular_is_not_news_when_it_shows_up_again()
     )  # seen on two days in two months: always "returning"
     assert len(d.novelty([row(2)], NOW, learning=False, min_prior_days=2)) == 1
     assert len(d.novelty([row(None)], NOW, learning=False)) == 1  # unknown history: reported
+
+
+# ---------------------------------------------------------------- readable titles (real shapes, sanitized)
+
+
+@pytest.mark.parametrize(
+    "app, template, expected",
+    [
+        (
+            "stahtd",
+            '[STA-TRACKER].stahtd_dump_event(): {"op":"event","message_type":"STA_ASSOC_TRACKER",'
+            '"event_type":"sta_leave","vap":"<*>"}',
+            "stahtd: event, STA_ASSOC_TRACKER, sta_leave",
+        ),
+        (
+            "ubnt_ai_daemon",
+            "<NUM>-<NUM>-<NUM> <NUM>:<NUM>:<NUM>.<NUM> <I>: Background sync: Fetching face data updates ...",
+            "ubnt_ai_daemon: Background sync: Fetching face data updates ...",
+        ),
+        (
+            "mcad",
+            "udapi-cfg._udapi_lu_set_inform_interval(): Changing LU inform interval <NUM> -> <NUM>",
+            "mcad: Changing LU inform interval <NUM> -> <NUM>",
+        ),
+        ("UniFi Network", "<*> <*> connected to <*> on AP", "UniFi Network: <*> connected to <*> on AP"),
+        (
+            "kernel",
+            "blk_update_request: I/O error, dev sdb",
+            "kernel: blk_update_request: I/O error, dev sdb",
+        ),
+        (None, "[LAN_WAN-D-<NUM>] DESCR=x", "[LAN_WAN-D-<NUM>] DESCR=x"),  # a bare tag is kept
+        ("a", '{"x":"<NUM>"}', 'a: {"x":"<NUM>"}'),  # nothing readable inside: kept as it was
+        ("a", None, "a: (no template)"),
+    ],
+)
+def test_titles_drop_prefixes_and_summarize_json(app, template, expected):
+    assert d.short_label(app, template) == expected
+
+
+def test_a_long_title_is_cut_to_the_limit():
+    assert len(d.short_label("a", "word " * 100)) == 110
+    assert len(d.short_label("a", "word " * 100, 140)) == 140
