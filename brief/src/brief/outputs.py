@@ -17,7 +17,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from brief import ai, alerts, detect, grouping, issues, render, status
+from brief import ai, alerts, configguard, detect, grouping, issues, render, selfmon, status
 from brief import digest as dg
 from brief.detectors import Finding, short_label
 from brief.jsonlog import log
@@ -130,6 +130,12 @@ def host_facts(
 # ---------------------------------------------------------------- the daily run
 
 
+def self_findings(pipeline: dict, state_dir: Path | None, env=None) -> list[Finding]:
+    """Findings about the product itself: a config file that did not load, and a disk that is filling."""
+    state = Path(state_dir or os.environ.get("BRIEF_STATE", "/state"))
+    return [*configguard.findings(state), *selfmon.storage_findings(pipeline, env)]
+
+
 def run_daily(
     store: Store,
     systems: Systems,
@@ -156,6 +162,7 @@ def run_daily(
         findings = result["findings"]
         learning = status.learning_status_for(store, now, env)
         pipeline = pipeline_numbers(store, systems, now, env, state_dir)
+        findings = [*findings, *self_findings(pipeline, state_dir, env)]
     except Exception as exc:  # the database or a detector failed: say so, never go quiet
         log("daily_failed", error=f"{type(exc).__name__}: {exc}")
         problems.append(f"the detectors failed ({type(exc).__name__})")
@@ -206,6 +213,7 @@ def write_daily(
 # ---------------------------------------------------------------- alerts: the lifecycle around the runs
 
 PIPELINE_KIND = "pipeline_error"
+SELF_KINDS = (configguard.KIND, selfmon.KIND)  # findings about the product itself
 
 
 def pipeline_story(headline: str, priorities: Priorities) -> list[grouping.Story]:
@@ -219,7 +227,7 @@ def run_daily_alerts(store: Store, d: dg.Digest, priorities: Priorities, now: da
     if d.run_ok:
         stories, evaluated = (
             d.stories,
-            {*detect.ALL, PIPELINE_KIND},
+            {*detect.ALL, PIPELINE_KIND, *SELF_KINDS},
         )  # a good run also clears a pipeline alert
     else:
         stories, evaluated = pipeline_story(d.headline, priorities), {PIPELINE_KIND}
@@ -236,16 +244,31 @@ def run_daily_alerts(store: Store, d: dg.Digest, priorities: Priorities, now: da
 
 
 def run_hourly_alerts(
-    store: Store, systems: Systems, now: datetime, env=None, status_doc: dict | None = None, notifier=None
+    store: Store,
+    systems: Systems,
+    now: datetime,
+    env=None,
+    status_doc: dict | None = None,
+    notifier=None,
+    state_dir: Path | None = None,
 ):
-    """The alert lifecycle for the hourly run: absence, and whether the pipeline itself is healthy."""
+    """The alert lifecycle for the hourly run: absence, whether the pipeline itself is healthy, and the
+    product's own problems (a config file that did not load, a disk that is filling)."""
     priorities = Priorities.load(env)
     rules = status.absence_thresholds(env)
     findings = detect.absence_findings(store, systems, rules, now)
+    pipeline = (status_doc or {}).get("pipeline") or {}
+    findings += self_findings(pipeline, state_dir, env)
     labels = {s.id: s.label for s in systems.systems}
     stories = grouping.build_stories(findings, priorities, labels)
     if status_doc is not None and not status_doc.get("run_ok", True):
         stories += pipeline_story(status_doc.get("headline", "the pipeline is not healthy"), priorities)
     return alerts.run_lifecycle(
-        store, priorities, stories, {"absence", PIPELINE_KIND}, now, headline_run=False, notifier=notifier
+        store,
+        priorities,
+        stories,
+        {"absence", PIPELINE_KIND, *SELF_KINDS},
+        now,
+        headline_run=False,
+        notifier=notifier,
     )

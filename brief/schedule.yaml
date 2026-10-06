@@ -1,4 +1,8 @@
-# When the scheduled jobs run. Editable here or in the admin GUI. Reloaded every run.
-# Times are UTC; the display timezone arrives with the scheduler (Task 14), until then convert yourself.
+# When the scheduled jobs run. Editable here or in the admin GUI. Reloaded every run; an invalid edit
+# keeps the last good copy and raises a config_error finding. Times are UTC. (The display timezone for
+# pages and messages arrives with the admin GUI, Task 15.)
 schema: 1
-daily_run_utc: "06:00"   # the daily full run: detectors, digest, host files, state.json, status.json
+daily_run_utc: "06:00"   # the daily full run: detectors, digest, host files, views, state.json, status.json
+weekly_day: monday       # the weekly trend report for the last complete week
+weekly_run_utc: "06:30"
+# The hourly job (status, sensors, absence alerts, storage and memory samples) runs every hour the worker is up.

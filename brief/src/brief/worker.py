@@ -10,12 +10,13 @@ import signal
 import sys
 import threading
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brief import __version__, detect, registry
+from brief import __version__, detect, registry, selfmon, weekly
 from brief.alerts import drain_feedback
 from brief.config import ConfigError, config_file, load_mapping
+from brief.configguard import ConfigGuard
 from brief.ignore import IgnoreRules
 from brief.ingest import CycleResult, Pipeline
 from brief.jsonlog import log
@@ -23,6 +24,7 @@ from brief.netinfo import network_info
 from brief.notify import AppriseChannel, Channels
 from brief.outputs import read_json, run_daily, run_hourly_alerts
 from brief.publish import Publisher
+from brief.schedule import Schedule
 from brief.settings import Settings
 from brief.signatures import Signatures
 from brief.status import build_status, health_problems, write_status
@@ -40,6 +42,8 @@ class Worker:
         self.store = Store(self.state / "baseline.db")
         self.signatures = Signatures(self.state / "drain3.bin", config_file("drain3.ini", self.env))
         self.systems, self.ignore = Systems(), IgnoreRules()
+        self.guard = ConfigGuard(self.state, self.env)
+        self.archive_dir = Path(self.env.get("BRIEF_ARCHIVE", "/archive"))
         self._reload()
         retention = load_mapping(config_file("retention.yaml", self.env))
         self.pipeline = Pipeline(
@@ -97,7 +101,12 @@ class Worker:
             return None
 
     def _reload(self) -> None:
-        """Reload config every cycle; a broken edit keeps the last good version and is logged."""
+        """Reload config every cycle. The guard first checks every file: a broken edit is replaced by the last
+        good copy for every reader, logged once, and reported as a config_error finding until it is fixed."""
+        try:
+            self.guard.check()
+        except Exception as exc:  # the guard itself must never stop ingest
+            log("config_guard_failed", error=f"{type(exc).__name__}: {exc}")
         for name, loader, attr in (
             ("systems.yaml", Systems.load, "systems"),
             ("ignore.yaml", IgnoreRules.load, "ignore"),
@@ -143,6 +152,10 @@ class Worker:
             log("gaps_learned", hosts=learned)
         except Exception as exc:  # status must still go out without them
             log("gaps_failed", error=f"{type(exc).__name__}: {exc}")
+        try:  # archive size, free space and memory, once an hour (the projection reads these samples)
+            selfmon.record(self.store, datetime.now(UTC), self.archive_dir, self.state)
+        except Exception as exc:  # self-monitoring must not stop the status
+            log("selfmon_failed", error=f"{type(exc).__name__}: {exc}")
         status = build_status(
             self.store,
             self.systems,
@@ -156,7 +169,9 @@ class Worker:
         )
         write_status(status, self.out_dir)
         try:
-            run_hourly_alerts(self.store, self.systems, datetime.now(UTC), self.env, status, self.notifier)
+            run_hourly_alerts(
+                self.store, self.systems, datetime.now(UTC), self.env, status, self.notifier, self.state
+            )
         except Exception as exc:  # alerts are secondary to ingest and status; the next hour tries again
             log("alerts_failed", error=f"{type(exc).__name__}: {exc}")
         try:
@@ -179,16 +194,7 @@ class Worker:
     def daily_due(self, now: datetime | None = None) -> bool:
         """True when today's daily run has not happened and its time (schedule.yaml, UTC) has passed."""
         now = now or datetime.now(UTC)
-        try:
-            text = str(load_mapping(config_file("schedule.yaml", self.env)).get("daily_run_utc") or "06:00")
-            hh, mm = text.split(":")
-            at = now.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
-        except (ConfigError, OSError, ValueError):
-            log(
-                "config_error", file="schedule.yaml", error="daily_run_utc must look like 06:00", kept="06:00"
-            )
-            at = now.replace(hour=6, minute=0, second=0, microsecond=0)
-        if now < at:
+        if now < self._schedule().daily_at(now):
             return False
         with self.store.read() as db:
             # a brand-new install that has never received a line is not a failed night: wait for data
@@ -196,6 +202,45 @@ class Worker:
                 return False
             row = db.execute("SELECT value FROM meta WHERE key = 'last_daily_date'").fetchone()
         return not row or row["value"] != now.strftime("%Y-%m-%d")
+
+    def _schedule(self) -> Schedule:
+        """schedule.yaml, or the defaults (said once per call) when it cannot be read."""
+        try:
+            return Schedule.from_mapping(load_mapping(config_file("schedule.yaml", self.env)))
+        except (ConfigError, OSError) as exc:
+            log("config_error", file="schedule.yaml", error=str(exc), kept="the defaults")
+            return Schedule()
+
+    def weekly_due(self, now: datetime | None = None) -> bool:
+        """True when this week's report time has passed and the report has not been written yet."""
+        now = now or datetime.now(UTC)
+        schedule = self._schedule()
+        if now < schedule.weekly_at(now):
+            return False
+        with self.store.read() as db:
+            if db.execute("SELECT 1 FROM hourly LIMIT 1").fetchone() is None:
+                return False  # nothing has ever been received: nothing to report
+            row = db.execute("SELECT value FROM meta WHERE key = 'last_weekly_key'").fetchone()
+        return not row or row["value"] != schedule.weekly_key(now)
+
+    def run_weekly(self, now: datetime | None = None) -> Path:
+        """The trend report for the last complete week, written to /out/weekly."""
+        now = now or datetime.now(UTC)
+        monday = weekly.current_monday(now) - timedelta(days=7)
+        path = weekly.write_weekly(self.store, self.systems, self.out_dir, monday, self.env)
+        with self.store.write() as tx:
+            tx.set_meta("last_weekly_key", self._schedule().weekly_key(now))
+        log("weekly_written", week=monday.isoformat(), path=str(path.name))
+        return path
+
+    def _weekly_if_due(self, backlog: bool) -> None:
+        if backlog:
+            return
+        try:
+            if self.weekly_due():
+                self.run_weekly()
+        except Exception as exc:  # the weekly report is secondary; it is tried again next cycle
+            log("weekly_failed", error=f"{type(exc).__name__}: {exc}")
 
     def run_daily(self, now: datetime | None = None):
         """The daily full run: detectors, digest, host files, state.json, status.json (see outputs.py)."""
@@ -262,6 +307,7 @@ class Worker:
                 # after the cycle, so the first numbers include whatever was waiting at start-up
                 next_publish = self._publish_if_due(next_publish, publish_every)
                 self._daily_if_due(bool(result.backlog_bytes))
+                self._weekly_if_due(bool(result.backlog_bytes))
                 self._apply_feedback()
                 if result.backlog_bytes:
                     continue

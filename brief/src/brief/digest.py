@@ -20,6 +20,7 @@ from brief.systems import Systems
 
 SCHEMA = 1
 HEADLINE_TITLE_CHARS = 90
+SELF_NAMES = {"brief": "Homelab Brief"}  # the pseudo-system for findings about the product itself
 
 
 @dataclass
@@ -108,7 +109,7 @@ def _system_states(
         mine = by_system.pop(system.id, [])
         out.append(_state_for(system.id, system.label, mine))
     for sid, mine in by_system.items():  # findings for a system that is not in systems.yaml (the default one)
-        out.append(_state_for(sid, sid, mine))
+        out.append(_state_for(sid, SELF_NAMES.get(sid, sid), mine))
     return out
 
 

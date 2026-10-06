@@ -55,7 +55,7 @@ def test_the_hourly_job_writes_status_json_and_publishes_the_sensors(tmp_path, m
     assert written == doc and doc["run_ok"] is True
     pipeline = doc["pipeline"]  # the sample events are from 2026-09-26, so the 24-hour counts are 0
     published = worker.publisher.published
-    assert len(published) == 1 and set(published[0]) == {
+    assert len(published) == 1 and set(published[0]) >= {
         "events_24h", "new_signatures_24h", "hosts_silent", "parse_failed_24h", "ingest_lag_s", "db_mb",
     }  # fmt: skip
     assert all(published[0][k] == pipeline[k] for k in published[0])

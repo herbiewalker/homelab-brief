@@ -88,14 +88,9 @@ def test_status_is_ok_with_schema_and_a_summary_headline(store, monkeypatch):
     assert doc["generated_at"] == "2026-10-03T12:00:00Z"
     assert "0 events in 24 hours" in doc["headline"] and "learning" in doc["headline"]
     assert set(doc["pipeline"]) == {
-        "events_24h",
-        "new_signatures_24h",
-        "hosts_silent",
-        "hosts_checked",
-        "parse_failed_24h",
-        "ingest_lag_s",
-        "db_mb",
-    }
+        "events_24h", "new_signatures_24h", "hosts_silent", "hosts_checked",
+        "parse_failed_24h", "ingest_lag_s", "db_mb", *status.SELF_KEYS,
+    }  # fmt: skip
 
 
 def test_a_dead_receiver_gives_run_ok_false_and_no_sensor_values(store, monkeypatch):

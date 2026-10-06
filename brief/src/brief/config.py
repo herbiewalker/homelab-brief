@@ -40,11 +40,37 @@ def is_placeholder(value: str) -> bool:
     return value.startswith("<") and value.endswith(">")
 
 
-def config_file(name: str, env: Mapping[str, str] | None = None) -> Path:
-    """Where to read a brief/ config file: the user's copy in /config/brief if there is one,
-    otherwise the default that ships in the image (/app/defaults/brief)."""
+# A user file that fails validation is replaced, for every reader at once, by its last good copy (or the
+# shipped default): the config guard (configguard.py) sets these, keyed by the user file's path.
+_fallbacks: dict[str, Path] = {}
+
+
+def set_fallback(user_file: Path, instead: Path | None) -> None:
+    """Make config_file() return `instead` for this user file (None puts the user's file back)."""
+    if instead is None:
+        _fallbacks.pop(str(user_file), None)
+    else:
+        _fallbacks[str(user_file)] = Path(instead)
+
+
+def clear_fallbacks() -> None:
+    _fallbacks.clear()
+
+
+def user_file(name: str, env: Mapping[str, str] | None = None) -> Path:
     env = os.environ if env is None else env
-    user = Path(env.get("BRIEF_CONFIG_DIR", "/config")) / "brief" / name
-    if user.exists():
-        return user
+    return Path(env.get("BRIEF_CONFIG_DIR", "/config")) / "brief" / name
+
+
+def default_file(name: str, env: Mapping[str, str] | None = None) -> Path:
+    env = os.environ if env is None else env
     return Path(env.get("BRIEF_DEFAULTS_DIR", "/app/defaults")) / "brief" / name
+
+
+def config_file(name: str, env: Mapping[str, str] | None = None) -> Path:
+    """Where to read a brief/ config file: the user's copy in /config/brief if there is one (or its last
+    good copy while the user's file is broken), otherwise the default that ships in the image."""
+    user = user_file(name, env)
+    if user.exists():
+        return _fallbacks.get(str(user), user)
+    return default_file(name, env)

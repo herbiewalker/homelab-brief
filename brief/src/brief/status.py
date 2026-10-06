@@ -16,13 +16,22 @@ import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brief import detect, detectors, health
+from brief import detect, detectors, health, selfmon
 from brief.learning import learning_status
 from brief.store import Store, iso, parse_time
 from brief.systems import Systems
 
 SCHEMA = 1
 MAX_LISTED_SILENT = 10
+SELF_KEYS = (
+    "memory_mb",
+    "memory_limit_mb",
+    "archive_mb",
+    "archive_free_gb",
+    "archive_free_pct",
+    "storage_days_left",
+    "events_last_hour",
+)
 
 
 silent_limit = detectors.silent_limit  # the absence rule lives in brief.detectors
@@ -84,6 +93,7 @@ def extra_numbers(store: Store, now: datetime, state_dir: Path | str | None = No
         "parse_failed_24h": int(failed),
         "ingest_lag_s": int(lag["value"]) if lag else None,
         "db_mb": size,
+        **selfmon.numbers(store, now),
     }
 
 
@@ -139,7 +149,7 @@ def build_status(
     try:
         extras = extra_numbers(store, now, state_dir)
     except Exception:  # the database is unreadable (said above); these numbers just stay empty
-        extras = {"parse_failed_24h": None, "ingest_lag_s": None, "db_mb": None}
+        extras = {"parse_failed_24h": None, "ingest_lag_s": None, "db_mb": None, **dict.fromkeys(SELF_KEYS)}
     live = {
         "schema": SCHEMA,
         "generated_at": iso(now),
@@ -209,6 +219,7 @@ def status_document(d, network: dict | None = None) -> dict:
                 "parse_failed_24h",
                 "ingest_lag_s",
                 "db_mb",
+                *SELF_KEYS,
             )
         },
         "silent_hosts": silent,

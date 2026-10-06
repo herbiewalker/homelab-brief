@@ -34,7 +34,13 @@ def _timestamp(text: str | None) -> float | None:
         return None
 
 
-def render(status: dict, metrics: list[dict], version: str, open_alerts: int | None = None) -> str:
+def render(
+    status: dict,
+    metrics: list[dict],
+    version: str,
+    open_alerts: int | None = None,
+    sources: dict[str, int] | None = None,
+) -> str:
     """The exposition text for one status document."""
     lines: list[str] = []
 
@@ -79,6 +85,9 @@ def render(status: dict, metrics: list[dict], version: str, open_alerts: int | N
             continue
         unit = f" ({metric['unit']})" if metric.get("unit") else ""
         family(_name(metric["id"]), f"{metric.get('name', metric['id'])}{unit}.", [("", value)])
+    if run_ok and sources:
+        rows = [(f'{{sender="{_label(host)}"}}', n) for host, n in sorted(sources.items())]
+        family(f"{PREFIX}_source_events_last_hour", "Events received in the last hour, per sender.", rows)
     family(
         f"{PREFIX}_system_status",
         "System state: 0 green, 1 yellow, 2 red. Unknown systems are left out.",

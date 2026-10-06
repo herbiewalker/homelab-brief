@@ -48,3 +48,42 @@ metrics:
 
   # Per-system state sensors (system_<id>) are generated from brief/systems.yaml in Task 13,
   # so adding a system there adds its sensor and tile with no change here.
+
+  # Self-monitoring (sampled hourly by selfmon.py)
+  - id: memory_mb
+    name: Container memory in use
+    group: pipeline
+    kind: number
+    unit: MB
+    interval: hourly
+    thresholds: { warn: 600, crit: 720, direction: high }   # the container limit is 768 MB
+
+  - id: archive_mb
+    name: Log archive size
+    group: storage
+    kind: number
+    unit: MB
+    interval: hourly
+
+  - id: archive_free_gb
+    name: Archive disk free
+    group: storage
+    kind: number
+    unit: GB
+    interval: hourly
+    thresholds: { warn: 50, crit: 10, direction: low }
+
+  - id: storage_days_left
+    name: Days until the archive disk is full
+    group: storage
+    kind: number
+    unit: days
+    interval: hourly
+    thresholds: { warn: 30, crit: 7, direction: low }
+
+  - id: events_last_hour
+    name: Log events, last hour
+    group: pipeline
+    kind: number
+    unit: events
+    interval: hourly

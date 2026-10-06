@@ -205,6 +205,7 @@ def test_status_json_the_api_and_metrics_show_the_same_run(lab):
     a, b = client.get("/status.json").json(), client.get("/api/v1/status").json()
     for doc in (a, b):
         doc.pop("generated_at")  # computed per request
+        doc["pipeline"].pop("memory_mb")  # read live, so it moves between two requests
     assert a == b
     values = {m["id"]: m["value"] for m in client.get("/api/v1/metrics").json()["metrics"]}
     text = client.get("/metrics").text

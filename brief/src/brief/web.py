@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from brief import __version__, api, health, registry
+from brief import __version__, api, health, registry, selfmon
 from brief.auth import Auth, AuthError, BadCredentials, Session, Throttled
 from brief.config import ConfigError, config_file
 from brief.jsonlog import log
@@ -236,7 +236,8 @@ def create_app(
     @app.get("/metrics")
     def prometheus() -> Response:
         doc, _, metrics = current_status()
-        text = metrics_text(doc, metrics, __version__, api.open_alert_count(store))
+        sources = selfmon.source_rates(store, datetime.now(UTC))
+        text = metrics_text(doc, metrics, __version__, api.open_alert_count(store), sources)
         return Response(text, media_type=PROMETHEUS_TYPE, headers={"Cache-Control": "no-cache"})
 
     app.state.api_router = api.build_router(current_status, store)  # kept so tests can walk its routes

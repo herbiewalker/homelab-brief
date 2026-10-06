@@ -37,6 +37,7 @@ DEFAULTS = {
     },
     "absence": {"gap_multiple": 3, "min_minutes": 30, "max_hours": 24},
     "clock_skew": {"max_minutes": 3},
+    "storage_low": {"min_free_pct": 15, "min_days_until_full": 14},
 }
 DAILY = ("novelty", "deviation", "off_hours", "clock_skew")
 HOURLY = ("absence",)
@@ -46,17 +47,36 @@ ALL = HOURLY + DAILY
 HIDX = "(CAST(strftime('%s', day) AS INTEGER) / 3600 + hour)"
 
 
-def thresholds(env=None) -> dict:
-    """thresholds from playbook.yaml over the defaults; a missing or broken file means the defaults."""
-    try:
-        found = load_mapping(config_file("playbook.yaml", env)).get("thresholds") or {}
-    except (ConfigError, OSError):
-        found = {}
+def _merged(found: dict) -> dict:
     out = {}
     for name, values in DEFAULTS.items():
         given = found.get(name) if isinstance(found.get(name), dict) else {}
         out[name] = {k: type(v)(given.get(k, v)) for k, v in values.items()}
     return out
+
+
+def validate_thresholds(found) -> None:
+    """Raise ConfigError when playbook.yaml `thresholds` is not a mapping of mappings of numbers."""
+    if found is None:
+        return
+    if not isinstance(found, dict):
+        raise ConfigError("playbook.yaml: thresholds must be a mapping")
+    for name in DEFAULTS:
+        if name in found and not isinstance(found[name], dict):
+            raise ConfigError(f"playbook.yaml: thresholds.{name} must be a mapping")
+    try:
+        _merged(found)
+    except (TypeError, ValueError) as exc:
+        raise ConfigError(f"playbook.yaml: a threshold is not a number ({exc})") from None
+
+
+def thresholds(env=None) -> dict:
+    """thresholds from playbook.yaml over the defaults; a missing or broken file means the defaults."""
+    try:
+        found = load_mapping(config_file("playbook.yaml", env)).get("thresholds") or {}
+        return _merged(found)
+    except (ConfigError, OSError, TypeError, ValueError):
+        return _merged({})
 
 
 def hour_index(now: datetime) -> int:
