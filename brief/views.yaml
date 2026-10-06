@@ -5,7 +5,7 @@ schema: 1
 png:
   width: 1024        # pixels; match the tablet's screen so the board is not scaled
   height: 600
-  font: ""           # path to a monospace .ttf in /config; empty uses the font built into the image
+  font: ""           # path to a .ttf in /config; empty uses the image's DejaVu Sans Mono
 
 board:
   refresh_s: 300     # the page reloads itself this often (a meta tag, not a script); 0 turns it off

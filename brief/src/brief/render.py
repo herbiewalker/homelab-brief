@@ -20,6 +20,7 @@ from brief.jsonlog import log
 from brief.render_md import _pipeline
 
 HERE = Path(__file__).parent
+SYSTEM_MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"  # from the fonts-dejavu-core package
 DEFAULTS = {
     "png": {"width": 1024, "height": 600, "font": ""},
     "board": {"refresh_s": 300, "stories": 3},
@@ -113,12 +114,16 @@ def board_html(d: Digest, day: str, views: dict | None = None) -> str:
 
 
 def _font(size: int, path: str = "") -> ImageFont.ImageFont:
+    """The font from views.yaml, else the monospace one the image ships, else Pillow's built-in."""
     if path:
         try:
             return ImageFont.truetype(path, size)
         except OSError:
-            log("config_error", file="views.yaml", error=f"font not readable: {path}", kept="built-in font")
-    return ImageFont.load_default(size)
+            log("config_error", file="views.yaml", error=f"font not readable: {path}", kept="default font")
+    try:
+        return ImageFont.truetype(SYSTEM_MONO, size)
+    except OSError:
+        return ImageFont.load_default(size)
 
 
 def _fit(draw: ImageDraw.ImageDraw, text: str, font, width: int) -> str:

@@ -178,3 +178,9 @@ def test_the_views_are_served_read_only_over_http(day, tmp_path, monkeypatch):
     )
     (out / "latest" / "status.png").unlink()
     assert client.get("/status.png").status_code == 404
+
+
+def test_the_png_uses_the_monospace_font_the_image_ships():
+    font = render._font(20)
+    assert "Mono" in font.getname()[0] or not __import__("os").path.exists(render.SYSTEM_MONO)
+    assert font.getlength("iiiiiiii") == font.getlength("WWWWWWWW")  # every character the same width

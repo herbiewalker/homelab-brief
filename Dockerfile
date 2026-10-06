@@ -35,6 +35,11 @@ RUN /opt/venv/bin/pip install -r /tmp/requirements.txt
 FROM deps AS test
 COPY brief/requirements-dev.txt /tmp/requirements-dev.txt
 RUN /opt/venv/bin/pip install -r /tmp/requirements-dev.txt
+# DejaVu Sans Mono (Bitstream Vera licence, free to bundle) for status.png; render.py falls back to
+# Pillow's built-in font if it is missing.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
 ENV PATH=/opt/venv/bin:$PATH PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 COPY brief/ /app/
@@ -46,6 +51,11 @@ FROM ${PYTHON_IMAGE} AS runtime
 COPY --from=s6 /s6/ /
 COPY --from=vector /out/vector /usr/local/bin/vector
 COPY --from=deps /opt/venv /opt/venv
+# DejaVu Sans Mono (Bitstream Vera licence, free to bundle) for status.png; render.py falls back to
+# Pillow's built-in font if it is missing.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
 
 # uid 99 / gid 100 is Unraid's nobody:users, so appdata written here stays manageable from the host.
 # Docker sets net.ipv4.ip_unprivileged_port_start=0 in container namespaces, so this user can bind 80/443/514.
