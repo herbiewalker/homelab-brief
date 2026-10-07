@@ -26,7 +26,7 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from brief import __version__, admin_config, api, health, registry, selfmon
+from brief import __version__, admin_config, admin_network, api, health, registry, selfmon
 from brief import admin as admin_pages
 from brief.auth import Auth, AuthError, BadCredentials, Session, Throttled
 from brief.config import ConfigError, config_file
@@ -446,6 +446,7 @@ def create_app(
     )
     admin_pages.register(admin, deps)
     admin_config.register(admin, deps)
+    admin_network.register(admin, deps)
 
     @admin.get("/account", response_class=HTMLResponse)
     def account_form(request: Request):

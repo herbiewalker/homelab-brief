@@ -1,0 +1,8 @@
+<div id="net-test"{% if not found %} hx-get="/admin/network/test/{{ token }}" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
+{% if found %}
+  <div class="card notice"><span class="badge ok">received</span> The test line arrived from <code>{{ found.source_ip }}</code>{% if found.app %} (app {{ found.app }}){% endif %}. Syslog reaches this container.</div>
+  {% if sender_note %}<div class="card banner">{{ sender_note }}</div>{% endif %}
+{% else %}
+  <div class="card"><span class="badge warn">waiting</span> No test line yet. Run one of the commands above from the server or device you want to check; this checks every 3 seconds.</div>
+{% endif %}
+</div>

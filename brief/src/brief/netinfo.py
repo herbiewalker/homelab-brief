@@ -73,11 +73,11 @@ def describe(
     configured_mode: str = "auto",
     advertised: str = "",
     ports: dict | None = None,
-    address_fn: Callable[[], str | None] = local_address,
+    address_fn: Callable[[], str | None] | None = None,
     names: list[str] | None = None,
 ) -> dict:
     """{mode, detected_mode, address, advertised, send_syslog_to, warnings} for logs and status.json."""
-    address = address_fn()
+    address = (address_fn or local_address)()  # looked up now, so a test can stand in for the network
     detected = detect_mode(address, interfaces() if names is None else names)
     mode = configured_mode if configured_mode in MODES else detected
     warnings = []

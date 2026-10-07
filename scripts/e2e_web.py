@@ -171,7 +171,7 @@ def main(argv):
         check(code == 200 and "Overview" in page, f"/admin after sign-in was {code}")
         for path in (
             "/admin/sources", "/admin/findings", "/admin/audit", "/admin/overview/live", "/admin/config",
-            "/admin/config/systems.yaml",
+            "/admin/config/systems.yaml", "/admin/network",
         ):  # fmt: skip
             code, headers, body = me.get(f"{https_url}{path}")
             check(code == 200, f"{path} was {code}")

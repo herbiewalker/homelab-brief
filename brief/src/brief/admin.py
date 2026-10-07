@@ -22,6 +22,7 @@ NAV = [
     ("overview", "/admin", "Overview"),
     ("sources", "/admin/sources", "Sources"),
     ("findings", "/admin/findings", "Findings and alerts"),
+    ("network", "/admin/network", "Network"),
     ("config", "/admin/config", "Config"),
     ("audit", "/admin/audit", "Audit log"),
     ("account", "/admin/account", "Account"),

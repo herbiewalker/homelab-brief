@@ -14,7 +14,7 @@ import shutil
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
-from brief import detect, selfmon
+from brief import detect, netconfig, selfmon
 from brief.config import ConfigError, default_file, load_mapping, set_fallback, user_file
 from brief.detectors import Finding
 from brief.ignore import IgnoreRules
@@ -58,7 +58,7 @@ VALIDATORS: dict[str, Callable[[Path], object]] = {
     "notify.yaml": _mapping,
     "views.yaml": _mapping,
     "ai.yaml": _mapping,
-    "network.yaml": _mapping,
+    "network.yaml": lambda p: netconfig.validate(load_mapping(p)),
     "retention.yaml": _mapping,
 }
 

@@ -1,0 +1,76 @@
+{% extends "admin_layout.html" %}
+{% block title %}Network{% endblock %}
+{% block body %}
+<h1>Network</h1>
+<p class="muted">Docker decides this container's network mode and address from the Unraid template; nothing here can change that, so a wrong setting cannot cut you off. This page shows what it sees, warns about trouble, and edits <code>network.yaml</code>.</p>
+{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="card error"><strong>Not saved.</strong> {{ error }}</div>{% endif %}
+
+<div class="grid">
+  <div class="card"><h2>Detected</h2>
+    <table class="plain">
+      <tr><td>Mode</td><td><span class="badge ok">{{ net.mode }}</span>{% if net.mode != net.detected_mode %} <span class="muted">(detected: {{ net.detected_mode }})</span>{% endif %}</td></tr>
+      <tr><td>Container address</td><td>{% if net.address %}<code>{{ net.address }}</code>{% else %}<span class="bad">no route found</span>{% endif %}</td></tr>
+      <tr><td>Advertised address</td><td>{% if net.advertised %}<code>{{ net.advertised }}</code>{% else %}<span class="muted">not set</span>{% endif %}</td></tr>
+      <tr><td>Devices send syslog to</td><td>{% if net.send_syslog_to %}<code>{{ net.send_syslog_to }}:{{ ports.syslog }}</code>{% else %}<span class="muted">the host's address (set the advertised address below)</span>{% endif %}</td></tr>
+    </table>
+  </div>
+  <div class="card"><h2>Listening</h2>
+    <table class="plain">
+      {% for l in listening %}<tr><td>{{ l.name }}</td><td><code>{{ l.port }}</code> <span class="{{ 'ok' if l.ok else 'bad' }}">{{ 'answers' if l.ok else 'not answering' }}</span></td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+
+{% if warnings %}
+<div class="card error"><h2>Warnings</h2>{% for w in warnings %}<p>{{ w }}</p>{% endfor %}</div>
+{% else %}
+<div class="card notice">No network problems found for the {{ net.mode }} mode.</div>
+{% endif %}
+{% for n in notes %}<div class="card banner">{{ n }}</div>{% endfor %}
+{% if pending %}<div class="card banner"><h2>Restart needed</h2>{% for p in pending %}<div>{{ p }}</div>{% endfor %}<p class="muted">Ports and the address are read when the container starts. Restart it from the Unraid Docker page to apply them; the certificate names follow the advertised address.</p></div>{% endif %}
+
+<h2>Settings</h2>
+<form class="card" method="post" action="/admin/network">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <input type="hidden" name="base" value="{{ base }}">
+  <label for="mode">Mode (auto detects it)</label>
+  <select id="mode" name="mode">{% for m in modes %}<option value="{{ m }}"{% if m == want.mode %} selected{% endif %}>{{ m }}</option>{% endfor %}</select>
+  <label for="advertised_address">Advertised address (an IP or host name devices and links use; empty uses the detected one)</label>
+  <input type="text" id="advertised_address" name="advertised_address" value="{{ want.advertised }}" autocomplete="off">
+  <div class="grid spaced">
+    {% for key in ('syslog', 'http', 'https', 'ssh') %}<div><label for="p-{{ key }}">{{ key|capitalize }} port</label><input type="text" id="p-{{ key }}" name="{{ key }}" value="{{ want.ports[key] if key in want.ports else '' }}" inputmode="numeric"></div>{% endfor %}
+  </div>
+  <label for="unknown_senders">Senders outside the allowed list</label>
+  <select id="unknown_senders" name="unknown_senders">{% for p in ('flag', 'drop') %}<option value="{{ p }}"{% if p == want.unknown_senders %} selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+  <button type="submit">Save</button>
+  <p class="muted">Checked before it is saved, kept in the history, and written to the audit log, like every config edit. For the lists in this file (allowed senders, certificate names), use the <a href="/admin/config/network.yaml">config editor</a>.</p>
+</form>
+
+<h2>Syslog test</h2>
+<div class="card">
+  <p>Send one test line from the server or device you want to check:</p>
+  {% for c in commands %}<pre>{{ c }}</pre>{% endfor %}
+</div>
+{% include "_net_test.html" %}
+
+<h2>Where each expected sender stands</h2>
+<div class="card scroll">
+{% if repointing %}
+<table class="wide">
+  <thead><tr><th>System</th><th>Sender</th><th>Status</th><th>Last line</th></tr></thead>
+  {% for r in repointing %}<tr><td>{{ r.system }}</td><td><code>{{ r.entry }}</code></td><td><span class="badge {{ 'ok' if r.state == 'receiving' else 'bad' }}">{{ r.state }}</span></td><td>{{ r.last_seen or '' }}</td></tr>{% endfor %}
+</table>
+{% else %}<span class="muted">No expected senders are listed in systems.yaml yet.</span>{% endif %}
+</div>
+
+<h2>Unraid template settings for each mode</h2>
+{% for t in templates %}
+<div class="card">
+  <h2>{{ t.title }}{% if t.current %} <span class="badge ok">current</span>{% endif %}</h2>
+  <pre>{% for line in t.lines %}{{ line }}
+{% endfor %}</pre>
+</div>
+{% endfor %}
+<p class="muted">Change the mode in Unraid's Docker page, not here: the container never changes its own network.</p>
+{% endblock %}
