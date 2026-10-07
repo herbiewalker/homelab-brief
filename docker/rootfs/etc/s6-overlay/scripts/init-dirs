@@ -5,7 +5,10 @@
 # SYSLOG_PORT) by `python -m brief.vectorcfg`, which validates them. A bad value stops the
 # container with a message in the log instead of quietly weakening the allowlist.
 set -e
-mkdir -p /state/vector /state/vector-import /state/events /archive /out /www /run/vector
+mkdir -p /state/vector /state/vector-import /state/events /archive /out /www /run/vector /config/brief
+# /config/brief is where the admin GUI and the `brief config` command write your settings (not recursive:
+# files you put there yourself keep their owner).
+chown brief:users /config/brief
 chown brief:users /state /state/vector /state/vector-import /state/events /archive /out /www /run/vector
 
 python -m brief.vectorcfg

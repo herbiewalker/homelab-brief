@@ -1,5 +1,8 @@
 #!/bin/sh
 # The `brief` command. Run as the brief user so the database files it touches keep their owner.
+# PYTHONPATH is set here because a login shell (the optional SSH server) does not inherit the container's
+# environment, and the command has to work the same from `docker exec` and from SSH.
+export PYTHONPATH="${PYTHONPATH:-/app}"
 if [ "$(id -u)" = "0" ]; then
   exec /command/s6-setuidgid brief /opt/venv/bin/python -m brief "$@"
 fi

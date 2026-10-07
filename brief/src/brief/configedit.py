@@ -240,6 +240,13 @@ def save(
     nothing changed."""
     now = now or datetime.now(UTC)
     text = normalize(text)
+    if (
+        not text.strip()
+    ):  # an empty file is "valid" (everything defaults), so an accident would pass: refuse it
+        raise EditError(
+            "The file would be empty. To go back to the shipped default use 'Use the shipped default' "
+            "(or `brief config reset`)."
+        )
     problem = validate_text(name, text)
     if problem:
         raise EditError(problem)

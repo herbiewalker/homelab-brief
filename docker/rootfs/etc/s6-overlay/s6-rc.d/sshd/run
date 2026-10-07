@@ -1,0 +1,15 @@
+#!/command/with-contenv sh
+# The optional SSH server. Off unless SSH_ENABLED is true: then there is nothing to run, so this tells
+# s6 to leave the service down instead of restarting it forever. When it is on, brief.sshcfg checks the
+# settings and the keys and writes /run/sshd/sshd_config; if anything is wrong it says so in the log and
+# the server stays down (a bad setting never starts a weaker server).
+case "$SSH_ENABLED" in
+  true|TRUE|True|1|yes|YES) ;;
+  *) s6-svc -Od /run/service/sshd; exit 0 ;;
+esac
+if ! python -m brief.sshcfg; then
+  s6-svc -Od /run/service/sshd
+  exit 0
+fi
+mkdir -p /run/sshd
+exec /usr/sbin/sshd -D -e -f /run/sshd/sshd_config

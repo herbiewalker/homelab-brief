@@ -57,9 +57,17 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
+# The optional SSH server (OpenBSD licence family). Off unless SSH_ENABLED is true; see brief/sshcfg.py.
+# The host keys the package makes at install are removed: every container makes its own, kept in /state/ssh.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssh-server \
+    && rm -rf /var/lib/apt/lists/* /etc/ssh/ssh_host_* \
+    && mkdir -p /run/sshd
 # uid 99 / gid 100 is Unraid's nobody:users, so appdata written here stays manageable from the host.
 # Docker sets net.ipv4.ip_unprivileged_port_start=0 in container namespaces, so this user can bind 80/443/514.
-RUN useradd --uid 99 --gid 100 --no-create-home --shell /usr/sbin/nologin brief \
+# usermod -p '*': no password, but not "locked": sshd (without PAM) refuses a locked account even for a key.
+RUN useradd --uid 99 --gid 100 --home-dir /home/brief --create-home --shell /bin/bash brief \
+    && usermod -p '*' brief \
     && mkdir -p /config /state /archive /out
 
 COPY docker/rootfs/ /

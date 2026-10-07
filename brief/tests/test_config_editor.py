@@ -370,3 +370,11 @@ def test_a_file_the_pipeline_cannot_load_is_flagged_on_its_editor_page(lab, cfg)
     )
     html = lab.client.get("/admin/config/notify.yaml").text
     assert "could not load the current file" in html and "the last good copy" in html
+
+
+@pytest.mark.parametrize("text", ["", "   \n\n", "\r\n"])
+def test_an_empty_file_is_never_saved_by_accident(cfg, text):
+    user, state, store = cfg
+    with pytest.raises(configedit.EditError, match="would be empty"):
+        configedit.save(store, "views.yaml", text, "admin", base_of("views.yaml"), state)
+    assert not (user / "views.yaml").exists() and audit_rows(store) == []

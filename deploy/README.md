@@ -47,7 +47,7 @@ Use the tag in the compose file or template instead of the registry name, and pi
 10. **Upgrade** to the release tag. The container migrates config and keeps a backup of the old one.
 11. **Outputs.** Confirm MQTT sensors in HA (or with `mosquitto_sub`), the status board on the oldest tablet, `/metrics`, and `/api/v1/status`.
 12. **Watchdog.** Add the hourly stale-file User Script from the operations guide.
-13. **Optional SSH.** Set `SSH_ENABLED=true` and add your public key to `config/ssh/authorized_keys`.
+13. **Optional SSH.** Set `SSH_ENABLED=true` and add your public key to `config/ssh/authorized_keys` (plain key lines only), then restart. In host mode set `advertised_address` (the host IP) and a port other than 22. Check with `docker exec <container> brief ssh show`.
 14. **Retire the old receiver.** After a week of clean collection, turn off the host server's built-in syslog server. The old files stay as they are.
 
 ## Phase 2 additions (any order)

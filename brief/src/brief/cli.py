@@ -10,6 +10,7 @@ import os
 import sys
 from pathlib import Path
 
+from brief import cli_tools
 from brief.auth import Auth, AuthError
 from brief.detect import ALL as ALL_KINDS
 from brief.store import Store
@@ -350,8 +351,11 @@ def main(argv: list[str] | None = None) -> int:
         dest="cmd", required=True
     )
     nt.add_parser("test", help="send a test message through Apprise")
+    cli_tools.add_parsers(sub)
     args = parser.parse_args(argv)
     state = Path(os.environ.get("BRIEF_STATE", "/state"))
+    if args.group in cli_tools.GROUPS:
+        return cli_tools.dispatch(args, state)
     if args.group == "replay":
         return run_replay(args, state)
     if args.group == "notify":

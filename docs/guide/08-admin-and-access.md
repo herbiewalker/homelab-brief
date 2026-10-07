@@ -83,18 +83,26 @@ Docker decides the container's network mode and IP from the Unraid template; not
 The `brief` command covers everything the GUI does:
 
 ```
-brief status
-brief replay --from 2026-10-01 --to 2026-10-07 --dry-run
-brief export --host udm --sig 1042 --days 30
-brief weekly
-brief config validate
-brief config rollback <file> <version>
-brief network show
-brief network test --from <server-ip>
-brief collector test unraid
+brief status [--json]                     health, the last run, systems, silent hosts, config errors (exit 1 if not ok)
+brief sources                             every sender, its system, last line, counts
+brief config list | show NAME [--default] | validate [NAME ...] [--from FILE]
+brief config history NAME | diff NAME [VERSION] | set NAME [--from FILE|-] | rollback NAME VERSION | reset NAME
+brief systems list | add ID --label L --host H ... | assign HOST ID | remove ID
+brief signatures [--q TEXT] [--ignored]   and:  brief signature ignore|unignore ID
+brief logs search --text T [--host H] [--from DAY] [--to DAY]
+brief alerts | ack ID | snooze ID --hours N
+brief replay --from 2026-10-01 --to 2026-10-07
+brief export --host H --sig ID --days 30  |  brief weekly  |  brief digest
+brief network show | test [--wait SECONDS]
+brief backup create [--out FILE|-]        and:  brief backup restore FILE   (config files only)
+brief audit [--user U] [--q TEXT]
+brief notify test                         one test message through Apprise
 brief admin set-password
-brief backup create
+brief ssh show                            is the optional SSH server on, where, and with how many keys
+brief collector test NAME                 (collectors arrive in Phase 2)
 ```
+
+Each command that changes something goes through the same code as the matching GUI action, so it is checked the same way, kept in the same history, and written to the audit log as `cli:<unix user>`. `config set` refuses an empty file (use `config reset` to go back to the default) and, like the GUI, an invalid or stale edit. Exit codes: 0 done, 1 refused or failed, 2 bad usage.
 
 **Default way in (no extra services):** SSH to the Unraid host, then
 
@@ -106,10 +114,12 @@ or use the container console in the Unraid web UI.
 
 **Optional built-in SSH server** (disabled by default, for direct access to the container's own IP):
 
-- Key-only. Put public keys in `appdata/homelab-brief/ssh/authorized_keys`. Password login is refused.
-- No root login. You land as a dedicated `brief` user with the CLI available.
-- Listens only on the container's own IP, port 22, LAN only.
-- Enable it with `SSH_ENABLED=true` in the template.
+- Key-only. Put public keys in `config/ssh/authorized_keys` (one plain public key per line: a key type and the key, no options such as `command=`, which are refused). Password and keyboard-interactive login are refused. Change the keys, then restart the container.
+- No root login (only the `brief` user is allowed), no port, agent, X11, or tunnel forwarding, no sftp. You land in a shell where `brief` works.
+- Listens on the container's own IP in own-IP mode, on every container address in bridge mode (Docker maps the port), and in host mode only on the advertised address: host mode refuses to start SSH until `advertised_address` in `network.yaml` is the host's IP (or `SSH_LISTEN` is set), because it would otherwise open SSH on every address of the Unraid host. The port is `ports.ssh` in `network.yaml` (22 by default; use another in host mode, because Unraid has its own SSH) or `SSH_PORT`.
+- Enable it with `SSH_ENABLED=true` in the template. Anything wrong (no key, an option in a key line, a bad port) is logged as `sshd_not_started` with the reason, and the server stays down rather than starting weaker.
+- The host key is made once and kept in `state/ssh`, so clients see the same key after an update. Run `brief ssh show` to see whether it is on, where it listens, and how many keys it accepted.
+- Proven against the built image: key login runs `brief`, a password login, a root login with the same key, and forwarding are all refused.
 
 ## Standard interfaces out
 
