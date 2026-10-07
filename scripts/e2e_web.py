@@ -169,7 +169,10 @@ def main(argv):
         )
         code, _, page = me.get(f"{https_url}/admin")
         check(code == 200 and "Overview" in page, f"/admin after sign-in was {code}")
-        for path in ("/admin/sources", "/admin/findings", "/admin/audit", "/admin/overview/live"):
+        for path in (
+            "/admin/sources", "/admin/findings", "/admin/audit", "/admin/overview/live", "/admin/config",
+            "/admin/config/systems.yaml",
+        ):  # fmt: skip
             code, headers, body = me.get(f"{https_url}{path}")
             check(code == 200, f"{path} was {code}")
             csp = headers.get("Content-Security-Policy", "")

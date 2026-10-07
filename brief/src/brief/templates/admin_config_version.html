@@ -1,0 +1,22 @@
+{% extends "admin_layout.html" %}
+{% block title %}{{ file }} version{% endblock %}
+{% block body %}
+<p class="muted"><a href="/admin/config">Config</a> / <a href="/admin/config/{{ file }}">{{ file }}</a> / version {{ stamp }}</p>
+<h1>Version <code>{{ stamp }}</code></h1>
+{% if meta %}<p class="muted">Kept when it was {{ meta.action }}{% if meta.user %} by {{ meta.user }}{% endif %}.</p>{% endif %}
+<div class="card">
+  <h2>What restoring this version would change</h2>
+  {% if same %}<p>This version is the same as the current file.</p>
+  {% else %}<pre class="diff">{% for l in diff %}<span class="{{ l.kind if l.kind != 'gap' else 'ctx' }}">{{ '+ ' if l.kind == 'add' else ('- ' if l.kind == 'del' else '  ') }}{{ l.text }}</span>{% endfor %}</pre>{% endif %}
+  <p class="muted">Lines marked + would be added back, lines marked - would go away.</p>
+</div>
+{% if not same %}
+<form class="card" method="post" action="/admin/config/{{ file }}/restore">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <input type="hidden" name="stamp" value="{{ stamp }}">
+  <input type="hidden" name="base" value="{{ base }}">
+  <button type="submit">Restore this version</button>
+  <p class="muted">It is checked again before it is saved, and the current file is kept in the history.</p>
+</form>
+{% endif %}
+{% endblock %}

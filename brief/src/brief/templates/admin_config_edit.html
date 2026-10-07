@@ -1,0 +1,58 @@
+{% extends "admin_layout.html" %}
+{% block title %}{{ file }}{% endblock %}
+{% block body %}
+<p class="muted"><a href="/admin/config">Config</a> / {{ file }}</p>
+<h1><code>{{ file }}</code></h1>
+<p class="muted">{{ description }} {% if customised %}This file is customised.{% else %}This file uses the shipped default; saving creates your own copy.{% endif %}</p>
+{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="card error"><strong>Not saved.</strong> {{ error }}</div>{% endif %}
+{% if guard_error %}<div class="card error">The running pipeline could not load the current file ({{ guard_error.error }}) and is using {{ guard_error.using }}. Fix the file below.</div>{% endif %}
+
+<form class="card" method="post" action="/admin/config/{{ file }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <input type="hidden" name="base" value="{{ base }}">
+  <label for="text">Contents</label>
+  <textarea id="text" name="text" spellcheck="false" autocomplete="off" wrap="off">{{ text }}</textarea>
+  <div class="row">
+    <button type="submit" name="action" value="review">Check and review changes</button>
+  </div>
+  <p class="muted">Nothing is saved until you have seen the changes and confirmed them.</p>
+</form>
+
+{% if diff is not none and review %}
+<div class="card">
+  <h2>Changes to save</h2>
+  <pre class="diff">{% for l in diff %}<span class="{{ l.kind if l.kind != 'gap' else 'ctx' }}">{{ '+ ' if l.kind == 'add' else ('- ' if l.kind == 'del' else '  ') }}{{ l.text }}</span>{% endfor %}</pre>
+  <form method="post" action="/admin/config/{{ file }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="base" value="{{ base }}">
+    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="text" value="{{ text }}">
+    <button type="submit">Save these changes</button>
+  </form>
+  <p class="muted">The text was checked and is valid. The version it replaces is kept.</p>
+</div>
+{% endif %}
+
+<h2>History</h2>
+<div class="card scroll">
+{% if versions %}
+<table class="wide">
+  <thead><tr><th>Version (UTC)</th><th>Replaced by</th><th>By</th><th class="num">Size</th><th></th></tr></thead>
+  {% for v in versions %}<tr>
+    <td><code>{{ v.stamp }}</code></td><td>{{ v.action }}</td><td>{{ v.user }}</td><td class="num">{{ v.size }} B</td>
+    <td><a href="/admin/config/{{ file }}/versions/{{ v.stamp }}">Compare and restore</a></td>
+  </tr>{% endfor %}
+</table>
+{% else %}<span class="muted">No earlier versions yet.</span>{% endif %}
+</div>
+
+{% if customised %}
+<h2>Start over</h2>
+<form class="card" method="post" action="/admin/config/{{ file }}/reset" x-data="confirmForm" @submit="ask" data-confirm="Go back to the shipped default for {{ file }}? Your version is kept in the history.">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button class="danger" type="submit">Use the shipped default</button>
+  <p class="muted">Removes your copy, so the default that ships with the product applies again (and follows product updates). Your version stays in the history.</p>
+</form>
+{% endif %}
+{% endblock %}

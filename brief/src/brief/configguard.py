@@ -67,11 +67,13 @@ class ConfigGuard:
     def __init__(self, state_dir: Path | str, env: Mapping[str, str] | None = None):
         self.state = Path(state_dir)
         self.env = os.environ if env is None else env
-        self.errors: dict[str, dict] = {}
+        self.errors: dict[str, dict] | None = None  # None until the first check: then what the file says
 
     def check(self) -> dict[str, dict]:
         """Validate every watched file once. Returns {file: {"error", "using"}} for the broken ones."""
         found: dict[str, dict] = {}
+        # a guard made fresh (the web server after an edit) still knows what an earlier check found
+        before = self.errors if self.errors is not None else read_errors(self.state)
         for name, validate in VALIDATORS.items():
             user = user_file(name, self.env)
             if not user.exists():
@@ -85,11 +87,11 @@ class ConfigGuard:
                 set_fallback(user, None)
                 self._remember(name, user)
         for name, issue in found.items():
-            if self.errors.get(name, {}).get("error") != issue["error"]:  # log a change, not every cycle
+            if before.get(name, {}).get("error") != issue["error"]:  # log a change, not every cycle
                 log("config_error", file=name, error=issue["error"], kept=issue["using"])
-        for name in set(self.errors) - set(found):
+        for name in set(before) - set(found):
             log("config_recovered", file=name)
-        if found != self.errors or not (self.state / ERRORS_FILE).exists():
+        if found != before or not (self.state / ERRORS_FILE).exists():
             self._write(found)
         self.errors = found
         return found

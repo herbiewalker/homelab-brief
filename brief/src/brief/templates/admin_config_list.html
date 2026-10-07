@@ -1,0 +1,21 @@
+{% extends "admin_layout.html" %}
+{% block title %}Config{% endblock %}
+{% block body %}
+<h1>Config</h1>
+<p class="muted">Every setting lives in one of these files. An edit is checked before it is saved, the version it replaces is kept so you can undo it, and each change is recorded in the audit log. A file you have not changed uses the default that ships with the product.</p>
+<div class="card scroll">
+<table class="wide">
+  <thead><tr><th>File</th><th>What it controls</th><th>State</th><th>Last changed</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/admin/config/{{ r.name }}"><code>{{ r.name }}</code></a></td>
+    <td>{{ r.description }}</td>
+    <td>{% if r.error %}<span class="badge bad">not valid</span>{% elif r.customised %}<span class="badge ok">customised</span>{% else %}<span class="badge">default</span>{% endif %}</td>
+    <td>{{ r.changed or '' }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
