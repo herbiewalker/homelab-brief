@@ -1,0 +1,28 @@
+{% extends "admin_layout.html" %}
+{% block title %}Log search{% endblock %}
+{% block body %}
+<h1>Log search</h1>
+<p class="muted">Search the raw syslog archive, exactly as it was received. Pick a sender, a few days, or some text (plain text, case-insensitive). Up to {{ max_days }} days and {{ max_lines }} lines per search, newest first.{% if span %} The archive holds {{ span[0] }} to {{ span[1] }}.{% else %} The archive is empty.{% endif %}</p>
+{% if error %}<div class="card error">{{ error }}</div>{% endif %}
+<form class="card" method="post" action="/admin/logs">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <div class="grid">
+    <div><label for="host">Sender (IP or name, empty for all)</label><input type="text" id="host" name="host" value="{{ form.host }}" autocomplete="off"></div>
+    <div><label for="start">From day</label><input type="text" id="start" name="start" value="{{ form.start }}" placeholder="2026-10-01"></div>
+    <div><label for="end">To day</label><input type="text" id="end" name="end" value="{{ form.end }}" placeholder="2026-10-07"></div>
+  </div>
+  <label for="q">Text to look for</label>
+  <input type="text" id="q" name="q" value="{{ form.q }}" autocomplete="off">
+  <button type="submit">Search</button>
+  <p class="muted">Searches are sent as a form post, so what you look for is not kept in the address bar or in access logs.</p>
+</form>
+{% if result %}
+<div class="card scroll">
+  {% if result.lines %}
+  <table class="wide"><thead><tr><th>Day</th><th>Sender</th><th>Line</th></tr></thead>
+  {% for l in result.lines %}<tr><td>{{ l.day }}</td><td><code>{{ l.host }}</code></td><td><code>{{ l.text }}</code></td></tr>{% endfor %}</table>
+  {% else %}No matching lines.{% endif %}
+  <p class="muted">{{ result.files }} file{{ '' if result.files == 1 else 's' }} read, {{ '{:,}'.format(result.bytes_read) }} bytes.{% if result.stopped %} Stopped at {{ result.stopped }}: narrow the sender, the days, or the text to see more.{% endif %}</p>
+</div>
+{% endif %}
+{% endblock %}

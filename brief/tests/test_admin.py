@@ -31,7 +31,8 @@ def lab(tmp_path, monkeypatch):
     doc["generated_at"] = doc["daily_generated_at"] = iso(datetime.now(UTC))
     (latest / "status.json").write_text(json.dumps(doc))
     (tmp_path / "state").mkdir()
-    env = Env(tmp_path / "state", monkeypatch, out_dir=tmp_path / "out")
+    (tmp_path / "archive").mkdir()
+    env = Env(tmp_path / "state", monkeypatch, out_dir=tmp_path / "out", archive_dir=tmp_path / "archive")
     env.admin()
     client = env.https()
     assert sign_in(client).status_code == 303

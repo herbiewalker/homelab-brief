@@ -1,0 +1,22 @@
+{% extends "admin_layout.html" %}
+{% block title %}Signatures{% endblock %}
+{% block body %}
+<h1>Signatures</h1>
+<p class="muted">Every kind of message the product has learned, busiest first. Ignoring a signature stops it from being counted or reported from the next ingest cycle on; unignore it any time. Each change is recorded in the audit log.</p>
+<form class="card row" method="get" action="/admin/signatures">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search by app or message text" aria-label="Search">
+  <label class="row"><input type="checkbox" name="ignored" value="1"{% if only_ignored %} checked{% endif %}> Only ignored</label>
+  <button class="quiet" type="submit">Filter</button>
+</form>
+<div class="card scroll">
+<table class="wide" id="signatures">
+  <thead><tr><th>Signature</th><th class="num">24 h</th><th>Last seen</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}{% include "_signature_row.html" %}{% else %}
+  <tr><td colspan="4" class="muted">No signatures match.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted">Showing at most 100.</p>
+{% endblock %}

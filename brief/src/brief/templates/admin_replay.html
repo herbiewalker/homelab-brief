@@ -1,0 +1,53 @@
+{% extends "admin_layout.html" %}
+{% block title %}Replay and tuning{% endblock %}
+{% block body %}
+<h1>Replay and tuning</h1>
+<p class="muted">Run the detectors and the alert lifecycle over past days with your <em>current</em> settings, and see what they would have found and pushed. Nothing is sent or stored. To tune, change a threshold or a route in the <a href="/admin/config/playbook.yaml">playbook</a> or <a href="/admin/config/priorities.yaml">priorities</a> file, then replay the same days again.</p>
+{% if error %}<div class="card error">{{ error }}</div>{% endif %}
+<form class="card" method="post" action="/admin/replay">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <div class="grid">
+    <div><label for="start">From</label><input type="text" id="start" name="start" value="{{ form.start }}" placeholder="2026-10-01"></div>
+    <div><label for="end">To</label><input type="text" id="end" name="end" value="{{ form.end }}" placeholder="2026-10-07"></div>
+    <div><label for="at">Daily run at (UTC)</label><input type="text" id="at" name="at" value="{{ form.at }}" placeholder="06:00"></div>
+  </div>
+  <label><input type="checkbox" name="hourly"{% if form.hourly %} checked{% endif %}> Check for silent hosts every hour (slower; at most 14 days)</label>
+  <label><input type="checkbox" name="ignore_learning"{% if form.ignore_learning %} checked{% endif %}> Ignore the learning period (needed when the history is imported, not live)</label>
+  <button type="submit">Replay</button>
+</form>
+{% if result %}
+{% set s = result.summary %}
+<div class="card">
+  <h2>{{ result.from }} to {{ result.to }}</h2>
+  <table class="plain">
+    <tr><td>Runs</td><td class="num">{{ s.runs }}</td></tr>
+    <tr><td>New findings</td><td class="num">{{ s.new_total }}</td></tr>
+    <tr><td>Cleared</td><td class="num">{{ s.resolved_total }}</td></tr>
+    <tr><td>Would have been pushed</td><td class="num"><strong>{{ s.would_push }}</strong></td></tr>
+    {% if s.held_runs %}<tr><td>Runs where quiet hours held a push</td><td class="num">{{ s.held_runs }}</td></tr>{% endif %}
+    {% if s.folded_total %}<tr><td>Folded into the headline by the daily budget</td><td class="num">{{ s.folded_total }}</td></tr>{% endif %}
+  </table>
+  {% if s.new_by_kind %}<h2>New findings by kind</h2>
+  <table class="plain">{% for kind, n in s.new_by_kind.items()|sort(attribute='1', reverse=True) %}<tr><td>{{ kind }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</table>{% endif %}
+</div>
+{% if s.pushes %}
+<div class="card scroll"><h2>Pushes</h2>
+<table class="wide"><thead><tr><th>When (UTC)</th><th>State</th><th>What</th></tr></thead>
+{% for p in s.pushes %}<tr><td>{{ p.at }}</td><td>{{ p.state }}</td><td>{{ p.title }}</td></tr>{% endfor %}</table></div>
+{% endif %}
+<h2>Runs with something to report</h2>
+<div class="card scroll">
+{% if shown %}
+<table class="wide"><thead><tr><th>Run (UTC)</th><th class="num">Open</th><th>New</th><th>Cleared</th><th>Sent</th></tr></thead>
+{% for r in shown %}<tr>
+  <td>{{ r.at }}{% if r.learning %} <span class="badge">learning</span>{% endif %}</td>
+  <td class="num">{{ r.open }}</td>
+  <td>{% for f in r.new[:6] %}<div><span class="badge {{ 'bad' if f.route == 'push_now' else '' }}">{{ f.route }}</span> {{ f.title }}</div>{% endfor %}{% if r.new|length > 6 %}<div class="muted">and {{ r.new|length - 6 }} more</div>{% endif %}</td>
+  <td>{{ r.resolved|length or '' }}</td>
+  <td>{% for n in r.notifications %}<div>{{ 'push' if n.channel == 'alert' else 'headline' }}: {{ n.title }}</div>{% endfor %}</td>
+</tr>{% endfor %}</table>
+{% if hidden %}<p class="muted">{{ hidden }} more runs are not shown; narrow the dates.</p>{% endif %}
+{% else %}Nothing was found in these days.{% endif %}
+</div>
+{% endif %}
+{% endblock %}
