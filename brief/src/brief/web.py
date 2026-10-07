@@ -26,7 +26,17 @@ from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from brief import __version__, admin_config, admin_network, admin_tools, api, health, registry, selfmon
+from brief import (
+    __version__,
+    admin_config,
+    admin_manage,
+    admin_network,
+    admin_tools,
+    api,
+    health,
+    registry,
+    selfmon,
+)
 from brief import admin as admin_pages
 from brief.auth import Auth, AuthError, BadCredentials, Session, Throttled
 from brief.config import ConfigError, config_file
@@ -51,6 +61,7 @@ VIEWS = {
     "board.html": "text/html; charset=utf-8",
     "status.png": "image/png",
 }
+MAX_BODY = 5 * 1024 * 1024  # the largest write the admin accepts (a config text, a small backup upload)
 HOST_RE = re.compile(r"^[A-Za-z0-9.\-]+$")
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -314,6 +325,10 @@ def create_app(
         if request.method not in SAFE_METHODS:
             if not origin_ok(request):
                 raise Forbidden("cross-site request")
+            if (
+                int(request.headers.get("content-length") or 0) > MAX_BODY
+            ):  # before anything is read or spooled
+                raise Forbidden("request too large")
             form = await request.form()
             expected = session.csrf if session else request.cookies.get(COOKIE_CSRF)
             provided = request.headers.get("x-csrf-token") or form.get("csrf_token")
@@ -448,6 +463,7 @@ def create_app(
     admin_config.register(admin, deps)
     admin_network.register(admin, deps)
     admin_tools.register(admin, deps)
+    admin_manage.register(admin, deps)
 
     @admin.get("/account", response_class=HTMLResponse)
     def account_form(request: Request):
