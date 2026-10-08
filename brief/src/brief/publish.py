@@ -108,7 +108,7 @@ class Publisher:
 
     def _on_connect(self, client, userdata, flags, reason_code, properties=None) -> None:
         if getattr(reason_code, "is_failure", False):
-            log("mqtt_connect_failed", host=self.host, port=self.port, reason=str(reason_code))
+            log("mqtt_connect_failed", port=self.port, reason=str(reason_code))
             return
         with self._lock:
             self.connected = True
@@ -116,11 +116,11 @@ class Publisher:
             self._send_states(self._latest)
             client.publish(f"{self.base}/availability", "online", qos=1, retain=True)
             client.subscribe(f"{self.base}/feedback/#", qos=1)
-        log("mqtt_connected", host=self.host, port=self.port, sensors=len(self.metrics))
+        log("mqtt_connected", port=self.port, sensors=len(self.metrics))
 
     def _on_disconnect(self, client, userdata, *args) -> None:
         self.connected = False
-        log("mqtt_disconnected", host=self.host, port=self.port)
+        log("mqtt_disconnected", port=self.port)
 
     def _send_discovery(self) -> None:
         for metric in self.metrics:
@@ -196,7 +196,7 @@ class Publisher:
         if FEEDBACK_ID.match(finding_id) and FEEDBACK_ACTION.match(action):
             self._feedback.put((finding_id, action))
         else:
-            log("mqtt_feedback_ignored", topic=topic[:80])
+            log("mqtt_feedback_ignored")
 
     def next_feedback(self):
         """The next queued (finding_id, action), or None."""

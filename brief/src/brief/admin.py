@@ -20,6 +20,7 @@ from brief.store import Store
 
 NAV = [
     ("overview", "/admin", "Overview"),
+    ("wizard", "/admin/wizard", "Setup wizard"),
     ("sources", "/admin/sources", "Sources"),
     ("findings", "/admin/findings", "Findings and alerts"),
     ("network", "/admin/network", "Network"),

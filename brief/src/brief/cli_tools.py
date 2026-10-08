@@ -30,6 +30,8 @@ from brief.store import Store
 from brief.systems import Systems
 
 GROUPS = (
+    "support-bundle",
+    "init",
     "status",
     "sources",
     "config",
@@ -159,6 +161,16 @@ def add_parsers(sub) -> None:
     )
     ct = co.add_parser("test")
     ct.add_argument("name")
+
+    ini = sub.add_parser("init", help="first-run setup: name your systems from the senders seen")
+    ini.add_argument("--assign", action="append", default=[], metavar="HOST=NAME[:LABEL]",
+                     help="assign a sender without prompts (repeat for more)")  # fmt: skip
+    ini.add_argument("--yes", action="store_true", help="do not ask before saving")
+    sb = sub.add_parser(
+        "support-bundle", help="a diagnostics file with every name, address, and secret replaced"
+    )
+    sb.add_argument("--out", default="", help="where to write it (default: /out/support/...)")
+    sb.add_argument("--map", default="", help="also write the alias map here (keep it private)")
 
     sh2 = sub.add_parser("ssh", help="the optional SSH server").add_subparsers(dest="cmd", required=True)
     sh2.add_parser("show")
@@ -561,6 +573,105 @@ def _ssh(args, state, store, out, err) -> int:
     return 0 if not info["problems"] else 1
 
 
+def _init(args, state, store, out, err) -> int:
+    from brief import setup
+
+    now = datetime.now(UTC)
+    found = setup.senders(store, {}, now, _systems())
+    s = _settings()
+    net = netinfo.network_info(s)
+    where = f"{net['send_syslog_to'] or '<the host address>'}:{s.syslog_port}"
+    out(f"Devices should send syslog to {where}.")
+    unknown = [r for r in found if not r["known"]]
+    if not found:
+        out(
+            "No sender has reached the receiver yet. Point a device at that address, then run `brief network test`"
+        )
+        out("to prove the path, and run `brief init` again once lines arrive.")
+        return 0
+    out(f"{len(found)} sender(s) seen, {len(unknown)} not in a system yet.")
+    assignments: list[setup.Assignment] = []
+    for item in args.assign:
+        host, _, rest = item.partition("=")
+        name, _, label = rest.partition(":")
+        if not host or not name:
+            err(f"--assign wants HOST=NAME or HOST=NAME:LABEL, not {item!r}.")
+            return 2
+        assignments.append(setup.Assignment(host.strip(), name.strip(), label.strip(), ""))
+    if not args.assign:
+        out("For each sender type a system name (for example: Gateway). Enter skips it, q stops.")
+        for r in unknown:
+            apps = ", ".join(r["apps"]) or "no programs yet"
+            hint = f" (looks like: {r['kind_guess']})" if r["kind_guess"] else ""
+            try:
+                answer = input(
+                    f"  {r['host']}  {r['events_24h']:,} events/24h, talks about: {apps}{hint}\n  system: "
+                ).strip()
+            except EOFError:
+                break
+            if answer.lower() == "q":
+                break
+            if answer:
+                assignments.append(setup.Assignment(r["host"], answer, "", r["kind_guess"]))
+    if not assignments:
+        out("Nothing assigned.")
+    else:
+        for a in assignments:
+            out(f"  {a.host} -> {a.system}")
+        if not args.yes and not args.assign:
+            try:
+                if input("Save these systems? [Y/n] ").strip().lower() in ("n", "no"):
+                    out("Nothing was saved.")
+                    return 0
+            except EOFError:
+                pass
+        out(setup.apply(store, assignments, actor(), state))
+    out("")
+    out("Next steps:")
+    out("  brief config validate        check every file you have")
+    out("  brief network show           mode, address, warnings")
+    out("  brief notify test            if you turned on notifications")
+    out("  brief status                 is everything healthy")
+    out(
+        "Collectors for the Unraid and UniFi APIs arrive in Phase 2; the senders above are the source for now."
+    )
+    return 0
+
+
+def _support(args, state, store, out, err) -> int:
+    from brief import supportbundle
+
+    s = _settings()
+    try:
+        path, red = supportbundle.build(store, state, s)
+    except supportbundle.BundleError as exc:
+        err(str(exc))
+        return 1
+    try:
+        dest = (
+            Path(args.out)
+            if args.out
+            else s.out_dir / "support" / f"homelab-brief-support-{datetime.now(UTC):%Y%m%d-%H%M%S}.tar.gz"
+        )
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_name(dest.name + ".tmp")
+        tmp.write_bytes(path.read_bytes())
+        tmp.replace(dest)
+        dest.chmod(0o600)
+        if args.map:
+            supportbundle.write_map(red, Path(args.map))
+    finally:
+        backup.discard(path)
+    store.audit(actor(), "support.bundle", f"written; {len(red.map)} values aliased")
+    out(f"Support bundle written to {dest} ({len(red.map)} values aliased).")
+    out(
+        "It holds structure and numbers only: no log lines, and every address and name is replaced by an alias."
+    )
+    if args.map:
+        out(f"The alias map is in {args.map}. Keep it private: it turns the aliases back into real values.")
+    return 0
+
+
 HANDLERS = {
     "status": _status,
     "sources": _sources,
@@ -574,4 +685,6 @@ HANDLERS = {
     "backup": _backup,
     "collector": _collector,
     "ssh": _ssh,
+    "init": _init,
+    "support-bundle": _support,
 }

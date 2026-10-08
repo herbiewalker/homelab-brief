@@ -33,11 +33,11 @@ class LogNotifier:
     """The channel when nothing else is configured: the decision is logged and kept in the push table."""
 
     def send_alert(self, payload: dict) -> bool:
-        log("alert", **{k: v for k, v in payload.items() if k in ("finding_id", "state", "level", "title")})
+        log("alert", state=payload.get("state"), level=payload.get("level"), kind=payload.get("kind"))
         return False
 
     def send_headline(self, text: str) -> bool:
-        log("headline", text=text)
+        log("headline", length=len(text))
         return False
 
 
@@ -227,7 +227,7 @@ def apply_feedback(
         if outcome and alert is not None:
             tx.upsert_alert(finding_id, state=alert.state, snooze_until=alert.snooze_until)
             tx.audit(source, f"alert.{action}", f"{finding_id}: {outcome}")
-    log("feedback", finding_id=finding_id, action=action, outcome=outcome or "ignored", source=source)
+    log("feedback", action=action, outcome=outcome or "ignored", source=source)
     return outcome
 
 

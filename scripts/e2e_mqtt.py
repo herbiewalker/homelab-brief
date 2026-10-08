@@ -176,12 +176,12 @@ def main(argv):
         print(f"[acl] ha write attempt exit={denied.returncode}, state still {after!r}")
 
         # a button press: allowed by the ACL, delivered to the container, applied by the worker (an unknown
-        # alert id, so nothing changes, but the log line proves the whole path)
+        # alert id, so nothing changes, but the "feedback" log line (which no longer names the alert) proves the whole path)
         docker("exec", BROKER, "mosquitto_pub", "-h", "localhost", "-u", "ha", "-P", USERS["ha"],
                "-t", "homelab/brief/feedback/e2e-unknown-alert", "-m", "ack")  # fmt: skip
         until(
             "the feedback to be applied",
-            lambda: "e2e-unknown-alert" in docker("logs", APP, check=False).stdout,
+            lambda: '"event": "feedback"' in docker("logs", APP, check=False).stdout,
             30,
         )
         print("[feedback] a button press from the ha user reached the worker")

@@ -240,7 +240,7 @@ def main() -> int:
     except SshConfigError as exc:
         log("sshd_not_started", reason=str(exc))
         return 1
-    log("sshd_config_ready", listen=info["listen"], port=info["port"], keys=info["keys"])
+    log("sshd_config_ready", port=info["port"], keys=info["keys"])
     return 0
 
 

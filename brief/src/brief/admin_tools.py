@@ -247,5 +247,5 @@ def register(admin: APIRouter, d: Deps) -> None:
             )
         except (logsearch.SearchError, ValueError) as exc:
             return logs_page(request, values, error=str(exc))
-        log("log_search", user=d.session(request).username, host=values["host"] or None, files=result.files)
+        log("log_search", user=d.session(request).username, files=result.files)
         return logs_page(request, values, result=result)

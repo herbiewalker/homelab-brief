@@ -1,12 +1,23 @@
-"""Structured JSON logs to stdout: one object per line, so `docker logs` can be searched and parsed."""
+"""Structured JSON logs to stdout: one object per line, so `docker logs` can be searched and parsed.
+
+Logs are scrubbed: any text field is passed through `redact.scrub`, so an IP address, a MAC, an e-mail
+address, a credential in a URL, or a long secret never reaches `docker logs` by accident (a config error
+message that quotes a host, an exception that carries an address). Call sites also leave out the fields
+that are names (hosts, titles, headlines). The one exception is a message the person has to read to act on,
+logged with `raw=True` (the one-time setup URL).
+"""
 
 import json
 import logging
 import sys
 from datetime import UTC, datetime
 
+from brief.redact import scrub
 
-def log(event: str, **fields) -> None:
+
+def log(event: str, raw: bool = False, **fields) -> None:
+    if not raw:
+        fields = {k: scrub(v) if isinstance(v, str) else v for k, v in fields.items()}
     record = {"ts": datetime.now(UTC).isoformat(), "event": event, **fields}
     print(json.dumps(record), flush=True)
 
@@ -18,10 +29,10 @@ class JsonFormatter(logging.Formatter):
             "event": "log",
             "level": record.levelname.lower(),
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": scrub(record.getMessage()),
         }
         if record.exc_info:
-            out["error"] = self.formatException(record.exc_info)
+            out["error"] = scrub(self.formatException(record.exc_info))
         return json.dumps(out)
 
 

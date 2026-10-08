@@ -207,7 +207,7 @@ def write_daily(
     render.write_views(d, out, day, env=env)  # the template views; a prose rewrite replaces brief.html later
     doc = status.status_document(d, network=network)
     write_json(out / "latest" / "status.json", doc)
-    log("daily_written", run_ok=d.run_ok, stories=len(d.stories), headline=d.headline)
+    log("daily_written", run_ok=d.run_ok, stories=len(d.stories))
 
 
 # ---------------------------------------------------------------- alerts: the lifecycle around the runs

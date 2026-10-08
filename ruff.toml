@@ -11,3 +11,6 @@ select = ["E", "F", "I", "UP", "B"]
 "**/tests/**" = ["E501"]
 "scripts/e2e_*.py" = ["E501"]
 "brief/src/brief/cli_tools.py" = ["E501"]  # one-line command output formats and help text
+"brief/src/brief/supportbundle.py" = ["E501"]  # one-line summary text
+"brief/src/brief/redact.py" = ["E501"]  # regexes and word lists
+"brief/src/brief/privateconf.py" = ["E501"]  # one-line messages

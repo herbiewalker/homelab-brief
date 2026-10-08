@@ -65,6 +65,7 @@ def overview(store: Store, out_dir: Path, status: dict, health: dict, state_dir:
     top = sorted(rates.items(), key=lambda kv: -kv[1])[:8]
     with store.read() as db:
         open_alerts = db.execute("SELECT COUNT(*) FROM alert WHERE state != 'resolved'").fetchone()[0]
+        unmapped = db.execute("SELECT COUNT(*) FROM host WHERE known = 0").fetchone()[0]
         ai_today = db.execute(
             "SELECT COUNT(*) FROM ai_call WHERE ts >= ?", (iso(now - timedelta(days=1)),)
         ).fetchone()[0]
@@ -77,6 +78,7 @@ def overview(store: Store, out_dir: Path, status: dict, health: dict, state_dir:
         ],
         "config_errors": configguard.read_errors(state_dir),
         "open_alerts": open_alerts,
+        "unmapped_senders": unmapped,
         "ai_calls_today": ai_today,
         "top_sources": top,
     }

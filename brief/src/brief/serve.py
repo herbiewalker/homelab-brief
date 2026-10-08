@@ -20,7 +20,7 @@ def main(argv: list[str] | None = None) -> int:
     options: dict = {}
     if mode == "https":
         net = network_info(settings)
-        log("network", **net)
+        log("network", mode=net["mode"], detected_mode=net["detected_mode"], warnings=len(net["warnings"]))
         settings = with_detected_address(settings, net)  # the certificate then covers the LAN address
         cert, key, generated = resolve_certificate(settings)
         options = {"ssl_certfile": str(cert), "ssl_keyfile": str(key)}

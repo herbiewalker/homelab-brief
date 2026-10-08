@@ -2,6 +2,9 @@
 {% set p = s.pipeline %}
 {% if not s.run_ok %}<div class="card error"><strong>{{ s.headline }}</strong><div class="muted">Nothing below is a statement that the network is fine.</div></div>
 {% else %}<div class="card"><strong>{{ s.headline }}</strong></div>{% endif %}
+{% if data.unmapped_senders %}
+<div class="card banner"><strong>{{ data.unmapped_senders }} sender{{ '' if data.unmapped_senders == 1 else 's' }} not in a system yet.</strong> <a href="/admin/wizard">Name them in the setup wizard</a> so they get a tile, a sensor, and silence alerts.</div>
+{% endif %}
 {% if data.config_errors %}
 <div class="card error"><h2>Configuration errors</h2>
 {% for name, e in data.config_errors.items() %}<div><code>{{ name }}</code>: {{ e.error }} <span class="muted">(using {{ e.using }})</span></div>{% endfor %}

@@ -1,0 +1,54 @@
+{% extends "admin_layout.html" %}
+{% block title %}Setup{% endblock %}
+{% block body %}
+<h1>Setup</h1>
+<p class="muted">Three steps to a configured install. You can come back to this page any time; it only adds what you name.</p>
+{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="card error"><strong>Not saved.</strong> {{ error }}</div>{% endif %}
+
+<h2>1. Point your devices at this container</h2>
+<div class="card">
+  <p>Send syslog (UDP or TCP) to <code>{{ send_to }}</code>. Prove the path with the <a href="/admin/network">syslog test</a> on the Network page, or <code>brief network test</code> in a shell.</p>
+</div>
+
+<h2>2. Name your systems</h2>
+{% if not rows %}
+<div class="card banner">No sender has reached the receiver yet. Once a device sends syslog it appears here.</div>
+{% else %}
+<p class="muted">{{ rows|length }} sender{{ '' if rows|length == 1 else 's' }} seen, {{ unknown }} not in a system yet. Type a system name for each sender you want to track (the same name groups senders into one system; an existing system name adds the sender to it). Leave a row empty to skip it. The suggestion in the kind column comes from the programs the sender talks about; it is a hint, so change it freely.</p>
+<form method="post" action="/admin/wizard">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <input type="hidden" name="count" value="{{ rows|length }}">
+  <datalist id="systems">{% for s in existing %}<option value="{{ s }}">{% endfor %}</datalist>
+  <div class="card scroll">
+  <table class="wide">
+    <thead><tr><th>Sender</th><th class="num">24 h</th><th>Talks about</th><th>System</th><th>Kind</th></tr></thead>
+    {% for r in rows %}<tr>
+      <td><code>{{ r.host }}</code><input type="hidden" name="host-{{ loop.index0 }}" value="{{ r.host }}"></td>
+      <td class="num">{{ '{:,}'.format(r.events_24h) }}</td>
+      <td>{{ r.apps|join(', ') or '-' }}</td>
+      {% if r.known %}
+      <td colspan="2"><span class="badge ok">in {{ r.system }}</span></td>
+      {% else %}
+      <td><input type="text" name="system-{{ loop.index0 }}" list="systems" placeholder="skip" aria-label="System for {{ r.host }}" autocomplete="off"></td>
+      <td><select name="kind-{{ loop.index0 }}" aria-label="Kind for {{ r.host }}"><option value="">-</option>{% for k in kinds %}<option value="{{ k }}"{% if k == r.kind_guess %} selected{% endif %}>{{ k }}{% if k == r.kind_guess %} (suggested){% endif %}</option>{% endfor %}</select></td>
+      {% endif %}
+    </tr>{% endfor %}
+  </table>
+  </div>
+  <button type="submit">Save systems</button>
+  <p class="muted">Checked before it is saved, kept in the history, and written to the audit log. Fine-tune names, timezones, and which systems are expected on the <a href="/admin/systems">Systems</a> page.</p>
+</form>
+{% endif %}
+
+<h2>3. Check the rest</h2>
+<div class="card">
+  <table class="plain">
+    <tr><td>Config files that load</td><td>{% if invalid_files %}<span class="bad">{{ invalid_files }} not valid</span> (<a href="/admin/config">fix them</a>){% else %}<span class="ok">all valid</span>{% endif %}</td></tr>
+    <tr><td>Notifications beyond Home Assistant</td><td><a href="/admin/config/notify.yaml">notify.yaml</a>, then <code>brief notify test</code></td></tr>
+    <tr><td>Optional AI wording</td><td>off by default: <a href="/admin/config/ai.yaml">ai.yaml</a></td></tr>
+    <tr><td>A backup of your settings</td><td><a href="/admin/backups">Backups</a></td></tr>
+  </table>
+  <p class="muted">Collectors for the Unraid and UniFi APIs (servers, devices, topology) arrive in a later release; the senders above are the source for now.</p>
+</div>
+{% endblock %}

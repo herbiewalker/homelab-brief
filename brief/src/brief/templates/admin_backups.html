@@ -17,6 +17,13 @@
   <a class="button" href="/admin/backups/download">Download backup</a>
 </div>
 
+<h2>Ask for help: a support bundle</h2>
+<div class="card">
+  <p>A diagnostics file you can send to someone, with the install's names taken out. It holds structure and numbers (the status, the shape of your config files, counts of senders, alerts and calls), never log lines or message text, and every address, MAC, domain, name, and secret is replaced by an alias such as <code>&lt;ip-1&gt;</code>. It checks itself before it is written, and is not made at all if anything private is left.</p>
+  <a class="button" href="/admin/backups/support-bundle">Download support bundle</a>
+  <p class="muted">To turn an alias in a reply back into a name, run <code>brief support-bundle --map aliases.json</code> and keep that file private.</p>
+</div>
+
 <h2>Restore the config from a backup</h2>
 <form class="card" method="post" action="/admin/backups/restore" enctype="multipart/form-data">
   <input type="hidden" name="csrf_token" value="{{ csrf }}">

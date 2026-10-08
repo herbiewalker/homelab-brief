@@ -31,6 +31,7 @@ from brief import (
     admin_config,
     admin_manage,
     admin_network,
+    admin_setup,
     admin_tools,
     api,
     health,
@@ -155,6 +156,7 @@ def create_app(
                 port = "" if settings.https_public_port == 443 else f":{settings.https_public_port}"
                 log(
                     "setup_token",
+                    raw=True,  # the person has to read this one to act on it
                     token=token,
                     url=f"https://{host}{port}/admin/setup",
                     note="No admin account exists yet. Open the URL and use this one-time token, "
@@ -346,7 +348,7 @@ def create_app(
 
     @app.exception_handler(Forbidden)
     async def forbidden(request: Request, exc: Forbidden) -> Response:
-        log("csrf_rejected", path=request.url.path, ip=client_ip(request), reason=exc.reason)
+        log("csrf_rejected", path=request.url.path, reason=exc.reason)
         return Response("Request rejected.", status_code=403)
 
     admin = APIRouter(prefix="/admin", dependencies=[Depends(guard)])
@@ -464,6 +466,7 @@ def create_app(
     admin_network.register(admin, deps)
     admin_tools.register(admin, deps)
     admin_manage.register(admin, deps)
+    admin_setup.register(admin, deps)
 
     @admin.get("/account", response_class=HTMLResponse)
     def account_form(request: Request):

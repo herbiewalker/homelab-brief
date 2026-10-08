@@ -48,6 +48,8 @@ DESCRIPTIONS = {
     "ai.yaml": "AI providers, tasks, and guardrails (off by default).",
     "network.yaml": "Ports and the advertised address. A change here applies after a restart.",
     "retention.yaml": "How long samples and history are kept.",
+    "devices.yaml": "Your devices by MAC address: names, owners, how closely to watch (private).",
+    "topology.yaml": "Manual nodes and links for the network map, and overrides (private).",
 }
 _lock = threading.Lock()
 
