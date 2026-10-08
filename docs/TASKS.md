@@ -134,11 +134,11 @@ Phase 1 runs in order. Ingestion is deployed early (Task 7) so real history accu
 - Accept: starting from only the generic repository and an empty `/config`, a new user reaches a configured install (systems named, collectors enabled) with the wizard alone; a support bundle contains no hostnames, IPs, or MACs.
 - Status: done except the collector discovery. `setup.py` (senders with their busiest programs and a kind hint, `apply` through the config editor), `brief init` (interactive, or `--assign HOST=NAME[:LABEL] --yes` for scripts), the **Setup wizard** page (`/admin/wizard`; not `/admin/setup`, which is the first-account page) with an overview banner while senders are unmapped, `redact.py` (`scrub` for logs, `Redactor` with stable aliases), `supportbundle.py` with `brief support-bundle [--out] [--map]` and a download on the Backups page (structure and numbers only; a self-check refuses to write a bundle with anything private left; the alias map is written only on request), log hardening (`jsonlog` scrubs text fields; the alert, headline, daily, feedback, MQTT, CSRF, log-search and SSH log calls no longer carry names), and `devices.yaml` and `topology.yaml` in the config editor with validators (`privateconf.py`), so they get validation, history, rollback, and audit. Proved against the built image: a bundle from a seeded install, scanned for every planted name, IP, MAC, and message text, found none; the wizard was checked in a real browser. 84 new tests. Not done (Phase 2): discovery through the Unraid and UniFi APIs and enabling collectors from the wizard.
 
-## Task 17: Packaging, release, and deployment
-- [ ] GitHub Actions builds the image from the private repo and pushes versioned tags to a private registry; never `latest`. Semantic versioning with a `CHANGELOG.md` entry per release.
-- [ ] Unraid template (XML) and a compose reference supporting all three network modes (own IP on br0 as the default, host, bridge with port mappings), with appdata paths, variables, and the health check.
-- [ ] Config schema migrations on upgrade; backup and restore of the appdata folder (CLI and GUI).
-- [ ] `deploy/README.md`: install, set the IP, enable host access to custom networks if the host server must reach the container, repoint devices, verify.
+## Task 17: Packaging, release, and deployment (built 2026-10-08, version 0.0.27; NOT yet proven: the release workflow has not run on GitHub and no clean install from the template has been done; both are the user's steps)
+- [x] GitHub Actions builds the image from the private repo and pushes versioned tags to a private registry; never `latest`. Semantic versioning with a `CHANGELOG.md` entry per release.
+- [x] Unraid template (XML) and a compose reference supporting all three network modes (own IP on br0 as the default, host, bridge with port mappings), with appdata paths, variables, and the health check.
+- [x] Config schema migrations on upgrade; backup and restore of the appdata folder (CLI and GUI).
+- [x] `deploy/README.md`: install, set the IP, enable host access to custom networks if the host server must reach the container, repoint devices, verify.
 - Accept: a clean install from the template on the host server reaches a healthy state by following only `deploy/README.md`; an upgrade from the previous tag keeps config and history.
 
 # Phase 2: More data, smarter brief

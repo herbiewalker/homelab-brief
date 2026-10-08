@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!--
+  Unraid template for Homelab Brief. Default network: own IP on br0 (recommended).
+  Before installing: replace <owner> in Repository, set the Fixed IP address, and set the Repository tag
+  to an exact release (never latest). Settings for host and bridge mode are in deploy/README.md.
+  Leave this container out of automatic Docker updates (an upgrade is a deliberate step).
+-->
+<Container version="2">
+  <Name>homelab-brief</Name>
+  <Repository>ghcr.io/&lt;owner&gt;/homelab-brief:&lt;pin&gt;</Repository>
+  <Registry>https://github.com/&lt;owner&gt;/homelab-brief/pkgs/container/homelab-brief</Registry>
+  <Network>br0</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/&lt;owner&gt;/homelab-brief</Support>
+  <Project>https://github.com/&lt;owner&gt;/homelab-brief</Project>
+  <Overview>Turns your syslog and homelab data into a daily brief, trend baselines, alerts, Home Assistant sensors, a REST API, Prometheus metrics, and an admin GUI. One container with its own LAN address that receives syslog on port 514. The analysis runs in the container; no AI or cloud service is needed. After the first start, open the admin page on the container's HTTPS address and follow the setup wizard.</Overview>
+  <Category>Network:Other Tools:</Category>
+  <WebUI>https://[IP]:[PORT:443]/admin</WebUI>
+  <TemplateURL/>
+  <Icon/>
+  <ExtraParams>--memory=768m</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Set a fixed IP address on a custom network (br0) below. For the Unraid host itself to send syslog to this container, turn on "Host access to custom networks" in Settings, Docker (advanced view).</Requires>
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/homelab-brief/config" Mode="rw" Description="Your own config files (config/brief/*.yaml). Only files you change live here; the image ships every default." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/homelab-brief/config</Config>
+  <Config Name="State" Target="/state" Default="/mnt/cache/appdata/homelab-brief/state" Mode="rw" Description="Database, signature state, TLS certificate, config history. Keep this on a pool or cache path, never on /mnt/user." Type="Path" Display="always" Required="true" Mask="false">/mnt/cache/appdata/homelab-brief/state</Config>
+  <Config Name="Syslog archive" Target="/archive" Default="/mnt/cache/syslog-archive" Mode="rw" Description="Raw log archive, one folder per day and sender." Type="Path" Display="always" Required="true" Mask="false">/mnt/cache/syslog-archive</Config>
+  <Config Name="Reports" Target="/out" Default="/mnt/user/appdata/homelab-brief/out" Mode="rw" Description="Where the daily brief, host pages, status files and exports are written." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/homelab-brief/out</Config>
+  <Config Name="Import (one-off)" Target="/import" Default="" Mode="ro" Description="Optional. Mount old syslog files read-only here for the one-time backfill (brief import), then remove this mapping." Type="Path" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="MQTT host" Target="MQTT_HOST" Default="" Mode="" Description="Optional. Your MQTT broker's address. Leave empty to run without MQTT." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="MQTT port" Target="MQTT_PORT" Default="1883" Mode="" Description="Optional. Broker port." Type="Variable" Display="advanced" Required="false" Mask="false">1883</Config>
+  <Config Name="MQTT user" Target="MQTT_USER" Default="" Mode="" Description="Optional. Broker user for this container." Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="MQTT password" Target="MQTT_PASSWORD" Default="" Mode="" Description="Optional. Broker password." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="Notification URLs" Target="APPRISE_URLS" Default="" Mode="" Description="Optional. Comma-separated Apprise URLs; used only if notify.yaml turns notifications on." Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="Enable SSH" Target="SSH_ENABLED" Default="false" Mode="" Description="Optional key-only SSH for the brief command. Add keys to config/ssh/authorized_keys. Off by default." Type="Variable" Display="advanced" Required="false" Mask="false">false</Config>
+  <Config Name="Syslog UDP (host/bridge only)" Target="514" Default="514" Mode="udp" Description="Only for bridge mode: publish syslog. Not used with an own IP." Type="Port" Display="advanced" Required="false" Mask="false">514</Config>
+  <Config Name="Syslog TCP (host/bridge only)" Target="514" Default="514" Mode="tcp" Description="Only for bridge mode: publish syslog. Not used with an own IP." Type="Port" Display="advanced" Required="false" Mask="false">514</Config>
+  <Config Name="HTTP (bridge only)" Target="80" Default="80" Mode="tcp" Description="Only for bridge mode: read-only status and brief pages." Type="Port" Display="advanced" Required="false" Mask="false">80</Config>
+  <Config Name="HTTPS (bridge only)" Target="443" Default="443" Mode="tcp" Description="Only for bridge mode: admin GUI. Also set the HTTPS_PUBLIC_PORT variable in deploy/README.md." Type="Port" Display="advanced" Required="false" Mask="false">443</Config>
+</Container>

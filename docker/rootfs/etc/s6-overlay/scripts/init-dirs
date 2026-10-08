@@ -15,3 +15,7 @@ chown brief:users /state /state/vector /state/vector-import /state/events /archi
 
 python -m brief.vectorcfg
 chown brief:users /run/vector/vector.yaml
+
+# Upgrade the user's config files to this version's schema (a no-op until a release changes one). It runs as
+# the brief user so its backups and stamp are owned correctly, and a problem is logged, never fatal.
+s6-setuidgid brief python -m brief.confmigrate || true

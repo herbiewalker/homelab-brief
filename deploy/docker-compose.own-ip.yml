@@ -1,6 +1,7 @@
-# Reference deployment for the host server: one container with its own LAN IP on br0.
+# Reference deployment, mode 1 of 3: one container with its own LAN IP on br0 (the default and recommended mode).
+# Other modes: docker-compose.host.yml, docker-compose.bridge.yml.
 # Network: br0 is the default (Unraid already provides it). To use a dedicated network such as syslog-net, define it as an external or macvlan/ipvlan network and rename it below.
-# The Unraid template (deploy/unraid-template.xml, Task 17) is the primary install path;
+# The Unraid template (deploy/unraid-template.xml) is the primary install path;
 # this compose file mirrors it for Compose Manager users.
 # Replace <pin> and <container-ip>. The pool is Unraid's default, cache; change /mnt/cache if yours is named differently. Secrets come from template variables or an
 # env file in appdata (mode 600), never from a Filesystem MCP folder.

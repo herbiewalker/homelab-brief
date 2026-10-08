@@ -1,7 +1,9 @@
 name: checks
 on:
   push:
+    branches: ["**"]  # a version tag runs release.yml, which calls this workflow first
   pull_request:
+  workflow_call:
 permissions:
   contents: read
 jobs:

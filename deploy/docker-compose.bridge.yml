@@ -1,0 +1,29 @@
+# Reference deployment, mode 3 of 3: Docker's default bridge with published ports.
+# Caution: Docker's userland proxy can replace each sender's address with the bridge gateway, so every
+# device then looks like one host. The Network page warns when it sees that. Prefer own IP or host mode
+# unless you have a reason; this mode exists for hosts where neither is possible.
+# Devices send syslog to <host-address>:<published syslog port>. Choose host ports that Unraid is not using.
+# Replace <pin> with the exact release tag. The pool is Unraid's default, cache; change /mnt/cache if yours differs.
+services:
+  homelab-brief:
+    image: ghcr.io/<owner>/homelab-brief:<pin>
+    container_name: homelab-brief
+    restart: unless-stopped
+    ports:
+      - "5514:514/udp"
+      - "5514:514/tcp"
+      - "8480:80"
+      - "8443:443"
+    env_file: /mnt/user/appdata/homelab-brief/homelab-brief.env   # mode 600
+    environment:
+      HTTPS_PUBLIC_PORT: "8443"   # the port a browser uses, so the setup link and certificate match
+    volumes:
+      - /mnt/user/appdata/homelab-brief/config:/config
+      - /mnt/cache/appdata/homelab-brief/state:/state
+      - /mnt/cache/syslog-archive:/archive
+      - /mnt/user/<share>/brief:/out
+    labels:
+      net.unraid.docker.webui: https://[IP]:[PORT:443]/admin
+      net.unraid.docker.managed: 'composeman'
+    mem_limit: 768m
+    logging: { driver: json-file, options: { max-size: 10m, max-file: "2" } }
