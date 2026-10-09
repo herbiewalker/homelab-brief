@@ -1,0 +1,32 @@
+{% extends "admin_layout.html" %}
+{% block title %}Prompt {{ key|replace('_', ' ') }}{% endblock %}
+{% block body %}
+<h1>Prompt: {{ key|replace('_', ' ') }}</h1>
+<p class="muted"><a href="/admin/ai">Back to the AI page</a>. Plain Markdown with no vendor-specific syntax. The notes above the line holding only <code>---</code> are for you; everything after it is sent to the model as its instructions. Placeholders in braces, such as <code>{date}</code>, are filled in by the product.</p>
+{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="card error"><strong>Not saved.</strong> {{ error }}</div>{% endif %}
+<form class="card" method="post" action="/admin/ai/prompt/{{ key }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <input type="hidden" name="base" value="{{ base }}">
+  <label for="text">{{ file }}{% if not customised %} (the shipped default){% endif %}</label>
+  <textarea id="text" name="text" rows="24" spellcheck="false" autocomplete="off">{{ text }}</textarea>
+  <button type="submit">Save</button>
+</form>
+{% if customised %}
+<form class="inline" method="post" action="/admin/ai/prompt/{{ key }}/reset">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button class="quiet" type="submit">Use the shipped default</button>
+</form>
+{% endif %}
+<h2>History</h2>
+<div class="card scroll">
+{% if versions %}
+<table class="wide">
+  <tr><th>Saved</th><th>By</th><th>What</th><th></th></tr>
+  {% for v in versions %}<tr><td>{{ v.stamp }}</td><td>{{ v.user }}</td><td>{{ v.action }}</td><td>
+    <form class="inline" method="post" action="/admin/ai/prompt/{{ key }}/restore"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="stamp" value="{{ v.stamp }}"><button class="quiet" type="submit">Restore</button></form>
+  </td></tr>{% endfor %}
+</table>
+{% else %}<p>No earlier versions yet.</p>{% endif %}
+</div>
+{% endblock %}

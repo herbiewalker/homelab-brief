@@ -30,6 +30,16 @@ from brief.config import default_file, user_file
 from brief.store import Store
 
 EDITABLE = tuple(configguard.VALIDATORS)
+# The prompt files the AI page can edit (plain Markdown under brief/prompts/). They share the editor, history,
+# rollback, and audit, but are not config files the pipeline validates each cycle: they are checked on save.
+PROMPTS = tuple(
+    f"prompts/{n}.md"
+    for n in (
+        "morning_brief", "explain_finding", "weekly_summary", "ask_the_lab",
+        "agent_investigator", "agent_triage", "agent_tuner",
+    )
+)  # fmt: skip
+MAX_PROMPT_BYTES = 20 * 1024
 MAX_BYTES = 256 * 1024
 HISTORY = "config-history"
 VERSION = re.compile(r"^\d{8}T\d{6}Z(?:-\d{1,3})?$")
@@ -74,7 +84,7 @@ class Version:
 
 
 def checked_name(name: str) -> str:
-    if name not in EDITABLE:
+    if name not in EDITABLE and name not in PROMPTS:
         raise EditError("That is not a config file you can edit.", 404)
     return name
 
@@ -114,6 +124,16 @@ def starting_text(name: str, env: Mapping[str, str] | None = None) -> str:
     return "schema: 1\n"
 
 
+def check_prompt(text: str) -> str | None:
+    """A prompt is the notes above a line holding only --- and then the instructions sent to the model."""
+    if len(text.encode("utf-8")) > MAX_PROMPT_BYTES:
+        return f"A prompt larger than {MAX_PROMPT_BYTES // 1024} KB will not fit a small model's context."
+    _, sep, body = text.partition("\n---\n")
+    if not sep or not body.strip():
+        return "A prompt needs a line with only --- and the instructions for the model after it."
+    return None
+
+
 def validate_text(name: str, text: str) -> str | None:
     """None when the text is a valid `name`, else a one-line reason."""
     checked_name(name)
@@ -121,6 +141,8 @@ def validate_text(name: str, text: str) -> str | None:
         return "The text contains a NUL character."
     if len(text.encode("utf-8")) > MAX_BYTES:
         return f"The file is larger than {MAX_BYTES // 1024} KB."
+    if name in PROMPTS:
+        return check_prompt(text)
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / name
         path.write_text(text, encoding="utf-8")

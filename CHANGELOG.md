@@ -5,6 +5,17 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.34
+
+Task 24: the AI provider layer, completed (still off by default).
+
+- Three tasks through one chain runner: the morning brief, **explain a finding**, and a **weekly summary** (written next to the weekly report as `<week>-summary.md`). Each has its own switch and fallback chain ending in the template.
+- Privacy: a cloud provider receives system-level facts only; a finding about one household device (a new device, a traffic spike, odd hours) has no cloud input at all; and whatever is built for a cloud call is scanned before sending, blocking any IP address, MAC address, or private name (a sender, a `devices.yaml` label or owner, a client hostname). Replies naming a host, device, MAC, or finding that was not in the input are rejected.
+- Provider tools: list models (`/v1/models`), test connection with latency and a tool-calling check, and a side-by-side preview of the template brief and a provider's version. All are real calls, logged without content and counted against the budget.
+- **AI page** in the admin GUI (master switch, features, providers, chains, locked and adjustable guardrails, prompt editor with history and rollback, preview, explain, call log) and `brief ai ...` for every action; edits go through the config editor, so they are validated, versioned, and audited. `ai.yaml` is now validated (chains must name real providers and end in the template).
+- `deploy/ollama.md`: running a local model on a GPU server.
+- `scripts/e2e_ai.py` drives the CLI and the HTTPS page in the image against a fake model server.
+
 ## 0.0.33
 
 Task 23: power and energy from Home Assistant (off by default; no Home Assistant token).

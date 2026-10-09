@@ -134,6 +134,10 @@ Home Assistant keeps the power data (smart plugs, the UPS through NUT, its Energ
 5. **Resolution:** one reading per entity per hour, so the figures are hourly samples, not a continuous measurement. Use a Home Assistant energy meter for exact kWh.
 
 
+### AI (Task 24, optional)
+
+Off by default. The **AI** page in the admin GUI (and `brief ai ...`) holds the master switch, feature switches, providers (test connection, list models, a tool-calling check), fallback chains, guardrails, prompts with history, a side-by-side preview of the template brief against a model's version, an explain-a-finding box, and the call log. A model only rewrites or explains findings that rules already raised; every task falls back to the plain template. To run a local model, see [`deploy/ollama.md`](ollama.md). A cloud provider needs `allow_cloud_for`, receives system-level facts only, and never receives anything about a single household device.
+
 ## Rollback
 
 Stop the container and repoint the devices back at the host server's built-in syslog server (most devices send to only one target, so there is no automatic second copy). That is why the old server stays configured, idle, for the first week. Remove `appdata/homelab-brief` only when you are sure you no longer want the history.

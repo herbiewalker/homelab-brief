@@ -13,7 +13,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brief import __version__, detect, registry, selfmon, weekly
+from brief import __version__, aitasks, detect, registry, selfmon, weekly
 from brief.alerts import drain_feedback
 from brief.collectors import framework
 from brief.config import ConfigError, config_file, load_mapping
@@ -238,7 +238,22 @@ class Worker:
         with self.store.write() as tx:
             tx.set_meta("last_weekly_key", self._schedule().weekly_key(now))
         log("weekly_written", week=monday.isoformat(), path=str(path.name))
+        self._weekly_summary(path, now)
         return path
+
+    def _weekly_summary(self, report: Path, now: datetime) -> None:
+        """The optional prose summary next to the weekly report (AI, off by default; never blocks it)."""
+        try:
+            summary = aitasks.weekly_summary(
+                self.store, report.read_text(encoding="utf-8").splitlines(), now, self.env
+            )
+            if summary is not None:
+                target = report.with_name(report.stem + "-summary.md")
+                lines = aitasks.summary_markdown(summary, report.name)
+                target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                log("weekly_summary_written", path=target.name, provider=summary.provider)
+        except Exception as exc:  # the report is already written; the summary is a bonus
+            log("weekly_summary_failed", error=f"{type(exc).__name__}: {exc}")
 
     def _weekly_if_due(self, backlog: bool) -> None:
         if backlog:

@@ -11,6 +11,7 @@
   brief backup create|restore                download-style backup, config-only restore
   brief collector list|test NAME|run [NAME]  Phase 2 data collectors: status, connection test, run now
   brief ssh show                             whether the optional SSH server is on and ready
+  brief ai status|enable|disable|feature|provider|chain|guardrail|test|models|calls|preview|explain   the AI settings and tests (see cli_ai.py)
 
 Every change goes through the same functions as the GUI (config editor, alert lifecycle, signature
 flag), so the same checks apply and each change is written to the audit log, as `cli:<unix user>`.
@@ -24,7 +25,7 @@ import time
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from brief import admin_data, backup, configedit, configguard, logsearch, netinfo, netpage, sysedit
+from brief import admin_data, backup, cli_ai, configedit, configguard, logsearch, netinfo, netpage, sysedit
 from brief.config import ConfigError, config_file
 from brief.store import Store
 from brief.systems import Systems
@@ -44,6 +45,7 @@ GROUPS = (
     "backup",
     "collector",
     "ssh",
+    "ai",
 )
 
 
@@ -68,6 +70,7 @@ def _systems() -> Systems:
 
 
 def add_parsers(sub) -> None:
+    cli_ai.add_parsers(sub)
     st = sub.add_parser("status", help="health, the last run, and what needs a look")
     st.add_argument("--json", action="store_true")
     sub.add_parser("sources", help="every sender with its system, last line, and counts")
@@ -716,4 +719,5 @@ HANDLERS = {
     "ssh": _ssh,
     "init": _init,
     "support-bundle": _support,
+    "ai": cli_ai.run,
 }

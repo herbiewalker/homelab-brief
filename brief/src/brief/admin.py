@@ -30,6 +30,7 @@ NAV = [
     ("signatures", "/admin/signatures", "Signatures"),
     ("logs", "/admin/logs", "Log search"),
     ("replay", "/admin/replay", "Replay and tuning"),
+    ("ai", "/admin/ai", "AI"),
     ("audit", "/admin/audit", "Audit log"),
     ("account", "/admin/account", "Account"),
 ]

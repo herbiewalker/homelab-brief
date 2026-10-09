@@ -1,0 +1,145 @@
+{% extends "admin_layout.html" %}
+{% block title %}AI{% endblock %}
+{% block body %}
+<h1>AI</h1>
+<p class="muted">Optional, and off by default. Rules decide what is a finding; a model only puts existing findings into words, and every task falls back to the plain template. Every change here is checked, kept as a version you can roll back from the <a href="/admin/config/ai.yaml">config editor</a>, and written to the audit log. Keys are never shown: they come from template variables.</p>
+{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="card error"><strong>Not saved.</strong> {{ error }}</div>{% endif %}
+
+<div class="card">
+  <h2>Master switch</h2>
+  <p>AI is <span class="badge {{ 'ok' if ai.enabled else 'bad' }}">{{ 'ON' if ai.enabled else 'OFF' }}</span>.
+    {% if not ai.enabled %}No model is called anywhere; the product runs on rules and templates.{% else %}Only the features switched on below call a model.{% endif %}</p>
+  <form class="inline" method="post" action="/admin/ai/master">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="state" value="{{ 'off' if ai.enabled else 'on' }}">
+    <button type="submit">{{ 'Turn AI off' if ai.enabled else 'Turn AI on' }}</button>
+  </form>
+  <p class="muted">Today: {{ ai.usage.calls_today }} of {{ ai.usage.max_calls }} model calls; {{ ai.usage.cloud_tokens_today }} of {{ ai.usage.max_cloud_tokens }} cloud tokens.</p>
+</div>
+
+<h2>Features</h2>
+<div class="card scroll">
+<table class="wide">
+  <tr><th>Feature</th><th>State</th><th>Fallback chain</th><th>Calls, 24 h</th></tr>
+  {% for f in features %}
+  <tr>
+    <td>{{ f|replace('_', ' ') }}</td>
+    <td>
+      <form class="inline" method="post" action="/admin/ai/feature">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <input type="hidden" name="name" value="{{ f }}">
+        <input type="hidden" name="state" value="{{ 'off' if ai.features[f] else 'on' }}">
+        <span class="badge {{ 'ok' if ai.features[f] else '' }}">{{ 'on' if ai.features[f] else 'off' }}</span>
+        <button class="quiet" type="submit">{{ 'Turn off' if ai.features[f] else 'Turn on' }}</button>
+      </form>
+    </td>
+    <td>{% if feature_task.get(f) and ai.chains.get(feature_task[f]) %}{{ ai.chains[feature_task[f]]|join(' → ') }}{% else %}<span class="muted">{{ 'agents and the MCP server arrive with later tasks' if f in ('agents', 'mcp_server') else 'not set' }}</span>{% endif %}</td>
+    <td>{{ used.get(feature_task.get(f), 0) if feature_task.get(f) else '-' }}</td>
+  </tr>
+  {% endfor %}
+</table>
+</div>
+
+<h2>Providers</h2>
+{% for p in ai.providers %}
+<div class="card">
+  <h3>{{ p.id }} <span class="badge {{ 'ok' if p.locality == 'lan' else 'bad' }}">{{ p.locality }}</span> <span class="badge {{ 'ok' if p.enabled else '' }}">{{ 'on' if p.enabled else 'off' }}</span></h3>
+  <table class="plain">
+    <tr><td>Type</td><td>{{ p.type }}</td></tr>
+    <tr><td>Address</td><td>{% if p.usable %}<code>{{ p.base_url or 'the vendor default' }}</code>{% else %}<span class="muted">not set yet (edit base_url in the <a href="/admin/config/ai.yaml">config editor</a>)</span>{% endif %}</td></tr>
+    <tr><td>Key</td><td>{% if p.key_var %}<code>{{ p.key_var }}</code> {{ 'is set' if p.key_set else 'is not set' }}{% else %}<span class="muted">none needed</span>{% endif %}</td></tr>
+    <tr><td>Model</td><td>
+      <form class="inline" method="post" action="/admin/ai/provider">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="id" value="{{ p.id }}"><input type="hidden" name="action" value="model">
+        <input type="text" name="value" value="{{ p.model }}" placeholder="use List models" autocomplete="off"> <button class="quiet" type="submit">Set model</button>
+      </form>
+    </td></tr>
+  </table>
+  <form class="inline" method="post" action="/admin/ai/provider">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="id" value="{{ p.id }}">
+    <input type="hidden" name="action" value="{{ 'off' if p.enabled else 'on' }}">
+    <button type="submit">{{ 'Switch off' if p.enabled else 'Switch on' }}</button>
+  </form>
+  <button class="quiet" type="button" hx-post="/admin/ai/test/{{ p.id }}" hx-target="#out-{{ p.id }}">Test connection</button>
+  <button class="quiet" type="button" hx-post="/admin/ai/models/{{ p.id }}" hx-target="#out-{{ p.id }}">List models</button>
+  <div id="out-{{ p.id }}" class="spaced" aria-live="polite"></div>
+  <p class="muted">A test is a real, tiny model call: it appears in the call log and counts toward the daily budget.</p>
+</div>
+{% else %}
+<div class="card">No providers are listed in <code>ai.yaml</code>.</div>
+{% endfor %}
+
+<h2>Fallback chains</h2>
+<div class="card">
+  <p class="muted">Providers are tried in order; <code>template</code> means no AI and must come last (the conversation task has no template).</p>
+  {% for task in task_names %}
+  <form class="inline" method="post" action="/admin/ai/chain">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="task" value="{{ task }}">
+    <label for="chain-{{ task }}">{{ task|replace('_', ' ') }}</label>
+    <input type="text" id="chain-{{ task }}" name="chain" value="{{ ai.chains.get(task, [])|join(', ') }}" autocomplete="off">
+    <button class="quiet" type="submit">Save</button>
+  </form>
+  {% endfor %}
+</div>
+
+<h2>Guardrails</h2>
+<div class="grid">
+  <div class="card">
+    <h3>Locked (always on)</h3>
+    <p class="muted">These have no switch, so they cannot be turned off by accident.</p>
+    <ul>{% for title, why in locked %}<li><strong>{{ title }}.</strong> {{ why }}</li>{% endfor %}</ul>
+  </div>
+  <div class="card">
+    <h3>Adjustable</h3>
+    {% for key, value in ai.guardrails.items() %}
+    <form class="inline" method="post" action="/admin/ai/guardrail">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="key" value="{{ key }}">
+      <label for="g-{{ key }}">{{ key|replace('_', ' ') }}</label>
+      <input type="text" id="g-{{ key }}" name="value" value="{% if value is iterable and value is not string %}{{ value|join(', ') }}{% else %}{{ value if value is not none else '' }}{% endif %}" autocomplete="off">
+      <button class="quiet" type="submit">Save</button>
+    </form>
+    {% endfor %}
+    <p class="muted"><code>allow cloud for</code> lists the features that may use a cloud provider at all (comma-separated); empty means none.</p>
+  </div>
+</div>
+
+<h2>Prompts</h2>
+<div class="card">
+  <p class="muted">Plain Markdown, edited with history and rollback like any config file.</p>
+  <ul>{% for key in prompts %}<li><a href="/admin/ai/prompt/{{ key }}">{{ key|replace('_', ' ') }}</a></li>{% endfor %}</ul>
+</div>
+
+<h2>Side by side</h2>
+<div class="card">
+  <p>Today's brief: the template next to a provider's version, with the same privacy scan, checks, and budget as the real task.</p>
+  <form hx-post="/admin/ai/preview" hx-target="#preview" hx-indicator="#preview">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <select name="provider" aria-label="Provider">{% for p in ai.providers if p.enabled %}<option value="{{ p.id }}">{{ p.id }} ({{ p.locality }})</option>{% endfor %}</select>
+    <button type="submit">Compare</button>
+  </form>
+  <div id="preview" class="spaced" aria-live="polite"></div>
+</div>
+
+<h2>Explain a finding</h2>
+<div class="card">
+  <form hx-post="/admin/ai/explain" hx-target="#explain">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label for="finding_id">Finding id (from Findings and alerts)</label>
+    <input type="text" id="finding_id" name="finding_id" autocomplete="off">
+    <button type="submit">Explain</button>
+  </form>
+  <div id="explain" class="spaced" aria-live="polite"></div>
+</div>
+
+<h2>Call log</h2>
+<div class="card scroll">
+<p class="muted">Provider, model, task, time, tokens, and outcome. Never the content.</p>
+{% if calls %}
+<table class="wide">
+  <tr><th>When (UTC)</th><th>Task</th><th>Provider</th><th>Outcome</th><th>ms</th><th>Tokens in/out</th><th>Note</th></tr>
+  {% for c in calls %}<tr><td>{{ c.ts }}</td><td>{{ c.task }}</td><td>{{ c.provider }}{% if c.locality == 'cloud' %} <span class="badge bad">cloud</span>{% endif %}</td><td>{{ c.outcome }}</td><td>{{ c.latency_ms if c.latency_ms is not none else '-' }}</td><td>{{ c.tokens_in or 0 }} / {{ c.tokens_out or 0 }}</td><td>{{ c.detail or '' }}</td></tr>{% endfor %}
+</table>
+{% else %}<p>No model call has been made.</p>{% endif %}
+</div>
+{% endblock %}

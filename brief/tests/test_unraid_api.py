@@ -21,9 +21,8 @@ class Server:
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):
                 length = int(self.headers.get("content-length", 0))
-                outer.seen.append(
-                    (self.headers.get("x-api-key"), json.loads(self.rfile.read(length))["query"])
-                )
+                sent = json.loads(self.rfile.read(length))
+                outer.seen.append((self.headers.get("x-api-key"), sent.get("query", sent)))
                 status, body = outer.script.pop(0) if len(outer.script) > 1 else outer.script[0]
                 payload = body if isinstance(body, bytes) else json.dumps(body).encode()
                 self.send_response(status)

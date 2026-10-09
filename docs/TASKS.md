@@ -176,12 +176,12 @@ Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.
 - [x] Power metrics per device and system, daily and weekly energy, and a `power_drift` finding.
 - Accept: published fixture states become metrics and appear in the brief and the weekly report.
 
-## Task 24: AI provider layer (any model, any host)
-- [ ] OpenAI-compatible Chat Completions client (any base URL; `/v1/models` listing) and an optional native Anthropic adapter, configured only through `brief/ai.yaml`.
-- [ ] Per-task fallback chains ending in the template; context fitting to each provider's size; `disable_thinking` support and stripping of any reasoning block before validation; output validation (every host, device, and finding id must exist in the input); daily call and cloud-token budgets; a call log without content.
-- [ ] Locality enforcement: `cloud` providers never receive device-level detail, raw lines, DNS data, or `devices.yaml` content.
-- [ ] Admin GUI AI page laid out as in `docs/guide/09-ai-integration.md`: master switch, feature switches, providers (test connection, list models, latency, tool-calling check), guardrails split into locked and adjustable, prompt editor with history and rollback, a side-by-side preview of template versus provider output, and the call log.
-- [ ] Deployment notes for an Ollama container on the GPU server (NVIDIA runtime, context cap, short keep-alive, one loaded model, firewall rule or key gateway).
+## Task 24: AI provider layer (any model, any host) (built 2026-10-09, version 0.0.34; proven against fake OpenAI-compatible servers over real HTTP and in the image, NOT against a real Ollama or hosted model)
+- [x] OpenAI-compatible Chat Completions client (any base URL; `/v1/models` listing) and an optional native Anthropic adapter, configured only through `brief/ai.yaml`.
+- [x] Per-task fallback chains ending in the template; context fitting to each provider's size; `disable_thinking` support and stripping of any reasoning block before validation; output validation (every host, device, and finding id must exist in the input); daily call and cloud-token budgets; a call log without content.
+- [x] Locality enforcement: `cloud` providers never receive device-level detail, raw lines, DNS data, or `devices.yaml` content.
+- [x] Admin GUI AI page laid out as in `docs/guide/09-ai-integration.md`: master switch, feature switches, providers (test connection, list models, latency, tool-calling check), guardrails split into locked and adjustable, prompt editor with history and rollback, a side-by-side preview of template versus provider output, and the call log.
+- [x] Deployment notes for an Ollama container on the GPU server (NVIDIA runtime, context cap, short keep-alive, one loaded model, firewall rule or key gateway).
 - Accept: with `enabled: false` no model is called anywhere; each feature switch works independently; the same task runs against two different OpenAI-compatible servers by changing only `ai.yaml`; with every provider down the template publishes; a fixture with device detail never reaches a cloud provider; output naming an unknown host falls through.
 
 ## Task 25: Network map

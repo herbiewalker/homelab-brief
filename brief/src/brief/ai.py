@@ -23,6 +23,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
+from brief.aiguard import DEVICE_KINDS, known_names, privacy_leak, private_terms
 from brief.config import ConfigError, config_file, load_mapping
 from brief.digest import Digest
 from brief.jsonlog import log
@@ -96,7 +97,7 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         if not isinstance(raw, dict) or not raw.get("enabled") or not raw.get("id"):
             continue
         base = str(raw.get("base_url") or "").strip().rstrip("/")
-        if (not base and raw.get("type") != "anthropic") or base.startswith("<") or not raw.get("model"):
+        if (not base and raw.get("type") != "anthropic") or "<" in base or not raw.get("model"):
             continue
         key_var = str(raw.get("api_key_var") or "")
         providers[str(raw["id"])] = Provider(
@@ -145,6 +146,8 @@ def _cloud_input(d: Digest, day: str) -> str:
     """System-level facts only: no host names or addresses, no log text, no story titles."""
     kinds: dict[str, int] = {}
     for s in d.stories:
+        if s.kind in DEVICE_KINDS:
+            continue  # one household device's behaviour: never leaves the LAN, not even as a count
         kinds[s.kind] = kinds.get(s.kind, 0) + 1
     lines = [f"Digest for {day}. Run ok.", "", "Systems:"]
     lines += [f"- {s.name}: {s.state} ({s.summary})" for s in d.systems]
@@ -167,6 +170,7 @@ def build_input(d: Digest, day: str, provider: Provider, prompt_chars: int = 0) 
 
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _ADDRESS = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b|\b[a-z][a-z0-9-]*(?:\.[a-z0-9-]+)+\b", re.IGNORECASE)
+_MAC = re.compile(r"\b[0-9a-f]{2}(?::[0-9a-f]{2}){5}\b", re.IGNORECASE)
 _HEADING = re.compile(r"^[#*\s]*(headline|top stories|developing|checked and clean)[:*\s]*$", re.IGNORECASE)
 
 
@@ -179,6 +183,7 @@ def unknown_terms(text: str, source: str, known_hosts: set[str]) -> set[str]:
     """Hosts and addresses the output names that the input never mentioned (the model made them up)."""
     seen = source.lower()
     bad = {m.group(0) for m in _ADDRESS.finditer(text) if m.group(0).lower() not in seen}
+    bad |= {m.group(0) for m in _MAC.finditer(text) if m.group(0).lower() not in seen}
     low = text.lower()
     for host in known_hosts:
         name = host.lower()
@@ -309,11 +314,96 @@ def known_hosts(store: Store) -> set[str]:
         return {r["host"] for r in db.execute("SELECT host FROM host")}
 
 
-# ---------------------------------------------------------------- the morning brief
+# ---------------------------------------------------------------- one chain runner for every task
 
 
 def read_prompt(path: str, env: Mapping[str, str] | None = None) -> str:
     return config_file(path, env).read_text(encoding="utf-8")
+
+
+def system_prompt(task: str, cfg: dict, env, **fill: str) -> str | None:
+    """The task prompt after its `---` line, with {placeholders} filled; None if the file is unreadable."""
+    try:
+        text = read_prompt(str(cfg.get("prompt") or f"prompts/{task}.md"), env)
+    except OSError as exc:
+        log("ai_failed", task=task, error=f"prompt not readable: {type(exc).__name__}")
+        return None
+    out = text.split("\n---\n", 1)[-1].strip()
+    for key, value in fill.items():
+        out = out.replace("{" + key + "}", value)
+    return out
+
+
+@dataclass
+class Job:
+    """What one task needs from the chain runner."""
+
+    task: str
+    system: str
+    lan: Callable[[Provider, int], str]  # (provider, prompt chars) -> the input, fitted to that provider
+    cloud: Callable[
+        [], str | None
+    ]  # system-level facts only; None = this subject never goes to a cloud model
+    check: Callable[[str, str], object]  # (reply, input sent) -> the result, or ProviderError("invalid", why)
+    private: frozenset[str] = frozenset()
+
+
+def run_chain(
+    store: Store, job: Job, settings: Settings, now: datetime, post: Transport = _post
+) -> tuple[object, Provider] | None:
+    """Try the task's providers in order. Returns (result, provider), or None to publish the template.
+    Every step that is skipped, refused, or fails is written to the call log (no content)."""
+    cfg = settings.tasks.get(job.task) or {}
+    chain = [str(x) for x in cfg.get("chain") or [TEMPLATE]]
+    for step in chain:
+        if step == TEMPLATE:
+            return None
+        p = settings.providers.get(step)
+        if p is None:
+            continue  # not configured or not enabled: the next step
+        if p.locality == "cloud" and job.task not in settings.allow_cloud_for:
+            _record(store, now, job.task, p, "skipped", detail="cloud not allowed for this task")
+            continue
+        calls, tokens = usage_today(store, now)
+        if calls >= settings.max_calls_per_day or (
+            p.locality == "cloud" and tokens >= settings.max_cloud_tokens_per_day
+        ):
+            _record(store, now, job.task, p, "budget", detail="daily budget used up")
+            continue
+        if p.locality == "cloud":
+            user = job.cloud()
+            if user is None:
+                _record(store, now, job.task, p, "skipped", detail="device-level subject never goes to cloud")
+                continue
+            leak = privacy_leak(job.system + "\n" + user, job.private)
+            if leak:
+                _record(store, now, job.task, p, "privacy", detail=f"blocked before sending: {leak}")
+                continue
+        else:
+            user = job.lan(p, len(job.system))
+        started = time.monotonic()
+        t_in = t_out = None
+        try:
+            text, t_in, t_out = call(p, job.system, user, post)
+            ms = int((time.monotonic() - started) * 1000)
+            result = job.check(text, user)
+        except ProviderError as exc:
+            ms = int((time.monotonic() - started) * 1000)  # tokens still count against a cloud budget
+            _record(
+                store, now, job.task, p, exc.outcome,
+                latency_ms=ms, tokens_in=t_in, tokens_out=t_out, detail=exc.detail[:120],
+            )  # fmt: skip
+            continue
+        _record(store, now, job.task, p, "ok", latency_ms=ms, tokens_in=t_in, tokens_out=t_out)
+        return result, p
+    return None
+
+
+def feature_on(settings: Settings, task: str) -> bool:
+    return settings.enabled and bool(settings.features.get(task))
+
+
+# ---------------------------------------------------------------- the morning brief
 
 
 def morning_brief(
@@ -336,54 +426,28 @@ def morning_brief(
 
 
 def _morning_brief(store, d, day, now, env, settings: Settings, post, task) -> Prose | None:
-    if not (settings.enabled and settings.features.get(task)) or not d.run_ok:
+    if not feature_on(settings, task) or not d.run_ok:
         return None  # off, or a failed run: the template says "No data today" and nothing may soften it
-    cfg = settings.tasks.get(task) or {}
-    chain = [str(x) for x in cfg.get("chain") or [TEMPLATE]]
-    try:
-        template = read_prompt(str(cfg.get("prompt") or f"prompts/{task}.md"), env)
-    except OSError as exc:
-        log("ai_failed", task=task, error=f"prompt not readable: {type(exc).__name__}")
+    system = system_prompt(
+        task, settings.tasks.get(task) or {}, env, max_stories="5", date=day, timezone="UTC"
+    )
+    if system is None:
         return None
-    system = template.split("\n---\n", 1)[-1].strip()
-    system = system.replace("{max_stories}", "5").replace("{date}", day).replace("{timezone}", "UTC")
     hosts = known_hosts(store)
-    for step in chain:
-        if step == TEMPLATE:
-            return None
-        p = settings.providers.get(step)
-        if p is None:
-            continue  # not configured or not enabled: the next step
-        if p.locality == "cloud" and task not in settings.allow_cloud_for:
-            _record(store, now, task, p, "skipped", detail="cloud not allowed for this task")
-            continue
-        calls, tokens = usage_today(store, now)
-        if calls >= settings.max_calls_per_day or (
-            p.locality == "cloud" and tokens >= settings.max_cloud_tokens_per_day
-        ):
-            _record(store, now, task, p, "budget", detail="daily budget used up")
-            continue
-        user = build_input(d, day, p, len(system))
-        started = time.monotonic()
-        t_in = t_out = None
-        try:
-            text, t_in, t_out = call(p, system, user, post)
-            ms = int((time.monotonic() - started) * 1000)
-            headline, paragraphs = parse(text, user, hosts, settings.validation)
-        except ProviderError as exc:
-            ms = int((time.monotonic() - started) * 1000)  # tokens still count against a cloud budget
-            _record(
-                store,
-                now,
-                task,
-                p,
-                exc.outcome,
-                latency_ms=ms,
-                tokens_in=t_in,
-                tokens_out=t_out,
-                detail=exc.detail[:120],
-            )
-            continue
-        _record(store, now, task, p, "ok", latency_ms=ms, tokens_in=t_in, tokens_out=t_out)
-        return Prose(headline, paragraphs, p.id, p.model)
-    return None
+    names = known_names(store, env, [f.id for f in d.findings])
+
+    def check(reply: str, sent: str) -> tuple[str, list[str]]:
+        return parse(reply, sent, hosts | names, settings.validation)
+
+    job = Job(
+        task, system,
+        lan=lambda p, prompt_chars: build_input(d, day, p, prompt_chars),
+        cloud=lambda: _cloud_input(d, day),
+        check=check,
+        private=private_terms(store, env),
+    )  # fmt: skip
+    found = run_chain(store, job, settings, now, post)
+    if found is None:
+        return None
+    (headline, paragraphs), p = found
+    return Prose(headline, paragraphs, p.id, p.model)
