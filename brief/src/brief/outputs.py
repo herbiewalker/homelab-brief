@@ -17,7 +17,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from brief import ai, alerts, configguard, detect, grouping, issues, render, selfmon, status
+from brief import ai, alerts, configguard, detect, grouping, issues, playbook, render, selfmon, status
 from brief import digest as dg
 from brief.detectors import Finding, short_label
 from brief.jsonlog import log
@@ -162,7 +162,7 @@ def run_daily(
         findings = result["findings"]
         learning = status.learning_status_for(store, now, env)
         pipeline = pipeline_numbers(store, systems, now, env, state_dir)
-        findings = [*findings, *self_findings(pipeline, state_dir, env)]
+        findings = playbook.apply([*findings, *self_findings(pipeline, state_dir, env)], playbook.load(env))
     except Exception as exc:  # the database or a detector failed: say so, never go quiet
         log("daily_failed", error=f"{type(exc).__name__}: {exc}")
         problems.append(f"the detectors failed ({type(exc).__name__})")
@@ -206,6 +206,7 @@ def write_daily(
             write_json(out / "state.json", state)
     render.write_views(d, out, day, env=env)  # the template views; a prose rewrite replaces brief.html later
     doc = status.status_document(d, network=network)
+    doc["collectors"] = status.collector_block(store, env)
     write_json(out / "latest" / "status.json", doc)
     log("daily_written", run_ok=d.run_ok, stories=len(d.stories))
 

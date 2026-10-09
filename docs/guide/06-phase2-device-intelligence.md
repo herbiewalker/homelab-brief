@@ -36,13 +36,14 @@ The container reads power back with no HA token: in HA, enable `mqtt_statestream
 
 ## Collector framework
 
-A collector is a small module in `brief/src/collectors/` that fetches data, writes rows, and returns metric values for the registry. Adding one requires no changes to the scheduler, publisher, digest, or GUI.
+A collector is a small class in `brief/src/brief/collectors/` that fetches data, writes rows, and returns metric values for the registry. Adding one requires no changes to the scheduler, publisher, digest, or GUI.
 
-Contract:
+Contract (`brief/src/brief/collectors/base.py`; the loader, scheduler and failure handling are in `framework.py`):
 
-- Declares `name`, `interval`, `requires` (template variables it needs), and a `test()` used by the GUI's "Test connection" button.
-- `run(db, config) -> dict[str, float | str]` writes its rows and returns metrics keyed by registry id.
-- A failing collector reports an error metric and keeps its last data. It never crashes the run.
+- A subclass of `Collector` with a `name`, optional `validate(config)`, `metrics(config)` (its registry entries; every id starts with `<name>_`), and `test(ctx)` for the GUI's "Test connection" button and `brief collector test NAME`.
+- `run(ctx) -> dict[str, float]` writes its rows with `ctx.store.write()` and returns numbers keyed by its metric ids. `ctx.var("key_var")` reads the template variable that the collector's settings name; credentials are never in `collectors.yaml` (the file is refused if a `key`, `token`, `password`, or `community` is written into it).
+- The worker runs the enabled collectors whose interval has passed once an hour, each in isolation with its own `timeout_s`. A failing collector never crashes the run: it reports `collector_<name>_ok` = 0 with a safe reason, keeps its last good numbers, and is tried again at the next interval. Only a `CollectorError` message is shown; any other exception shows its class name.
+- Switching a collector on or off in `collectors.yaml` adds or removes its sensors, `/metrics` lines, and API values with no other change. Its numeric history goes to the `metric` table as `collector.<id>`, which the `metric_drift` detector reads.
 
 New tables (migrations):
 

@@ -40,7 +40,7 @@ DESCRIPTIONS = {
     "systems.yaml": "Which senders belong to which system (one tile and one sensor each).",
     "ignore.yaml": "Messages dropped before they are counted.",
     "priorities.yaml": "Ranking, routes, quiet hours, and the alert lifecycle.",
-    "playbook.yaml": "Detector thresholds and learning period.",
+    "playbook.yaml": "Detector thresholds, the learning period, and the advice rules.",
     "schedule.yaml": "When the daily and weekly jobs run.",
     "registry.yaml": "The sensors and metrics that are published.",
     "notify.yaml": "Notification channels outside Home Assistant.",
@@ -50,6 +50,9 @@ DESCRIPTIONS = {
     "retention.yaml": "How long samples and history are kept.",
     "devices.yaml": "Your devices by MAC address: names, owners, how closely to watch (private).",
     "topology.yaml": "Manual nodes and links for the network map, and overrides (private).",
+    "collectors.yaml": "Which data collectors are on, how often they run, and where their keys come from.",
+    "map.yaml": "Network map settings.",
+    "agents.yaml": "AI agents (off by default; need ai.yaml enabled too).",
 }
 _lock = threading.Lock()
 

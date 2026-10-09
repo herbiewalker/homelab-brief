@@ -5,6 +5,16 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.28
+
+Task 18: the Phase 2 framework. No collector ships yet (Tasks 19 to 23 add them), and every one is off.
+
+- Collector contract and framework: `collectors.yaml` is validated (a credential written into it is refused, keys come from template variables), enabled collectors run when due from the hourly job, each isolated with its own timeout; a failing one reports `collector_<name>_ok` 0 with a safe reason and keeps its last good numbers. Enabling or disabling one adds or removes its sensors, `/metrics` lines and API values with no other change. `brief collector list|test|run`.
+- Migration 0007: the Phase 2 tables (disks, SMART readings, inventory, clients, DNS, power, topology).
+- Playbook engine: `playbook.yaml` rules turn findings into advice with structured conditions (no code, regexes with nested repetition refused); the advice shows in the brief and a rule id can be routed in `priorities.yaml`.
+- `metric_drift` detector: any collector metric whose recent mean moves far from its own earlier mean.
+- `collectors.yaml`, `map.yaml` and `agents.yaml` are now validated, guarded with a last-good fallback, and editable in the config editor.
+
 ## 0.0.27
 
 Task 17: packaging and release.

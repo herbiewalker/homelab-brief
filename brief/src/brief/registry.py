@@ -10,6 +10,7 @@ a scraper sees `run_ok 0` and nothing else, instead of a calm network.
 from collections.abc import Mapping
 from pathlib import Path
 
+from brief.collectors import framework
 from brief.config import ConfigError, config_file, load_mapping
 from brief.systems import Systems
 
@@ -48,7 +49,12 @@ def load(env: Mapping[str, str] | None = None, systems: Systems | None = None) -
     """Number and state metrics from the file, plus one state sensor per system."""
     entries = [m for m in read_file(env) if m.get("kind", "number") in ("number", "state")]
     known = {m["id"] for m in entries}
-    return entries + [m for m in system_metrics(systems or Systems()) if m["id"] not in known]
+    extra = system_metrics(systems or Systems()) + framework.metric_entries(env)  # enabled collectors
+    for metric in extra:
+        if metric["id"] not in known:
+            known.add(metric["id"])
+            entries.append(metric)
+    return entries
 
 
 def values(status: Mapping, metrics: list[dict]) -> dict[str, int | float | str]:
@@ -57,9 +63,23 @@ def values(status: Mapping, metrics: list[dict]) -> dict[str, int | float | str]
         return {}
     pipeline = status.get("pipeline") or {}
     states = {s["id"]: s["state"] for s in status.get("systems") or []}
+    collectors = status.get("collectors") or {}
     out: dict[str, int | float | str] = {}
     for metric in metrics:
-        if metric.get("kind", "number") == "state":
+        if metric.get(
+            "collector"
+        ):  # a collector's number, or its ok flag; a failed run keeps the last good one
+            block = collectors.get(metric["collector"])
+            if block is None:
+                continue
+            value = (
+                int(bool(block.get("ok")))
+                if metric["field"] == "ok"
+                else (block.get("metrics") or {}).get(metric["field"])
+            )
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                out[metric["id"]] = value
+        elif metric.get("kind", "number") == "state":
             state = states.get(metric.get("system", ""))
             if state in STATES:
                 out[metric["id"]] = state

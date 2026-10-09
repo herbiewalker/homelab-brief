@@ -69,7 +69,7 @@ def build_stories(
     for f in findings:
         if not f.story:
             continue
-        route = priorities.route_for(f)
+        route = priorities.route_for(f, f.detail.get("rule"))
         if route.route == "suppress":
             if on_suppress:
                 on_suppress(f)
@@ -82,7 +82,7 @@ def build_stories(
             hosts_of[f.system].add(f.host)
     for (_, kind), group in by_key.items():
         group.sort(key=lambda f: (-(f.value or 0), f.id))
-        route = priorities.route_for(group[0])
+        route = priorities.route_for(group[0], group[0].detail.get("rule"))
         if len(group) >= min_members:
             first = group[0]
             where = _label(first.system, first.host, labels)

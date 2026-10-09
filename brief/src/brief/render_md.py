@@ -94,6 +94,9 @@ def _story(i: int, s: Story) -> list[str]:
             value = s.detail[key]
             value = f"{value:g}" if isinstance(value, float) else value
             lines.append(f"   - {key.replace('_', ' ')}: {value}")
+    if not s.grouped and s.detail.get("advice"):
+        bucket = f" ({s.detail['bucket'].replace('_', ' ')})" if s.detail.get("bucket") else ""
+        lines.append(f"   - advice{bucket}: {s.detail['advice']}")
     if s.host:
         lines.append(f"   - detail: hosts/{host_file(s.host)}")
     return lines

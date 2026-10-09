@@ -90,6 +90,7 @@
         "novelty",
         "deviation",
         "off_hours",
+        "metric_drift",
         "absence"
       ],
       "learning": false,
@@ -148,6 +149,7 @@
         "novelty",
         "deviation",
         "off_hours",
+        "metric_drift",
         "absence"
       ],
       "learning": false,

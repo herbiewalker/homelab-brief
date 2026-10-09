@@ -15,6 +15,7 @@ from pathlib import Path
 
 from brief import __version__, detect, registry, selfmon, weekly
 from brief.alerts import drain_feedback
+from brief.collectors import framework
 from brief.config import ConfigError, config_file, load_mapping
 from brief.configguard import ConfigGuard
 from brief.ignore import IgnoreRules
@@ -156,6 +157,10 @@ class Worker:
             selfmon.record(self.store, datetime.now(UTC), self.archive_dir, self.state)
         except Exception as exc:  # self-monitoring must not stop the status
             log("selfmon_failed", error=f"{type(exc).__name__}: {exc}")
+        try:  # Phase 2 collectors that are due; each is isolated, so this can only be quiet or log
+            framework.run_due(self.store, self.env)
+        except Exception as exc:  # the framework itself must never stop the status
+            log("collectors_failed", error=f"{type(exc).__name__}: {exc}")
         status = build_status(
             self.store,
             self.systems,

@@ -9,7 +9,7 @@
   brief audit [--user U] [--q TEXT]          the audit log
   brief network show | test [--wait N]       mode, warnings, the live syslog test
   brief backup create|restore                download-style backup, config-only restore
-  brief collector test NAME                  (collectors arrive in Phase 2)
+  brief collector list|test NAME|run [NAME]  Phase 2 data collectors: status, connection test, run now
   brief ssh show                             whether the optional SSH server is on and ready
 
 Every change goes through the same functions as the GUI (config editor, alert lifecycle, signature
@@ -156,11 +156,12 @@ def add_parsers(sub) -> None:
     br = bk.add_parser("restore", help="apply the config files in a backup")
     br.add_argument("path")
 
-    co = sub.add_parser("collector", help="data collectors (arrive in Phase 2)").add_subparsers(
-        dest="cmd", required=True
-    )
-    ct = co.add_parser("test")
+    co = sub.add_parser("collector", help="Phase 2 data collectors").add_subparsers(dest="cmd", required=True)
+    co.add_parser("list", help="every collector in collectors.yaml and how its last run went")
+    ct = co.add_parser("test", help="check the connection (works before you enable it; stores nothing)")
     ct.add_argument("name")
+    cr = co.add_parser("run", help="run enabled collectors now, whether or not they are due")
+    cr.add_argument("name", nargs="?", default=None)
 
     ini = sub.add_parser("init", help="first-run setup: name your systems from the senders seen")
     ini.add_argument("--assign", action="append", default=[], metavar="HOST=NAME[:LABEL]",
@@ -178,7 +179,7 @@ def add_parsers(sub) -> None:
 
 def dispatch(args, state: Path, out=print, err=None) -> int:
     err = err or (lambda text: print(text, file=sys.stderr))
-    store = Store(state / "baseline.db") if args.group not in ("collector", "ssh") else None
+    store = Store(state / "baseline.db") if args.group != "ssh" else None
     try:
         handler = HANDLERS[args.group]
         return handler(args, state, store, out, err)
@@ -555,10 +556,38 @@ def _backup(args, state, store, out, err) -> int:
 
 
 def _collector(args, state, store, out, err) -> int:
-    err(
-        "Collectors arrive in Phase 2; there is nothing to test yet. See collectors.yaml for the planned ones."
-    )
-    return 2
+    from brief.collectors import framework
+
+    if args.cmd == "list":
+        settings = framework.load()
+        state_now = framework.read_state(store)
+        for name in sorted(settings):
+            s, last = settings[name], state_now.get(name)
+            if not s.enabled:
+                out(f"{name:16} off")
+            elif not last:
+                out(f"{name:16} on, has not run yet")
+            else:
+                note = "ok" if last.get("ok") else f"FAILED: {last.get('error')}"
+                out(f"{name:16} on, last run {last.get('last_run')}, {note}")
+        return 0
+    if args.cmd == "test":
+        ok, message = framework.test_connection(args.name, store)
+        (out if ok else err)(f"{args.name}: {message}")
+        return 0 if ok else 1
+    results = framework.run_due(store, only=args.name, force=True)
+    if not results:
+        err(
+            "No enabled collector"
+            + (f" named {args.name}" if args.name else "")
+            + ". Enable one in collectors.yaml."
+        )
+        return 1
+    failed = 0
+    for name, result in sorted(results.items()):
+        failed += not result.get("ok")
+        out(f"{name}: " + ("ok" if result.get("ok") else f"FAILED: {result.get('error')}"))
+    return 1 if failed else 0
 
 
 def _ssh(args, state, store, out, err) -> int:

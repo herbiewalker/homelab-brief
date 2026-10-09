@@ -145,9 +145,9 @@ Phase 1 runs in order. Ingestion is deployed early (Task 7) so real history accu
 
 Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.md`, `docs/guide/09-ai-integration.md`. Task 18 first; the rest in any order. Everything is switched on and tuned in config (`collectors.yaml` and the other `brief/*.yaml` files) and from the admin GUI.
 
-## Task 18: Collector framework, config loaders, playbook engine
-- [ ] Collector contract, loader from `collectors.yaml`, failure isolation, connection-test hook for the GUI; migrations for `disk`, `smart_reading`, `inventory`, `client`, `client_hourly`, `dns_hourly`, `topo_node`, `topo_edge`, `power_reading`.
-- [ ] Loaders and validation for all config files; structured playbook conditions (no `eval`); metric drift detector.
+## Task 18: Collector framework, config loaders, playbook engine (built 2026-10-09, version 0.0.28; no real collector yet: Tasks 19 to 23 add them)
+- [x] Collector contract, loader from `collectors.yaml`, failure isolation, connection-test hook for the GUI; migrations for `disk`, `smart_reading`, `inventory`, `client`, `client_hourly`, `dns_hourly`, `topo_node`, `topo_edge`, `power_reading`.
+- [x] Loaders and validation for all config files; structured playbook conditions (no `eval`); metric drift detector.
 - Accept: enabling or disabling a collector adds or removes its metrics with no other code changes; a failing collector does not break the run.
 
 ## Task 19: Unraid collector (all three servers, GraphQL API)

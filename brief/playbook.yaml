@@ -19,7 +19,8 @@ thresholds:
   # only for signatures with a pattern: enough history and concentrated in at most max_usual_hours hours of the day
   off_hours: { window_days: 14, min_count: 3, min_history_days: 3, min_history_events: 10, max_usual_hours: 8 }
   absence: { gap_multiple: 3, min_minutes: 30, max_hours: 24 }
-  metric_drift: { recent_days: 7, baseline_days: 21, min_change_pct: 20 }
+  # a collector metric whose recent mean is far from its own earlier mean; silent until both windows hold min_samples
+  metric_drift: { recent_days: 7, baseline_days: 21, min_change_pct: 20, min_samples: 24 }
   traffic_spike: { multiple: 5, floor_gb: 2, window_days: 14 }
   odd_hours: { min_online_min: 30 }
   disk_temp_hdd_c: { warn: 50, days: 3 }

@@ -37,9 +37,10 @@ DEFAULTS = {
     },
     "absence": {"gap_multiple": 3, "min_minutes": 30, "max_hours": 24},
     "clock_skew": {"max_minutes": 3},
+    "metric_drift": {"recent_days": 7, "baseline_days": 21, "min_change_pct": 20, "min_samples": 24},
     "storage_low": {"min_free_pct": 15, "min_days_until_full": 14},
 }
-DAILY = ("novelty", "deviation", "off_hours", "clock_skew")
+DAILY = ("novelty", "deviation", "off_hours", "clock_skew", "metric_drift")
 HOURLY = ("absence",)
 ALL = HOURLY + DAILY
 
@@ -342,6 +343,31 @@ def hour_rows(store: Store, now: datetime, days: int, min_count: int) -> list[d.
     ]
 
 
+def metric_rows(
+    store: Store, now: datetime, recent_days: int, baseline_days: int, names: dict[str, str] | None = None
+) -> list[d.MetricRow]:
+    """The recent and the earlier samples of every collector metric, as of `now` (a replay sees only what
+    existed then). Only `collector.*` series are read; the product's own self-monitoring is not judged."""
+    names = names or {}
+    split = iso(now - timedelta(days=recent_days))
+    start = iso(now - timedelta(days=recent_days + baseline_days))
+    with store.read() as db:
+        found = db.execute(
+            "SELECT metric_id, ts, value FROM metric WHERE metric_id LIKE 'collector.%' "
+            "AND ts > ? AND ts <= ? AND value IS NOT NULL",
+            (start, iso(now)),
+        ).fetchall()
+    recent: dict[str, list[float]] = defaultdict(list)
+    baseline: dict[str, list[float]] = defaultdict(list)
+    for row in found:
+        key = row["metric_id"][len("collector.") :]
+        (recent if row["ts"] > split else baseline)[key].append(row["value"])
+    return [
+        d.MetricRow(key, names.get(key) or key.replace("_", " "), tuple(recent.get(key, ())), tuple(values))
+        for key, values in sorted(baseline.items())
+    ]
+
+
 # ---------------------------------------------------------------- entry points
 
 
@@ -397,7 +423,26 @@ def run(
             oh["min_history_events"],
             oh["max_usual_hours"],
         )
+    if "metric_drift" in kinds:  # needs its own history (samples), not the learning period
+        md = t["metric_drift"]
+        findings += d.metric_drift(
+            metric_rows(store, now, md["recent_days"], md["baseline_days"], _metric_names(env, systems)),
+            md["recent_days"],
+            md["baseline_days"],
+            md["min_change_pct"],
+            md["min_samples"],
+        )
     return {"learning": learning, "findings": findings}
+
+
+def _metric_names(env, systems: Systems) -> dict[str, str]:
+    """Readable names for collector metrics (from the registry); empty if the registry cannot be read."""
+    from brief import registry
+
+    try:
+        return {m["id"]: str(m.get("name") or m["id"]) for m in registry.load(env, systems)}
+    except Exception:  # a label is nice to have, never a reason to skip the detector
+        return {}
 
 
 def learn_gaps(store: Store, now: datetime | None = None, days: int = 14) -> int:

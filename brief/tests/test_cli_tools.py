@@ -332,9 +332,33 @@ def test_default_backup_location_is_inside_out(box, capsys):
     assert len(made) == 1 and backup.read_config_files is not None
 
 
-def test_collector_test_says_phase_2_and_ssh_show_reports_off(box, capsys, monkeypatch):
-    assert run("collector", "test", "unraid") == 2
-    assert "Phase 2" in capsys.readouterr().err
+def test_collector_commands_list_test_and_run(box, capsys, monkeypatch, tmp_path):
+    from test_collectors import Fake
+
+    from brief.collectors import framework
+
+    monkeypatch.setitem(framework.REGISTRY, "unifi", Fake)
+    assert run("collector", "list") == 0
+    assert f"{'unifi':16} off" in capsys.readouterr().out
+    assert run("collector", "test", "unraid") == 1  # nothing implements it yet
+    assert "not available in this version" in capsys.readouterr().err
+    assert run("collector", "run") == 1
+    assert "No enabled collector" in capsys.readouterr().err
+    (tmp_path / "cfg" / "brief" / "collectors.yaml").write_text(
+        "schema: 1\ncollectors:\n  unifi:\n    enabled: true\n    key_var: UNIFI_API_KEY\n", encoding="utf-8"
+    )
+    assert run("collector", "run", "unifi") == 1  # the variable is not set
+    assert "UNIFI_API_KEY" in capsys.readouterr().out
+    monkeypatch.setenv("UNIFI_API_KEY", "not-a-real-key")
+    assert run("collector", "test", "unifi") == 0
+    assert "reached the controller" in capsys.readouterr().out
+    assert run("collector", "run", "unifi") == 0
+    assert "unifi: ok" in capsys.readouterr().out
+    assert run("collector", "list") == 0
+    assert f"{'unifi':16} on, last run" in capsys.readouterr().out
+
+
+def test_ssh_show_reports_off(box, capsys, monkeypatch):
     monkeypatch.delenv("SSH_ENABLED", raising=False)
     assert run("ssh", "show") == 0
     assert "off (set SSH_ENABLED=true" in capsys.readouterr().out

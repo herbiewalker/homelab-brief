@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from brief import detect, detectors, health, selfmon
+from brief.collectors import framework
 from brief.learning import learning_status
 from brief.store import Store, iso, parse_time
 from brief.systems import Systems
@@ -165,8 +166,17 @@ def build_status(
         },
         "silent_hosts": silent[:MAX_LISTED_SILENT],
         "network": network,
+        "collectors": collector_block(store, env),
     }
     return merge_daily(live, previous, now)
+
+
+def collector_block(store: Store, env=None) -> dict:
+    """Each enabled collector's last outcome and numbers; empty when none is on or the file cannot be read."""
+    try:
+        return framework.status_block(store, env)
+    except Exception:  # a collector problem never costs the status its other numbers
+        return {}
 
 
 def write_status(status: dict, out_dir: Path) -> Path:

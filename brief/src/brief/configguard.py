@@ -14,7 +14,8 @@ import shutil
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
-from brief import detect, netconfig, privateconf, selfmon
+from brief import detect, netconfig, playbook, privateconf, selfmon
+from brief.collectors import framework
 from brief.config import ConfigError, default_file, load_mapping, set_fallback, user_file
 from brief.detectors import Finding
 from brief.ignore import IgnoreRules
@@ -45,6 +46,32 @@ def _priorities(path: Path) -> None:
 
 def _playbook(path: Path) -> None:
     detect.validate_thresholds(load_mapping(path).get("thresholds"))
+    playbook.validate(path)
+
+
+def _map(path: Path) -> None:
+    data = load_mapping(path)
+    for key, kind in (("enabled", bool), ("refresh_s", int), ("show_containers", bool), ("show_vms", bool)):
+        value = data.get(key)
+        if key in data and not (isinstance(value, kind) and (kind is bool or not isinstance(value, bool))):
+            raise ConfigError(
+                f"{path.name}: {key} must be {'true or false' if kind is bool else 'a whole number'}"
+            )
+    layers = data.get("layers", [])
+    if not isinstance(layers, list) or not all(isinstance(x, str) for x in layers):
+        raise ConfigError(f"{path.name}: layers must be a list of names")
+
+
+def _agents(path: Path) -> None:
+    data = load_mapping(path)
+    agents = data.get("agents") or {}
+    if not isinstance(agents, dict) or not all(isinstance(a, dict) for a in agents.values()):
+        raise ConfigError(f"{path.name}: agents must be a mapping of name to settings")
+    for name, agent in agents.items():
+        if "enabled" in agent and not isinstance(agent["enabled"], bool):
+            raise ConfigError(f"{path.name}: agents.{name}.enabled must be true or false")
+    if not isinstance(data.get("defaults") or {}, dict):
+        raise ConfigError(f"{path.name}: defaults must be a mapping")
 
 
 # file name -> validator(path) that raises on a problem. Anything not listed here is not watched.
@@ -62,6 +89,9 @@ VALIDATORS: dict[str, Callable[[Path], object]] = {
     "retention.yaml": _mapping,
     "devices.yaml": lambda p: privateconf.validate_devices(load_mapping(p)),
     "topology.yaml": lambda p: privateconf.validate_topology(load_mapping(p)),
+    "collectors.yaml": framework.validate,
+    "map.yaml": _map,
+    "agents.yaml": _agents,
 }
 
 

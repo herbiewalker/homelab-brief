@@ -12,6 +12,7 @@ Rules (current values live in brief/playbook.yaml; docs/guide/03-brief.md has th
                not appeared in the previous days
   absence      a host quiet for longer than its normal gap (hourly)
   clock_skew   a source whose event times drift from receive time by more than a few minutes
+  metric_drift a collector metric whose recent mean is far from its own earlier mean (Phase 2)
 
 Novelty, deviation, and off_hours need a learned baseline, so they say nothing during the learning
 period. Absence and clock_skew do not depend on a baseline (absence falls back to a day when no gap
@@ -324,6 +325,66 @@ def clock_skew(
             )
         )
     return out
+
+
+# ---------------------------------------------------------------- metric drift
+
+
+@dataclass(frozen=True)
+class MetricRow:
+    metric_id: str  # the collector metric's registry id
+    name: str
+    recent: tuple[float, ...]  # samples in the recent window
+    baseline: tuple[float, ...]  # samples in the longer window before it
+
+
+def _short_number(value: float) -> str:
+    return f"{value:,.0f}" if abs(value) >= 100 else f"{value:.3g}"
+
+
+def metric_drift(
+    rows: Iterable[MetricRow],
+    recent_days: int = 7,
+    baseline_days: int = 21,
+    min_change_pct: float = 20,
+    min_samples: int = 24,
+) -> list[Finding]:
+    """Any collector metric whose recent mean is far from its own earlier mean.
+
+    Needs `min_samples` in both windows (so it says nothing until there is history) and a baseline mean
+    that is not zero (a percentage of nothing means nothing; a metric that starts from zero is the job of
+    a rule on that metric)."""
+    out = []
+    for row in rows:
+        if len(row.recent) < min_samples or len(row.baseline) < min_samples:
+            continue
+        recent, base = statistics.fmean(row.recent), statistics.fmean(row.baseline)
+        if base == 0:
+            continue
+        change = (recent - base) / abs(base) * 100
+        if abs(change) < min_change_pct:
+            continue
+        out.append(
+            Finding(
+                id=f"metric_drift:{row.metric_id}",
+                kind="metric_drift",
+                title=(
+                    f"{row.name} averaged {_short_number(recent)} over the last {recent_days} days, "
+                    f"{change:+.0f}% against the {baseline_days} days before ({_short_number(base)})"
+                ),
+                value=abs(change),
+                detail={
+                    "metric": row.metric_id,
+                    "recent_mean": round(recent, 3),
+                    "baseline_mean": round(base, 3),
+                    "change_pct": round(change, 1),
+                    "direction": "up" if change > 0 else "down",
+                    "recent_days": recent_days,
+                    "baseline_days": baseline_days,
+                },
+            )
+        )
+    return sorted(out, key=lambda f: -(f.value or 0))
 
 
 # ---------------------------------------------------------------- helpers
