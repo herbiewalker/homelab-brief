@@ -5,6 +5,15 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.32
+
+Task 22: SNMP and iDRAC (both optional and off by default; read-only).
+
+- SNMP collector (`snmp`): SNMPv3 preferred, v2c on a trusted LAN. Profiles `switch` (uptime, ports up, interface errors since the last poll), `ups` (RFC 1628 UPS-MIB) and `custom` (your own OIDs with a scale, for a PDU). Credentials are written to a private temporary file for each run, never on a command line. Targets are independent.
+- iDRAC collector (`idrac`): power draw, hottest sensor, inlet temperature, slowest fan, sensors in a warning or critical state, hardware event log size, over IPMI (the only protocol an iDRAC 7 offers) or Redfish.
+- The image now includes the `snmp` and `ipmitool` Debian packages: the image grows by about 89 MB (563 to 652 MB), nearly all from net-snmp's Perl dependencies.
+- `scripts/e2e_devices.py` runs the real tools against a fake SNMPv2c agent and a fake Redfish API.
+
 ## 0.0.31
 
 Task 21: clients, traffic, and DNS activity (off by default; every device is limited by its `devices.yaml` profile).

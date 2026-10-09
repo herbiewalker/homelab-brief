@@ -57,6 +57,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
+# Command line tools for the optional SNMP and iDRAC collectors (Task 22): net-snmp (BSD-style licences) for
+# SNMPv3 and v2c, ipmitool (BSD-3-Clause) for IPMI-over-LAN, the only way an older iDRAC can be read. Only
+# read commands are ever run; credentials are never put on a command line (see collectors/snmp.py, idrac.py).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends snmp ipmitool \
+    && rm -rf /var/lib/apt/lists/*
+
 # The optional SSH server (OpenBSD licence family). Off unless SSH_ENABLED is true; see brief/sshcfg.py.
 # The host keys the package makes at install are removed: every container makes its own, kept in /state/ssh.
 RUN apt-get update \

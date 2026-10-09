@@ -230,10 +230,10 @@ def test_a_slow_collector_is_cut_off_and_not_started_twice(tmp_path):
 
 
 def test_an_enabled_collector_this_version_does_not_have_fails_politely(tmp_path):
-    env, _, store = lab(tmp_path, "  snmp:\n    enabled: true\n")
+    env, _, store = lab(tmp_path, "  dns_filter:\n    enabled: true\n")
     outcome = framework.run_due(store, env, NOW)
-    assert outcome["snmp"]["error"] == "this collector is not available in this version"
-    assert [m["id"] for m in framework.metric_entries(env)] == ["collector_snmp_ok"]
+    assert outcome["dns_filter"]["error"] == "this collector is not available in this version"
+    assert [m["id"] for m in framework.metric_entries(env)] == ["collector_dns_filter_ok"]
 
 
 def test_a_non_mapping_result_is_a_failure(tmp_path):

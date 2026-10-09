@@ -46,12 +46,35 @@ collectors:
     enabled: false
     interval: hourly
     version: v3                 # v3 preferred; v2c allowed on the LAN
-    targets: []                 # for example { host: "<switch-ip>", profile: switch }
+    # SNMPv3: the user, and the authentication key (and the encryption key for authPriv), come from template
+    # variables. v2c: community_var names the variable holding the community string instead.
+    user_var: SNMP_V3_USER
+    auth_key_var: SNMP_V3_AUTH_KEY
+    priv_key_var: SNMP_V3_PRIV_KEY
+    auth_protocol: SHA          # MD5 | SHA | SHA-224 | SHA-256 | SHA-384 | SHA-512
+    priv_protocol: AES          # DES | AES | AES-192 | AES-256
+    # community_var: SNMP_COMMUNITY
+    # One entry per device. profile: switch (uptime, ports, interface errors), ups (RFC 1628 UPS-MIB), or
+    # custom (the OIDs you list, for a PDU or anything else).
+    targets: []
+    #  - { id: switch-1, host: "<switch-ip>", profile: switch }
+    #  - { id: ups-1, host: "<ups-ip>", profile: ups }
+    #  - id: pdu-1
+    #    host: "<pdu-ip>"
+    #    profile: custom
+    #    oids:
+    #      - { name: outlet_1_power_w, oid: "1.3.6.1.4.1.<vendor>.<oid>", scale: 0.1, unit: W }
 
   idrac:
     enabled: false
     interval: hourly
-    protocol: redfish           # redfish | ipmi (whichever the iDRAC firmware supports)
+    # ipmi: IPMI-over-LAN with ipmitool; the only thing an older iDRAC (7, in 12th-generation PowerEdge servers)
+    # supports. Enable IPMI over LAN in the iDRAC and use a read-only (USER) account.
+    # redfish: HTTPS and JSON for iDRAC 8 and 9 (verify_tls: false for the usual self-signed certificate).
+    protocol: redfish           # redfish | ipmi
+    # privilege: USER          # ipmi: the privilege level to ask for
+    # cipher_suite: 3          # ipmi: set only if the default is refused
+    # verify_tls: true         # redfish
     host_var: IDRAC_HOST
     user_var: IDRAC_USER
     password_var: IDRAC_PASSWORD

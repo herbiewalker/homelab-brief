@@ -115,6 +115,14 @@ This is the most personal data the product can hold, so it is off until you turn
 4. **What it finds.** `new_device` (a device that appeared after the first pass and is not in `devices.yaml`), `traffic_spike` (the last 24 hours against that device's own usual day, never against other devices), and `odd_hours` (a `full` device online during its own quiet hours). Thresholds are in `playbook.yaml`.
 5. **Retention.** Hourly rows roll up to daily rows after `rollup_after_days` (90) in `retention.yaml`. Nothing here ever leaves the container: the AI layer never receives device-level data.
 
+### SNMP and iDRAC (Task 22, optional)
+
+Both are off by default and use command line tools that are part of the image (`snmpget`, `snmpbulkwalk`, `ipmitool`). They only read.
+
+**SNMP** (`collectors.yaml` `snmp`): turn on SNMPv3 on the device with a read-only user (authentication and, better, encryption), add `SNMP_V3_USER`, `SNMP_V3_AUTH_KEY`, and `SNMP_V3_PRIV_KEY` as template variables, and list the devices under `targets:` with a `profile`: `switch` (uptime, ports up, interface errors since the last poll), `ups` (the standard UPS-MIB: charge, minutes left, load, input voltage, power, on battery), or `custom` (the OIDs you give it, each with an optional `scale`, for a PDU or anything else; the vendor's MIB lists the OIDs). SNMPv2c is allowed on a trusted LAN: set `version: v2c` and `community_var`. The credentials are written to a private temporary file for each run and never appear on a command line. `brief collector test snmp` says which devices answered.
+
+**iDRAC** (`collectors.yaml` `idrac`): create a read-only (User) account on the iDRAC and add `IDRAC_HOST`, `IDRAC_USER`, and `IDRAC_PASSWORD`. Choose `protocol: ipmi` (enable IPMI over LAN in the iDRAC; this is the only protocol an iDRAC 7, in 12th-generation PowerEdge servers, offers) or `protocol: redfish` (iDRAC 8 and 9; usually `verify_tls: false`). Sensors: power draw, hottest sensor, inlet temperature, slowest fan, sensors in a warning or critical state, and the size of the hardware event log. If an IPMI login is refused, try `cipher_suite: 3`. `brief collector test idrac` shows the numbers it read.
+
 - In Home Assistant, enable `mqtt_statestream` with base topic `homelab/ha` for the power entities you want, then list them in `collectors.yaml` (or the GUI).
 
 ## Rollback

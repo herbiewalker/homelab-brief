@@ -166,9 +166,9 @@ Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.
 - [x] Detectors: `new_device`, `traffic_spike`, `odd_hours`; all profile-aware via `devices.yaml`.
 - Accept: a spike is judged against the device's own baseline; `security_only` suppresses activity detail; `ignore` stores nothing.
 
-## Task 22: SNMP and iDRAC (optional)
-- [ ] SNMP polling (v3 preferred, v2c allowed on the LAN) for switches, the PDU, and the UPS where useful.
-- [ ] iDRAC on a Dell server through IPMI or Redfish (whichever its firmware supports): power draw, temperatures, fans, hardware event log.
+## Task 22: SNMP and iDRAC (optional) (built 2026-10-09, version 0.0.32; proven against the real snmp and ipmitool programs and fake devices, NOT against a real switch, UPS, or iDRAC)
+- [x] SNMP polling (v3 preferred, v2c allowed on the LAN) for switches, the PDU, and the UPS where useful.
+- [x] iDRAC on a Dell server through IPMI or Redfish (whichever its firmware supports): power draw, temperatures, fans, hardware event log.
 - Accept: fixture responses produce metrics; both are off by default.
 
 ## Task 23: Home Assistant as a data source (power and energy)
