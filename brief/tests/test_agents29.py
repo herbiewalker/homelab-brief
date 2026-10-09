@@ -57,8 +57,8 @@ agents:
 """
 
 
-def four(env, **kw):
-    setup(env, agents=FOUR, **kw)
+def four(env, agents=FOUR, **kw):
+    setup(env, agents=agents, **kw)
     cfg = env.settings.state_dir.parent / "cfg" / "brief"
     shipped = env.settings.state_dir.parent / "defaults" / "brief"
     for name in ("ignore.yaml", "playbook.yaml"):  # as shipped: the lab fixture has no defaults of its own

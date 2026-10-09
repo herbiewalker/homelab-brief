@@ -44,7 +44,7 @@ An 8B model on an 8 GB card handles short, structured tool loops well and long o
 
 ## Evaluation
 
-- **Agent fixtures:** a set of past findings with known good outcomes (for example the slow parity check, the hot access point, the collection outage). Each agent is replayed against them after any change of model, prompt, or tool.
+- **Agent fixtures:** past cases with known good outcomes, shipped in `brief/fixtures/agents/` (the slow parity check, the hot access point, the collection outage, a noisy new signature, a plain question, a quiet tuning week) and added to by your own files in `/config/brief/fixtures/agents/`. Each agent is replayed against its cases in a scratch copy after any change of model, prompt, tools, limits, or chain (the config editor does it before saving).
 - **Metrics on the AI page:** citation rate, dropped-claim rate, proposals accepted versus rejected, average steps and latency per run.
 - A model or prompt change that lowers the fixture score is flagged before it is enabled.
 

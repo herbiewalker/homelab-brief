@@ -1,0 +1,25 @@
+id: collection_outage
+agent: investigator
+subject: absence-cam
+title: A sender that stopped logging
+status:
+  run_ok: true
+  headline: "1 thing needs a look; first: a camera has been silent for 2 days"
+  systems: [{id: cam, name: Camera, state: red, summary: "1 absence"}]
+  stories:
+    - {id: absence-cam, rank: 1, system: cam, kind: absence, title: "198.51.100.3 has been silent for 2 days (cam)", route: push_now, count: 1, detail: null}
+systems:
+  - {id: cam, label: Camera, kind: camera, hosts: [198.51.100.3]}
+findings:
+  - id: absence-cam
+    kind: absence
+    title: 198.51.100.3 has been silent for 2 days (cam)
+    system: cam
+    host: 198.51.100.3
+    detail: {silent_minutes: 3351, last_seen: "2026-09-17T22:09:00Z", bucket: act_now}
+expect:
+  outcome_any: [ok]
+  tools_any: [get_finding, list_findings, list_systems]
+  mention_any: [silent, absence, stopped]
+  forbid: ["disk failure"]
+  min_kept: 2

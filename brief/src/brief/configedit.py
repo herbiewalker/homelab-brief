@@ -251,6 +251,22 @@ def _write(path: Path, text: str) -> None:
 # ---------------------------------------------------------------- changes
 
 
+def _evaluation_gate(store: Store, name: str, text: str, user: str, env: Mapping[str, str] | None) -> None:
+    """Hold back a change to an agent's prompt, model, tools, limits, or chain that scores worse on its
+    test cases (agenteval.gate), unless the person has ticked the box to accept a lower score."""
+    from brief import agenteval
+
+    if name not in agenteval.GATED:
+        return
+    refusal = agenteval.gate(store, name, text, user, env)
+    if refusal is None:
+        return
+    if agenteval.OVERRIDE.get():
+        store.audit(user, "agent.eval.override", f"{name}: saved although it scored lower")
+        return
+    raise EditError(refusal, 409)
+
+
 def save(
     store: Store,
     name: str,
@@ -277,6 +293,7 @@ def save(
     problem = validate_text(name, text)
     if problem:
         raise EditError(problem)
+    _evaluation_gate(store, name, text, user, env)
     with _lock:
         old, customised = current(name, env)
         if digest(old) != base:
@@ -321,6 +338,7 @@ def reset(
 ) -> str:
     """Remove the user's file so the shipped default applies again (the old text is kept as a version)."""
     now = now or datetime.now(UTC)
+    _evaluation_gate(store, name, starting_text(name, env), user, env)
     with _lock:
         old, customised = current(name, env)
         if not customised:

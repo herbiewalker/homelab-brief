@@ -12,6 +12,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from brief import (
+    agenteval,
     agentrun,
     ai,
     aiconfig,
@@ -40,6 +41,7 @@ DONE = {
     "revoked": "Token revoked. It no longer works.",
     "approved": "Approved and applied through the config editor (see its history for the old version).",
     "rejected": "Rejected. Nothing was changed.",
+    "evaluated": "The test cases ran; the scores are below.",
     "asked": "Asked. The answer appears under Ask the lab when the worker has run it.",
 }
 
@@ -84,6 +86,9 @@ def register(admin: APIRouter, d: Deps) -> None:
             ],
             agent_runs=agentrun.recent_runs(d.store, 10),
             verdicts=agentrun.verdicts(d.store, 15),
+            eval_scores=agenteval.latest(d.store),
+            eval_live=agenteval.live_metrics(d.store),
+            eval_flagged=agenteval.flagged_changes(d.store),
             agent_queue=agentrun.queue(d.store),
             proposals=[proposals.view(p) for p in proposals.listing(d.store)],
             proposal_history=proposals.listing(d.store, None, 10),
@@ -177,6 +182,22 @@ def register(admin: APIRouter, d: Deps) -> None:
     def ask_recent(request: Request):
         done, waiting = agentrun.ask_history(d.store)
         return d.render(request, "_ask_recent.html", done=done, waiting=waiting)
+
+    @admin.post("/ai/eval")
+    async def run_eval(request: Request):
+        form = await request.form()
+        name = str(form.get("agent", "")).strip() or None
+        user = f"admin:{d.session(request).username}"
+        if name is not None and name not in agentrun.load():
+            return page(request, 404, error="There is no such agent.")
+        try:
+            scores = agenteval.evaluate(d.store, [name] if name else None, label="manual")
+        except agenteval.EvalError as exc:
+            return page(request, 422, error=str(exc))
+        d.store.audit(
+            user, "agent.eval", ", ".join(f"{s.agent} {s.score:.1f}" for s in scores) or "nothing to run"
+        )
+        return RedirectResponse("/admin/ai?done=evaluated", status_code=303)
 
     @admin.get("/ai", response_class=HTMLResponse)
     def ai_page(request: Request, done: str = ""):
@@ -331,6 +352,7 @@ def register(admin: APIRouter, d: Deps) -> None:
         form = await request.form()
         text, base = str(form.get("text", "")), str(form.get("base", ""))
         try:
+            agenteval.OVERRIDE.set(bool(form.get("accept_eval")))
             configedit.save(d.store, name, text, d.session(request).username, base, d.settings.state_dir)
         except configedit.EditError as exc:
             return prompt_page(request, key, exc.status, text=text, error=str(exc))

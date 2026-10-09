@@ -28,6 +28,7 @@
     <input type="hidden" name="base" value="{{ base }}">
     <input type="hidden" name="action" value="save">
     <input type="hidden" name="text" value="{{ text }}">
+    {% if file in eval_files %}<p><label><input type="checkbox" name="accept_eval"> Save even though the score is lower (only matters if the test cases flag this change)</label></p>{% endif %}
     <button type="submit">Save these changes</button>
   </form>
   <p class="muted">The text was checked and is valid. The version it replaces is kept.</p>

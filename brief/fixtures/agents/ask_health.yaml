@@ -1,0 +1,20 @@
+id: ask_health
+agent: ask_the_lab
+subject: Is anything wrong with the storage server?
+title: A plain question answered from the status
+status:
+  run_ok: true
+  headline: "2 things need a look; first: parity check on the storage server was slow"
+  systems:
+    - {id: nas, name: Storage server, state: yellow, summary: "1 parity_slow"}
+    - {id: gw, name: Network, state: green, summary: nothing to report}
+  stories:
+    - {id: parity-slow-nas, rank: 1, system: nas, kind: parity_slow, title: "Storage server parity check was slow", route: daily_headline, count: 1, detail: null}
+systems:
+  - {id: nas, label: Storage server, kind: server, hosts: [198.51.100.5]}
+  - {id: gw, label: Network, kind: gateway, hosts: [198.51.100.1]}
+expect:
+  outcome_any: [ok]
+  tools_any: [get_status, list_findings, list_systems]
+  mention_any: [parity, yellow, slow]
+  min_kept: 1

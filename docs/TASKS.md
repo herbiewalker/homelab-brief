@@ -213,9 +213,9 @@ Spec: `docs/guide/10-agents.md`. Starts after Tasks 19, 20, 24, and 26, because 
 - [x] Locked safety rules: triage never proposes ignoring disk, authentication, or security events; the tuner never proposes changes that would hide an acknowledged or urgent finding, and every tuner proposal carries replay evidence.
 - Accept: each agent produces a valid output on its fixtures; the safety rules are enforced in code, not only in prompts.
 
-## Task 30: Agent evaluation
-- [ ] Agent fixtures from real cases (slow parity check, hot access point, collection outage, a noisy new signature) with expected outcomes; scores per agent shown on the AI page (citation rate, dropped claims, proposal acceptance, steps, latency).
-- [ ] Changing an agent's model or prompt runs the fixtures first and flags a lower score before the change takes effect.
+## Task 30: Agent evaluation (built 2026-10-09, version 0.0.40; scripted model only)
+- [x] Agent fixtures from real cases (slow parity check, hot access point, collection outage, a noisy new signature) with expected outcomes; scores per agent shown on the AI page (citation rate, dropped claims, proposal acceptance, steps, latency).
+- [x] Changing an agent's model or prompt runs the fixtures first and flags a lower score before the change takes effect.
 - Accept: a deliberately worse prompt is flagged; scores are visible on the AI page.
 
 ## Later (not in the first build)

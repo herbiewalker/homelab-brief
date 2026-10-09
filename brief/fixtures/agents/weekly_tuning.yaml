@@ -1,0 +1,9 @@
+id: weekly_tuning
+agent: tuner
+subject: weekly review
+title: A quiet week where nothing needs changing
+status: {run_ok: true, stories: [], systems: []}
+expect:
+  outcome_any: [ok, no_evidence]
+  tools_any: [run_replay, list_findings]
+  proposals: {max: 3, files: [priorities.yaml, playbook.yaml]}

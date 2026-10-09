@@ -104,6 +104,28 @@
   </div>
 </div>
 
+<h2>Agent evaluation</h2>
+<div class="card">
+  <p class="muted">Each agent is tested against past cases with known good outcomes, run in a scratch copy so nothing real is touched. The score (0 to 100) is 60% cases passed, 30% how much of what it wrote was cited, 10% steps used. Changing an agent's prompt, model, tools, limits, or chain runs its cases first; a change that scores more than five points lower is held until you accept it. Test runs use real model calls and count against the day's budget. Add your own cases in <code>/config/brief/fixtures/agents/</code>.</p>
+  {% if eval_scores %}<div class="scroll"><table class="wide">
+    <tr><th>Agent</th><th>Score</th><th>Cases</th><th>Cited</th><th>Steps</th><th>Seconds</th><th>Model</th><th>Tested</th><th>Live: runs</th><th>Live: cited</th><th>Proposals ok / rejected</th></tr>
+    {% for e in eval_scores %}{% set m = eval_live.get(e.agent) %}<tr>
+      <td>{{ e.agent }}</td><td><strong>{{ '%.1f'|format(e.score) }}</strong></td><td>{{ e.passed }}/{{ e.cases }}</td>
+      <td>{{ '%.0f'|format(e.citation_rate * 100) }}%</td><td>{{ '%.1f'|format(e.avg_steps) }}</td><td>{{ '%.1f'|format(e.avg_ms / 1000) }}</td>
+      <td>{{ e.model or '' }}</td><td>{{ e.started }}</td>
+      <td>{{ m.runs if m else 0 }}</td><td>{% if m and m.citation_rate is not none %}{{ '%.0f'|format(m.citation_rate * 100) }}%{% endif %}</td>
+      <td>{{ m.approved if m else 0 }} / {{ m.rejected if m else 0 }}</td>
+    </tr>{% endfor %}
+  </table></div>{% else %}<p class="muted">Not run yet.</p>{% endif %}
+  {% if eval_flagged %}<p><strong>Changes held for a lower score:</strong></p><ul>{% for f in eval_flagged %}<li>{{ f.agent }} at {{ f.started }}: {{ '%.1f'|format(f.score) }} against {{ '%.1f'|format(f.baseline_score) }} ({{ f.note }})</li>{% endfor %}</ul>{% endif %}
+  <form method="post" action="/admin/ai/eval" class="row spaced">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <select name="agent"><option value="">All agents</option>{% for a in agents %}<option value="{{ a.spec.name }}">{{ a.spec.name }}</option>{% endfor %}</select>
+    <button type="submit">Run test cases now</button>
+  </form>
+  <p class="muted">This can take a few minutes with a local model; the page waits.</p>
+</div>
+
 <h2>Agents</h2>
 <div class="card">
   <p class="muted">Agents look things up with the same read-only tools the MCP server offers, in a small bounded loop, in the background. Every statement in a note must cite a tool result or it is deleted. They only read: anything that would change a setting becomes a proposal for you to approve. Switch them on with the <strong>agents</strong> feature above and the agent's own <code>enabled</code> in <a href="/admin/config">agents.yaml</a>.</p>

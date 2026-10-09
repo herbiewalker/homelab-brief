@@ -10,6 +10,7 @@
   <input type="hidden" name="base" value="{{ base }}">
   <label for="text">{{ file }}{% if not customised %} (the shipped default){% endif %}</label>
   <textarea id="text" name="text" rows="24" spellcheck="false" autocomplete="off">{{ text }}</textarea>
+  <p><label><input type="checkbox" name="accept_eval"> Save even though the score is lower (only matters if the agent's test cases flag this change)</label></p>
   <button type="submit">Save</button>
 </form>
 {% if customised %}

@@ -1,0 +1,27 @@
+id: hot_access_point
+agent: investigator
+subject: drift-ap-temp
+title: An access point running hotter than its own history
+status:
+  run_ok: true
+  headline: "1 thing needs a look; first: an access point is running hot"
+  systems: [{id: gw, name: Network, state: yellow, summary: "1 metric_drift"}]
+  stories:
+    - {id: drift-ap-temp, rank: 1, system: gw, kind: metric_drift, title: "Upstairs access point temperature is 37% above its usual", route: digest_only, count: 1, detail: null}
+systems:
+  - {id: gw, label: Network, kind: gateway, hosts: [198.51.100.1]}
+findings:
+  - id: drift-ap-temp
+    kind: metric_drift
+    title: Upstairs access point temperature is 37% above its usual
+    system: gw
+    detail: {metric: ap_temp_c, recent_mean: 71.0, baseline_mean: 52.0, change_pct: 37, bucket: watch}
+metrics:
+  - {metric_id: ap_temp_c, values: [51, 52, 53, 52, 52, 70, 72, 71, 71]}
+inventory:
+  - {item_id: "dev:ap1", kind: ap, name: Upstairs access point, model: AP-Pro, current_version: "6.5.1", available_version: "6.6.0"}
+expect:
+  outcome_any: [ok]
+  tools_any: [get_finding, get_history]
+  mention_any: [temperature, hot, heat, drift]
+  min_kept: 2

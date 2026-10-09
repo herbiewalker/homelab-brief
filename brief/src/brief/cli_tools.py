@@ -11,7 +11,7 @@
   brief backup create|restore                download-style backup, config-only restore
   brief collector list|test NAME|run [NAME]  Phase 2 data collectors: status, connection test, run now
   brief proposal list [--all] | show ID | approve ID | reject ID [--note T]   changes agents suggested (nothing applies until approved)
-  brief agent list|run NAME [SUBJECT] [--now]|queue|runs|show ID   the AI agents (off unless ai.yaml has agents on)
+  brief agent list|run NAME [SUBJECT] [--now]|queue|runs|show ID|verdicts|scores|eval [NAME]   the AI agents (off unless ai.yaml has agents on)
   brief mcp [--scope S] | token-list|token-create NAME|token-revoke ID   the MCP server over stdio and its client tokens
   brief map show|svg|drawio|layout-export|layout-import|layout-reset   the network map and its default layout
   brief ssh show                             whether the optional SSH server is on and ready
@@ -103,6 +103,11 @@ def add_parsers(sub) -> None:
     se = cfg.add_parser("set", help="replace a file from a path or stdin (checked, versioned, audited)")
     se.add_argument("name")
     se.add_argument("--from", dest="source", default="-", help="a path, or - for stdin")
+    se.add_argument(
+        "--accept-lower-score",
+        action="store_true",
+        help="save an agent change even if its test cases score lower",
+    )
     ro = cfg.add_parser("rollback", help="restore a saved version")
     ro.add_argument("name")
     ro.add_argument("version")
@@ -194,6 +199,9 @@ def add_parsers(sub) -> None:
     ar.add_argument("subject", nargs="?", default="", help="a finding id or a question")
     ar.add_argument("--now", action="store_true", help="run here, now, and print the note")
     ag.add_parser("queue", help="runs waiting for the worker")
+    ag.add_parser("scores", help="the latest test-case score of each agent")
+    age = ag.add_parser("eval", help="run an agent's test cases against the real model and score it")
+    age.add_argument("name", nargs="?", default=None)
     agv = ag.add_parser("verdicts", help="what the triage agent decided about new signatures")
     agv.add_argument("--limit", type=int, default=20)
     arr = ag.add_parser("runs", help="recent runs")
@@ -376,6 +384,9 @@ def _config(args, state, store, out, err) -> int:
     if cmd == "set":
         text = sys.stdin.read() if args.source == "-" else Path(args.source).read_text(encoding="utf-8")
         current, _ = configedit.current(name)
+        from brief import agenteval
+
+        agenteval.OVERRIDE.set(bool(getattr(args, "accept_lower_score", False)))
         out(configedit.save(store, name, text, user, configedit.digest(current), state))
         return 0
     if cmd == "rollback":
@@ -605,6 +616,42 @@ def _agent(args, state, store, out, err) -> int:
         if not rows:
             out("No triage verdicts yet.")
         return 0
+    if args.cmd == "scores":
+        from brief import agenteval
+
+        rows = agenteval.latest(store)
+        live = agenteval.live_metrics(store)
+        for r in rows:
+            out(f"{r['agent']:<14}{r['score']:>6.1f}  {r['passed']}/{r['cases']} cases  citation {r['citation_rate']:.0%}  "
+                f"{r['avg_steps']:.1f} steps  {r['avg_ms'] / 1000:.1f} s  [{r['label']}, {r['started']}]")  # fmt: skip
+            if r["agent"] in live:
+                m = live[r["agent"]]
+                out(
+                    f"{'':<14}live: {m['runs']} runs, {m['ok']} ok, proposals {m['approved']} approved / {m['rejected']} rejected"
+                )
+        if not rows:
+            out("No evaluation yet. Run `brief agent eval`.")
+        return 0
+    if args.cmd == "eval":
+        from brief import agenteval
+
+        try:
+            scores = agenteval.evaluate(store, [args.name] if args.name else None, label="manual")
+        except agenteval.EvalError as exc:
+            err(str(exc))
+            return 1
+        for s in scores:
+            out(
+                f"{s.agent}: score {s.score:.1f} ({sum(c.passed for c in s.cases)}/{len(s.cases)} cases, citation {s.citation_rate:.0%}, {s.avg_steps:.1f} steps)"
+            )
+            for c in s.cases:
+                out(
+                    f"  {'pass' if c.passed else 'FAIL'}  {c.id}"
+                    + (f"  - {', '.join(c.failed)}" if c.failed else "")
+                )
+        if not scores:
+            out("No agent with test cases to run.")
+        return 0 if all(s.score >= 0 for s in scores) else 1
     if args.cmd == "queue":
         rows = agentrun.queue(store)
         for r in rows:

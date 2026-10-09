@@ -5,6 +5,14 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.40
+
+Task 30: agent evaluation (needs AI and the agents feature on to gate changes; `brief agent eval` works as soon as a model is configured).
+
+- **Fixtures** (`brief/fixtures/agents/`, shipped in the image): a slow parity check, a hot access point, a collection outage, a noisy new signature next to a disk error and an authentication failure, a plain question, and a quiet tuning week. Add your own real cases under `/config/brief/fixtures/agents/`.
+- **Scores**: each agent runs its cases against the real model in a scratch database (the real data and config are never touched) and is checked against what the case expects. The score is 60% cases passed, 30% citation rate, 10% steps used. The AI page shows it beside live numbers from real runs (runs, citation rate, steps, seconds, proposals approved and rejected); `brief agent eval [NAME]` and `brief agent scores` do the same from a shell. Test calls are in the call log as `agent_eval` and count against the day's budget.
+- **The check before a change**: saving a prompt, a model (`ai.yaml`), or an agent's tools, limits, or chain (`agents.yaml`) first runs the affected agents' cases with the old and the new setting. A change that scores more than five points lower is held (the AI page and config editor say so; tick **Save even though the score is lower**, or `brief config set ... --accept-lower-score`, to override, which is audited). If the test cannot run, the change goes through.
+
 ## 0.0.39
 
 Task 29: the four agents (still off by default; each needs `ai.yaml` + `features.agents` and its own `enabled`).

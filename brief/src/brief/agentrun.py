@@ -254,6 +254,7 @@ def run(
     post: ai.Transport | None = None,
     env: Mapping[str, str] | None = None,
     clock: Callable[[], float] = time.monotonic,
+    findings: dict | None = None,
 ) -> Result:
     """Run one agent on one subject and record it. Never raises."""
     now = now or datetime.now(UTC)
@@ -268,7 +269,19 @@ def run(
     run_id = _start(store, spec, subject, trigger, now)
     try:
         result = _loop(
-            store, spec, subject, settings, app_settings, status, now, background, post, env, clock, run_id
+            store,
+            spec,
+            subject,
+            settings,
+            app_settings,
+            status,
+            now,
+            background,
+            post,
+            env,
+            clock,
+            run_id,
+            findings,
         )
     except Exception as exc:  # an agent is never worth an error page
         log("agent_failed", agent=spec.name, error=type(exc).__name__)
@@ -309,7 +322,9 @@ def _tokens(store: Store, run_id: int, t_in: int, t_out: int) -> None:
         )
 
 
-def _loop(store, spec, subject, settings, app, status, now, background, post, env, clock, run_id) -> Result:
+def _loop(
+    store, spec, subject, settings, app, status, now, background, post, env, clock, run_id, findings=None
+) -> Result:
     system = ai.system_prompt(spec.name, {"prompt": spec.prompt}, env)
     if system is None:
         return Result("failed", detail="the agent's prompt file is not readable")
@@ -347,7 +362,7 @@ def _loop(store, spec, subject, settings, app, status, now, background, post, en
             frozenset(SCOPES) - (frozenset(SENSITIVE) if cloud else frozenset())
         )
         client = Client("agent", f"{spec.name}", scopes, "cloud" if cloud else "lan")
-        ctx = Context(store, app, client, status, source="agent", run_id=run_id)
+        ctx = Context(store, app, client, status, source="agent", run_id=run_id, findings=findings)
         try:
             return _converse(
                 store,

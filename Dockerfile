@@ -82,6 +82,7 @@ COPY brief/src/ /app/
 COPY vector/ /app/vector/
 COPY brief/*.yaml brief/*.ini /app/defaults/brief/
 COPY brief/prompts/ /app/defaults/brief/prompts/
+COPY brief/fixtures/ /app/defaults/brief/fixtures/
 RUN chmod +x /etc/s6-overlay/scripts/* /etc/s6-overlay/s6-rc.d/*/run /usr/local/bin/brief
 
 ENV PATH=/opt/venv/bin:/command:$PATH \

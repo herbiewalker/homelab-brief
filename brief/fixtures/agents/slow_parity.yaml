@@ -1,0 +1,25 @@
+id: slow_parity
+agent: investigator
+subject: parity-slow-nas
+title: A parity check that ran at half its usual speed
+status:
+  run_ok: true
+  headline: "1 thing needs a look; first: parity check on the storage server was slow"
+  systems: [{id: nas, name: Storage server, state: yellow, summary: "1 parity_slow"}]
+  stories:
+    - {id: parity-slow-nas, rank: 1, system: nas, kind: parity_slow, title: "Storage server parity check was slow", route: daily_headline, count: 1, detail: null}
+systems:
+  - {id: nas, label: Storage server, kind: server, hosts: [198.51.100.5]}
+findings:
+  - id: parity-slow-nas
+    kind: parity_slow
+    title: Storage server parity check was slow
+    system: nas
+    detail: {duration: "2 days 3 hours", speed: 41, previous_speed: 74, bucket: watch,
+             advice: "Check whether a tuning plugin paused it or heavy jobs overlapped it; if not, review each array disk's SMART data and the controller or cables."}
+expect:
+  outcome_any: [ok]
+  tools_any: [get_finding, list_findings]
+  mention_any: [parity, speed, slow]
+  forbid: ["replace the drive", "failing disk"]
+  min_kept: 2

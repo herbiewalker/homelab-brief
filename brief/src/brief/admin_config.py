@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from brief import admin_data, configedit, configguard
+from brief import admin_data, agenteval, configedit, configguard
 from brief.admin import Deps
 
 DONE = {
@@ -43,6 +43,7 @@ def register(admin: APIRouter, d: Deps) -> None:
             customised=customised,
             versions=configedit.versions(state(), name),
             guard_error=error,
+            eval_files=agenteval.GATED,
             error=extra.pop("error", None),
             diff=extra.pop("diff", None),
             notice=extra.pop("notice", None),
@@ -91,6 +92,7 @@ def register(admin: APIRouter, d: Deps) -> None:
             configedit.checked_name(name)
             text = configedit.normalize(text)
             if action == "save":
+                agenteval.OVERRIDE.set(bool(form.get("accept_eval")))
                 configedit.save(d.store, name, text, session.username, base, state(), env())
                 return RedirectResponse(f"/admin/config/{name}?done=saved", status_code=303)
             problem = configedit.validate_text(name, text)

@@ -1,0 +1,15 @@
+id: noisy_signature
+agent: triage
+subject: "signatures:1,2,3"
+title: A busy harmless signature next to a disk error and an authentication failure
+status: {run_ok: true, learning: {active: false}, stories: [], systems: []}
+signatures:
+  - {app: switch, message: "port 3 link flapped down then up", count: 400}
+  - {app: kernel, message: "blk_update_request: I/O error, dev sdb, sector 123456", count: 6}
+  - {app: sshd, message: "Failed password for root from 198.51.100.9 port 4444", count: 30}
+expect:
+  outcome_any: [ok]
+  tools_any: [get_signature]
+  verdicts: {"1": [noise, watch, unsure], "2": [concern, watch, unsure], "3": [concern, watch, unsure]}
+  proposals: {max: 1, files: [ignore.yaml, playbook.yaml]}
+  min_kept: 2

@@ -48,6 +48,7 @@ class Context:
     source: str = "mcp"  # who is calling: "mcp" or "agent" (the audit log prefix)
     run_id: int | None = None  # the agent run making these calls
     evidence: dict | None = None  # result id -> tool, for the results of this run that succeeded
+    findings: dict | None = None  # when set (an evaluation fixture), the only findings get_finding can see
 
 
 # ---------------------------------------------------------------- argument helpers
@@ -103,7 +104,7 @@ def list_findings(ctx: Context, args: Mapping) -> dict:
 def explain_finding(ctx: Context, args: Mapping) -> dict:
     finding_id = _text(args, "finding_id", 300, required=True)
     _, systems, _ = ctx.status()
-    finding = aitasks.find_finding(ctx.store, systems, finding_id, datetime.now(UTC))
+    finding = _lookup(ctx, systems, finding_id)
     # one message for "no such finding" and "not allowed to see it", so ids cannot be probed
     if finding is None or (finding.kind in DEVICE_KINDS and not ctx.client.allows("devices")):
         raise ToolError("there is no such finding")
@@ -325,7 +326,7 @@ def call_tool(ctx: Context, name: str, args: Mapping) -> dict:
 def get_finding(ctx: Context, args: Mapping) -> dict:
     finding_id = _text(args, "finding_id", 300, required=True)
     _, systems, _ = ctx.status()
-    finding = aitasks.find_finding(ctx.store, systems, finding_id, datetime.now(UTC))
+    finding = _lookup(ctx, systems, finding_id)
     if finding is None and finding_id.startswith("group-"):
         # a grouped story is not one finding: all there is to read is the investigation, if any
         from brief import agentnotes
@@ -548,3 +549,10 @@ _PROPOSE = (
     ),  # fmt: skip
 )
 TOOLS.update({t.name: t for t in _PROPOSE})
+
+
+def _lookup(ctx: Context, systems, finding_id: str):
+    """The finding with this id: from the fixture when evaluating, else as the detectors report it now."""
+    if ctx.findings is not None:
+        return ctx.findings.get(finding_id)
+    return aitasks.find_finding(ctx.store, systems, finding_id, datetime.now(UTC))
