@@ -102,7 +102,7 @@ Update this file as decisions are made. Do not decide an open item silently; ask
 | Container IP | Network mode (own IP recommended, host, or bridge) and, for own IP, a free fixed LAN IP | Needed before Task 7 |
 | Host access to custom networks | Enable on the host server (own-IP mode only) | Required for the host server to reach its own container in own-IP mode |
 | TLS certificate | Self-signed (default), your own, or a reverse proxy in front | Decide at deploy |
-| Image registry | GitHub Container Registry (private) or build on the host server | Task 17 built the release workflow for GHCR (private package, version tags only) and kept the build-and-`docker load` route in `deploy/README.md`; confirm GHCR or drop it |
+| Image registry | GitHub Container Registry (private package); the build-and-`docker load` route stays documented as a fallback | Settled 2026-10-08: GHCR (Task 17 release workflow) |
 | Transitive Python pins | `brief/requirements.txt` pins direct dependencies only | Generate a full lock with `pip freeze` in the built image once Docker is available |
 | Local tooling | Docker and Python are not installed on the dev machine | Task 0 build, healthcheck, and pytest acceptance cannot run until Docker Desktop (or another engine) is installed |
 | Log storm handling | Archive every line and rely on compression, or throttle repeated identical lines per host and signature in Vector before the archive (keep the first N per minute, count the rest as suppressed) | A single server can produce millions of near-identical lines in a day (see "What real logs look like"); decide in Task 3 with the sanitized samples, and add a `log_storm` finding either way |
