@@ -28,6 +28,10 @@ thresholds:
   # a client first seen more than settle_hours after the first one (the first pass is the starting population),
   # not listed in devices.yaml, is reported for show_days
   new_device: { settle_hours: 24, show_days: 3 }
+  # a system's average draw over the last recent_hours against its own earlier baseline_days: flagged when it is
+  # min_increase_pct higher AND at least min_increase_w watts higher (so a 3 W device doubling is not news);
+  # an increase only, and only once min_samples hourly readings exist for the baseline
+  power_drift: { recent_hours: 24, baseline_days: 14, min_increase_pct: 25, min_increase_w: 10, min_samples: 48 }
   disk_temp_hdd_c: { warn: 50, days: 3 }   # a spinning disk whose coolest sample over the days stays at or above warn
   version_behind: { days: 30 }
   # a gateway, switch, access point, PDU, camera, or server first seen more than settle_hours after the first
@@ -126,3 +130,10 @@ rules:
     advice: >
       {device} was online for {minutes} minutes during its quiet hours. Check whether that was
       expected (a schedule, a download, a guest); if not, look at what it connected to.
+
+  power_drift_system:
+    kind: power_drift
+    advice: >
+      {system_name} has drawn {watts} W on average over the last day, {increase_pct}% above its usual
+      {baseline_watts} W. Check for a rebuild or scrub, a stuck process, a failed fan running flat out,
+      or a device that was added; if it is expected, the baseline catches up in a couple of weeks.

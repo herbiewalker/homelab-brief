@@ -123,7 +123,16 @@ Both are off by default and use command line tools that are part of the image (`
 
 **iDRAC** (`collectors.yaml` `idrac`): create a read-only (User) account on the iDRAC and add `IDRAC_HOST`, `IDRAC_USER`, and `IDRAC_PASSWORD`. Choose `protocol: ipmi` (enable IPMI over LAN in the iDRAC; this is the only protocol an iDRAC 7, in 12th-generation PowerEdge servers, offers) or `protocol: redfish` (iDRAC 8 and 9; usually `verify_tls: false`). Sensors: power draw, hottest sensor, inlet temperature, slowest fan, sensors in a warning or critical state, and the size of the hardware event log. If an IPMI login is refused, try `cipher_suite: 3`. `brief collector test idrac` shows the numbers it read.
 
-- In Home Assistant, enable `mqtt_statestream` with base topic `homelab/ha` for the power entities you want, then list them in `collectors.yaml` (or the GUI).
+### Power and energy from Home Assistant (Task 23)
+
+Home Assistant keeps the power data (smart plugs, the UPS through NUT, its Energy dashboard); the container reads what you choose, with no Home Assistant token.
+
+1. **In Home Assistant** enable `mqtt_statestream` with base topic `homelab/ha` and include only the entities you want (a smart plug's power and energy, the UPS load). The `ha` broker user in `mosquitto/acl` is already allowed to publish under `homelab/ha/`, and the container's `brief` user to read it.
+2. **In `collectors.yaml`** set `ha_statestream.enabled: true` and list each entity: `entity` (for example `sensor.server_2_power`), the `system` it belongs to (an id from `systems.yaml`), `kind` (`power` for watts, `energy` for a cumulative kWh meter), and `scale` if the unit differs (1000 for kW, 0.001 for Wh). The collector uses the same MQTT settings as the publisher, so `MQTT_HOST` must be set.
+3. **Try it:** `docker exec homelab-brief brief collector test ha_statestream` lists each entity and its current value.
+4. **What you get:** per-entity and per-system power sensors (`ha_statestream_<system>_power_w`) and energy for the last 24 hours (a system with an energy meter uses the meter, otherwise the hourly power readings are added up); a power line in the daily brief; a "Power and energy" table in the weekly report (this week against last, average draw); and the `power_drift` finding when a system's average draw over the last day is more than 25% and 10 W above its own usual (thresholds in `playbook.yaml`).
+5. **Resolution:** one reading per entity per hour, so the figures are hourly samples, not a continuous measurement. Use a Home Assistant energy meter for exact kWh.
+
 
 ## Rollback
 

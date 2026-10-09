@@ -13,7 +13,7 @@ from collections import defaultdict
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from brief import detect_clients, detect_hw
+from brief import detect_clients, detect_hw, power
 from brief import detectors as d
 from brief.config import ConfigError, config_file, load_mapping
 from brief.devices import DeviceBook
@@ -49,6 +49,13 @@ DEFAULTS = {
     "new_device": {"settle_hours": 24, "show_days": 3},
     "traffic_spike": {"multiple": 5, "floor_gb": 2, "window_days": 14, "min_history_days": 3},
     "odd_hours": {"min_online_min": 30},
+    "power_drift": {
+        "recent_hours": 24,
+        "baseline_days": 14,
+        "min_increase_pct": 25,
+        "min_increase_w": 10,
+        "min_samples": 48,
+    },
     "storage_low": {"min_free_pct": 15, "min_days_until_full": 14},
 }
 DAILY = (
@@ -59,6 +66,7 @@ DAILY = (
     "metric_drift",
     *detect_hw.KINDS,
     *detect_clients.KINDS,
+    "power_drift",
 )
 HOURLY = ("absence",)
 ALL = HOURLY + DAILY
@@ -453,6 +461,8 @@ def run(
         )
     findings += _tag_systems(detect_hw.run(store, now, t, kinds), systems)
     findings += detect_clients.run(store, now, t, kinds, DeviceBook.load(env))
+    if "power_drift" in kinds:
+        findings += _power_drift(store, systems, now, t["power_drift"])
     return {"learning": learning, "findings": findings}
 
 
@@ -503,3 +513,17 @@ def _tag_systems(findings: list[d.Finding], systems: Systems) -> list[d.Finding]
         replace(f, system=f.detail["server"]) if f.system is None and f.detail.get("server") in known else f
         for f in findings
     ]
+
+
+def _power_drift(store: Store, systems: Systems, now: datetime, p: dict) -> list[d.Finding]:
+    labels = {s.id: s.label for s in systems.systems}
+    with store.read() as db:
+        rows = power.draw_rows(db, labels, now, int(p["recent_hours"]), int(p["baseline_days"]))
+    return power.power_drift(
+        rows,
+        int(p["recent_hours"]),
+        int(p["baseline_days"]),
+        p["min_increase_pct"],
+        p["min_increase_w"],
+        int(p["min_samples"]),
+    )

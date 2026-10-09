@@ -47,7 +47,7 @@ Keep port 1883 LAN-only. This Mosquitto container is temporary: when Home Assist
 | `homelab/brief/headline` | yes | Today's one-line headline for the phone push |
 | `homelab/brief/alert` | no | JSON for pushes: finding id, level, lifecycle state (`new`, `repeat`, `escalated`, `resolved`), title, body, detail link, suggested actions |
 | `homelab/brief/feedback/<finding_id>` | no | Written by Home Assistant when you tap a button: `ack`, `snooze_24h`, or `snooze_7d` |
-| `homelab/ha/<domain>/<entity>/state` | per HA setting | Home Assistant's `mqtt_statestream` output for the entities you choose (power, energy, UPS); read by the container (Phase 2, Task 23) |
+| `homelab/ha/<domain>/<entity>/state` | per HA setting | Home Assistant's `mqtt_statestream` output for the entities you choose (power, energy, UPS); read by the container (Task 23) |
 | `homeassistant/sensor/homelab_brief/<metric_id>/config` | yes | MQTT discovery payload |
 
 ## 4c. Metric registry

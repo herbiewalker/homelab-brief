@@ -79,6 +79,15 @@ def _pipeline(d: Digest) -> list[str]:
         out.append("- " + "; ".join(extra))
     if p.get("hosts_silent"):
         out.append(f"- {plural(p['hosts_silent'], 'silent host')}")
+    if p.get("power"):
+        shown = [
+            f"{u['label']} {u['watts']:.0f} W"
+            + (f", {u['kwh_24h']:.1f} kWh in 24 h" if u.get("kwh_24h") is not None else "")
+            for u in p["power"][:4]
+            if u.get("watts") is not None
+        ]
+        if shown:
+            out.append("- power: " + "; ".join(shown))
     return out or ["- no pipeline numbers"]
 
 

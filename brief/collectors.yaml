@@ -81,8 +81,18 @@ collectors:
 
   ha_statestream:
     enabled: false
+    # Power and energy that Home Assistant already knows, read from the same MQTT broker as the publisher
+    # (MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASSWORD; no Home Assistant token). In Home Assistant enable
+    # mqtt_statestream with this base topic and include just the entities listed here.
     base_topic: "homelab/ha"    # must match mqtt_statestream base_topic in Home Assistant
-    entities: []                # for example { entity: sensor.server_2_power, system: server-2 }
+    window_s: 5                 # how long each hourly run listens (retained states arrive at once)
+    # kind: power (instantaneous watts, the default) or energy (a cumulative kWh meter).
+    # system: the id of a system in systems.yaml (or any lowercase name); power and energy add up per system.
+    # scale: 1000 turns kW into W, 0.001 turns Wh into kWh.
+    entities: []
+    #  - { entity: sensor.server_2_power, system: server-2, kind: power }
+    #  - { entity: sensor.server_2_energy, system: server-2, kind: energy }
+    #  - { entity: sensor.ups_load_kw, system: rack, kind: power, scale: 1000 }
 
   dns_filter:
     enabled: false              # only if the gateway's coredns logs are not enough

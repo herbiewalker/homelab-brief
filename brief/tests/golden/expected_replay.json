@@ -103,6 +103,7 @@
         "new_device",
         "traffic_spike",
         "odd_hours",
+        "power_drift",
         "absence"
       ],
       "learning": false,
@@ -174,6 +175,7 @@
         "new_device",
         "traffic_spike",
         "odd_hours",
+        "power_drift",
         "absence"
       ],
       "learning": false,

@@ -171,9 +171,9 @@ Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.
 - [x] iDRAC on a Dell server through IPMI or Redfish (whichever its firmware supports): power draw, temperatures, fans, hardware event log.
 - Accept: fixture responses produce metrics; both are off by default.
 
-## Task 23: Home Assistant as a data source (power and energy)
-- [ ] Subscribe to HA's MQTT statestream for the entities you choose (power, energy, UPS, smart plugs); no HA token in the container.
-- [ ] Power metrics per device and system, daily and weekly energy, and a `power_drift` finding.
+## Task 23: Home Assistant as a data source (power and energy) (built 2026-10-09, version 0.0.33; proven through a real broker with the real ACL, with invented states)
+- [x] Subscribe to HA's MQTT statestream for the entities you choose (power, energy, UPS, smart plugs); no HA token in the container.
+- [x] Power metrics per device and system, daily and weekly energy, and a `power_drift` finding.
 - Accept: published fixture states become metrics and appear in the brief and the weekly report.
 
 ## Task 24: AI provider layer (any model, any host)

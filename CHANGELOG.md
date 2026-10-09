@@ -5,6 +5,15 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.33
+
+Task 23: power and energy from Home Assistant (off by default; no Home Assistant token).
+
+- `ha_statestream` collector: reads the entities you list from Home Assistant's `mqtt_statestream` topics over the same MQTT broker, hourly, into `power_reading`; per-entity and per-system power sensors and energy for the last 24 hours. `scale` handles kW and Wh.
+- The daily brief gains a power line and the weekly report a "Power and energy" table (this week against last, average draw), only when power data exists.
+- `power_drift` finding: a system's average draw over the last day well above its own usual (an increase of 25% and 10 W by default).
+- `scripts/e2e_mqtt.py` now proves the path through a real broker and the real access list.
+
 ## 0.0.32
 
 Task 22: SNMP and iDRAC (both optional and off by default; read-only).

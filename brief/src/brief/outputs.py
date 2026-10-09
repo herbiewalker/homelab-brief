@@ -17,7 +17,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from brief import ai, alerts, configguard, detect, grouping, issues, playbook, render, selfmon, status
+from brief import ai, alerts, configguard, detect, grouping, issues, playbook, power, render, selfmon, status
 from brief import digest as dg
 from brief.detectors import Finding, short_label
 from brief.jsonlog import log
@@ -63,13 +63,21 @@ def pipeline_numbers(
     store: Store, systems: Systems, now: datetime, env=None, state_dir: Path | None = None
 ) -> dict:
     nums = status.derive(store, systems, status.absence_thresholds(env), now)
-    return {
+    numbers = {
         "events_24h": nums["events_24h"],
         "new_signatures_24h": nums["new_signatures_24h"],
         "hosts_silent": nums["hosts_silent"],
         "hosts_checked": nums["hosts_checked"],
         **status.extra_numbers(store, now, state_dir),
     }
+    try:  # power from Home Assistant, only when there are readings (so a plain install is unchanged)
+        with store.read() as db:
+            usage = power.summary(db, {s.id: s.label for s in systems.systems}, now)
+    except Exception:  # an unreadable table is not a reason to lose the rest of the numbers
+        usage = []
+    if usage:
+        numbers["power"] = usage
+    return numbers
 
 
 SEVERITIES = ("emerg", "alert", "crit", "err", "warning", "notice", "info", "debug")

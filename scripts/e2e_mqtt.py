@@ -26,6 +26,16 @@ import time
 import urllib.request
 from pathlib import Path
 
+COLLECTORS = """schema: 1
+collectors:
+  ha_statestream:
+    enabled: true
+    entities:
+      - { entity: sensor.e2e_power, system: e2e-sys, kind: power }
+      - { entity: sensor.e2e_kw, system: e2e-sys, kind: power, scale: 1000 }
+      - { entity: sensor.e2e_energy, system: e2e-sys, kind: energy }
+"""
+
 ROOT = Path(__file__).resolve().parent.parent
 NET, BROKER, APP = "hb-e2e-mqtt-net", "hb-e2e-mqtt-broker", "hb-e2e-mqtt-app"
 SENSORS = ("events_24h", "new_signatures_24h", "hosts_silent")
@@ -72,13 +82,14 @@ def availability():
     return sub("brief", ["homelab/brief/availability"], wait=2).get("homelab/brief/availability")
 
 
-def start_app(image, http_port, state):
+def start_app(image, http_port, state, config=None):
     docker("rm", "-f", APP, check=False)
     docker(
         *("run", "-d", "--name", APP, "--network", NET, "-p", f"{http_port}:80"),
         *("-e", "MQTT_HOST=" + BROKER, "-e", "MQTT_USER=brief", "-e", "MQTT_PASSWORD=" + USERS["brief"]),
         *("-e", "BRIEF_PUBLISH_INTERVAL=5", "-e", "BRIEF_INGEST_INTERVAL=2", "-e", "SYSLOG_PORT=5514"),
         *("-v", f"{state}:/state"),
+        *(("-v", f"{config}:/config") if config else ()),
         image,
     )
 
@@ -94,6 +105,11 @@ def main(argv):
     state = work / "state"
     state.mkdir()
     state.chmod(0o777)
+    config = work / "config"
+    (config / "brief").mkdir(parents=True)
+    for folder in (config, config / "brief"):
+        folder.chmod(0o777)
+    (config / "brief" / "collectors.yaml").write_text(COLLECTORS)
     cfg = work / "mosquitto"
     cfg.mkdir()
     for name in ("mosquitto.conf", "acl"):
@@ -115,7 +131,7 @@ def main(argv):
         docker("run", "-d", "--name", BROKER, "--network", NET, "-v", f"{cfg}:/mosquitto/config", args.broker)
         until("the broker", lambda: docker("exec", BROKER, "mosquitto_sub", "-h", "localhost", "-u", "brief",
                                            "-P", USERS["brief"], "-t", "x", "-W", "1", check=False).returncode in (0, 27))  # fmt: skip
-        start_app(args.image, args.http_port, state)
+        start_app(args.image, args.http_port, state, config)
         until("availability online", lambda: availability() == "online", 90)
         until("all sensor states", lambda: all(
             f"homelab/brief/{s}/state" in sub("brief", ["homelab/brief/#"], wait=2) for s in SENSORS), 60)  # fmt: skip
@@ -186,10 +202,44 @@ def main(argv):
         )
         print("[feedback] a button press from the ha user reached the worker")
 
+        # Home Assistant power: the ha user publishes statestream states; the collector reads them over the broker
+        for topic, value in (
+            ("sensor/e2e_power", "112.5"),
+            ("sensor/e2e_energy", "2000.25"),
+            ("sensor/e2e_kw", "0.2"),
+        ):
+            docker("exec", BROKER, "mosquitto_pub", "-h", "localhost", "-u", "ha", "-P", USERS["ha"],
+                   "-t", f"homelab/ha/{topic}/state", "-m", value, "-r")  # fmt: skip
+        test = docker("exec", APP, "brief", "collector", "test", "ha_statestream", check=False)
+        if test.returncode != 0 or "3 of 3 entities answered" not in test.stdout:
+            problems.append(f"ha_statestream test: {test.stdout} {test.stderr}")
+        run = docker("exec", APP, "brief", "collector", "run", "ha_statestream", check=False)
+        if run.returncode != 0 or "ha_statestream: ok" not in run.stdout:
+            problems.append(f"ha_statestream run: {run.stdout} {run.stderr}")
+        until(
+            "the power sensor to be published",
+            lambda: (
+                sub("brief", ["homelab/brief/ha_statestream_e2e_sys_power_w/state"], wait=2).get(
+                    "homelab/brief/ha_statestream_e2e_sys_power_w/state"
+                )
+                == "312.5"
+            ),
+            40,
+        )
+        cfgs = sub("ha", ["homeassistant/#"], wait=2)
+        if "homeassistant/sensor/homelab_brief/ha_statestream_e2e_sys_power_w/config" not in cfgs:
+            problems.append("no discovery config for the power sensor")
+        with urllib.request.urlopen(f"http://127.0.0.1:{args.http_port}/metrics", timeout=10) as r:
+            if "homelab_brief_ha_statestream_e2e_sys_power_w 312.5" not in r.read().decode():
+                problems.append("/metrics does not carry the power figure")
+        print(
+            "[power] statestream states -> collector -> sensor, discovery, and /metrics (312.5 W = 112.5 + 0.2 kW)"
+        )
+
         docker("stop", "-t", "10", APP)
         if availability() != "offline":
             problems.append("a clean stop did not publish availability offline")
-        start_app(args.image, args.http_port, state)
+        start_app(args.image, args.http_port, state, config)
         until("availability online again", lambda: availability() == "online", 90)
         docker("kill", APP)
         until("last will after a crash", lambda: availability() == "offline", 30)

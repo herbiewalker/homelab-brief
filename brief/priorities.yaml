@@ -51,6 +51,7 @@ kinds:
   traffic_spike:      { rank: 65, route: daily_headline }
   odd_hours:          { rank: 40, route: digest_only }
   metric_drift:       { rank: 45, route: digest_only }
+  power_drift:        { rank: 50, route: digest_only }
   parity_slow:        { rank: 55, route: daily_headline }
   unraid_warning:     { rank: 60, route: daily_headline }
   clock_skew:         { rank: 50, route: daily_headline }

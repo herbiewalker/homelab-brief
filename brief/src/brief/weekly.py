@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
-from brief import replay
+from brief import power, replay
 from brief.render_md import clip
 from brief.store import Store
 from brief.systems import Systems
@@ -36,6 +36,10 @@ def _pct(now: int, before: int) -> str:
         return "new" if now else "-"
     change = (now - before) / before * 100
     return f"{change:+.0f}%"
+
+
+def _pct_float(now: float, before: float) -> str:
+    return f"{(now - before) / before * 100:+.0f}%"
 
 
 def _label(app, template) -> str:
@@ -95,6 +99,25 @@ def weekly_markdown(store: Store, systems: Systems, monday: date, env=None) -> l
     if not volume:
         lines.append("| (no data) | 0 | 0 | - |")
     lines += ["", f"{total:,} counted events this week; {int(failed)} parse failures."]
+
+    with store.read() as db:
+        usage = power.weekly(db, labels, datetime.combine(monday, time(0, 0), tzinfo=UTC))
+    if usage:  # only when Home Assistant power data exists, so a plain install is unchanged
+        lines += [
+            "",
+            "## Power and energy",
+            "",
+            "| System | kWh this week | Last week | Change | Average draw |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+        for u in sorted(usage, key=lambda x: -(x["kwh"] or 0)):
+            kwh, before = u["kwh"], u["kwh_before"]
+            change = _pct_float(kwh, before) if kwh is not None and before else "-"
+            avg = f"{u['avg_w']:.0f} W" if u["avg_w"] is not None else "-"
+            lines.append(
+                f"| {u['label']} | {f'{kwh:.1f}' if kwh is not None else '-'} | "
+                f"{f'{before:.1f}' if before is not None else '-'} | {change} | {avg} |"
+            )
 
     lines += ["", "## Biggest movers", ""]
     movers.sort(key=lambda m: (-abs(m[0]), m[3], m[4]))
