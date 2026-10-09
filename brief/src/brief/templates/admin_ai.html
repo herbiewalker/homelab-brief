@@ -124,6 +124,24 @@
   </table></div>{% endif %}
 </div>
 
+<h2>Ask the lab</h2>
+<div class="card">
+  <p class="muted">A question answered by the <strong>ask_the_lab</strong> agent from the read-only tools, with a citation for every fact. It runs in the background, so the answer appears below in a few seconds to a minute. Needs AI, the agents feature, and this agent switched on.</p>
+  <form method="post" action="/admin/ai/ask" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input name="question" placeholder="For example: why was the gateway busy last night?" maxlength="300" required>
+    <button type="submit">Ask</button>
+  </form>
+  <div hx-get="/admin/ai/ask/recent" hx-trigger="load" hx-swap="outerHTML"></div>
+</div>
+
+<h2>Triage verdicts</h2>
+<div class="card">
+  {% if verdicts %}<div class="scroll"><table class="wide"><tr><th>Signature</th><th>App</th><th>Verdict</th><th>Why</th><th>When</th></tr>
+  {% for v in verdicts %}<tr><td>{{ v.sig_id }}</td><td>{{ v.app or '' }}</td><td>{{ v.verdict }}</td><td>{{ v.reason }}</td><td>{{ v.created }}</td></tr>{% endfor %}</table></div>
+  {% else %}<p class="muted">No verdicts yet. A verdict is advice; it never ignores or routes anything by itself.</p>{% endif %}
+</div>
+
 <h2>Proposals</h2>
 <div class="card">
   <p class="muted">Changes that an agent or an outside client suggests. <strong>Nothing changes until you approve.</strong> Approving saves the file through the config editor (checked again, kept as a version you can roll back, and written to the audit log). Rejecting is logged too. A proposal made against an older version of the file is closed instead of applied.</p>

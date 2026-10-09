@@ -8,7 +8,7 @@ select = ["E", "F", "I", "UP", "B"]
 
 [lint.per-file-ignores]
 # Long literal strings (log lines, SQL, HTML) read better unwrapped in tests and the end-to-end scripts.
-"**/tests/**" = ["E501"]
+"**/tests/**" = ["E501", "F811"]  # F811: fixtures imported from another test module are redefined as arguments
 "scripts/e2e_*.py" = ["E501"]
 "brief/src/brief/cli_tools.py" = ["E501"]  # one-line command output formats and help text
 "brief/src/brief/cli_ai.py" = ["E501"]  # the same, for `brief ai`
@@ -21,4 +21,9 @@ select = ["E", "F", "I", "UP", "B"]
 "brief/src/brief/agenttools.py" = ["E501"]  # tool descriptions and schema literals
 "brief/src/brief/agentrun.py" = ["E501"]  # one-line log, tool, and prompt strings
 "brief/src/brief/proposals.py" = ["E501"]  # one-line messages
+"brief/src/brief/yamlscalar.py" = ["E501"]  # long messages and docstrings
+"brief/src/brief/agenttriggers.py" = ["E501"]  # long messages and docstrings
+"brief/src/brief/agentnotes.py" = ["E501"]  # long messages and docstrings
+"brief/src/brief/agentguards.py" = ["E501"]  # long messages and docstrings
+"brief/src/brief/agentout.py" = ["E501"]  # long messages and docstrings
 "brief/src/brief/mcptokens.py" = ["E501"]  # one-line messages

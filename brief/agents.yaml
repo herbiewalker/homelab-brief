@@ -25,15 +25,15 @@ agents:
   triage:
     enabled: false
     trigger: { on_new_signatures: true, after_learning_period: true }
-    tools: [get_signature, get_history, search_logs, list_systems, get_config, propose_change]
-    output: proposals                   # ignore rules or playbook rules, for your approval
+    tools: [get_signature, get_history, search_logs, list_systems]
+    output: verdicts                    # a verdict per signature; ignore and playbook proposals are made by the product
     prompt: prompts/agent_triage.md
 
   tuner:
     enabled: false
     trigger: { schedule: weekly }
-    tools: [run_replay, list_findings, get_history, get_config, propose_change]
-    output: proposals                   # threshold and routing changes, with replay evidence
+    tools: [run_replay, list_findings, get_history, get_status]
+    output: proposals                   # single-value changes; the product replays each one and writes the evidence
     prompt: prompts/agent_tuner.md
 
   ask_the_lab:

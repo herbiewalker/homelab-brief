@@ -5,6 +5,17 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.39
+
+Task 29: the four agents (still off by default; each needs `ai.yaml` + `features.agents` and its own `enabled`).
+
+- **Investigator**: queued after the daily run for each story whose kind ranks at or above `on_finding_rank_at_least` (three a day at most, none repeated within three days), or on demand. Its cited note shows on the Findings page, on the host's detail page (within the 150-line limit), and through MCP (`get_finding`, and a flag in `list_findings`).
+- **Triage**: queued for the busiest new signatures after learning ends; answers with a JSON verdict per signature (noise, watch, concern, unsure), each needing a real citation. A noise verdict may carry an ignore rule and a concern verdict a playbook rule; the product builds the file change itself and records it as a proposal.
+- **Tuner**: queued weekly; suggests up to three single-value changes (for example `lifecycle.renotify_hours`). The product applies each to a copy, replays the last week with and without it, and writes those numbers into the proposal itself.
+- **Ask the lab**: a question box on the AI page; the cited answer appears when the worker has run it.
+- **Safety rules, in code** (`agentguards.py`, run for every proposal): triage can only add ignore or playbook rules and never ignores disk, authentication, or security events (refused if the rule names one, would also match a recent line about one, or is too broad); the tuner never touches disk, parity, SMART, storage, or absence settings, never suppresses a kind, and is refused if the replay shows an acknowledged, snoozed, urgent, or protected finding would be hidden. Triage and tuner cannot use the `propose_change` tool.
+- `brief agent verdicts`; a Triage verdicts table on the AI page.
+
 ## 0.0.38
 
 Task 28: the proposals workflow.

@@ -19,7 +19,7 @@ IGNORE = (BRIEF / "ignore.yaml").read_text()
 TRIAGE = """schema: 1
 defaults: {max_steps: 5, max_tool_calls: 12, max_tokens_per_run: 9000, timeout_s: 60, max_runs_per_day: 5, chain: [CHAIN]}
 agents:
-  triage: {enabled: true, tools: [get_status, get_config, propose_change], prompt: prompts/agent_investigator.md}
+  helper: {enabled: true, tools: [get_status, get_config, propose_change], prompt: prompts/agent_investigator.md}
 """
 
 
@@ -34,7 +34,7 @@ def cfg(env):
 
 def make(env, **kw):
     old, _ = configedit.current("ignore.yaml")
-    args = {"source": "agent:triage", "file": "ignore.yaml", "new_text": edited(old), "reason": "noisy",
+    args = {"source": "agent:helper", "file": "ignore.yaml", "new_text": edited(old), "reason": "noisy",
             "evidence": "seen a lot [ref:r1]"}  # fmt: skip
     args.update(kw)
     return proposals.create(
@@ -56,7 +56,7 @@ def test_a_proposal_is_a_record_and_the_file_is_untouched(lab):  # noqa: F811
     assert configedit.current("ignore.yaml") == before and not (cfg(lab) / "ignore.yaml").exists()
     p = proposals.get(lab.store, pid)
     assert p.status == "pending" and p.base_digest == configedit.digest(before[0])
-    assert actions(lab, "proposal") == [("agent:triage", "proposal.create")]
+    assert actions(lab, "proposal") == [("agent:helper", "proposal.create")]
 
 
 @pytest.mark.parametrize(
@@ -99,7 +99,7 @@ def test_no_change_a_duplicate_a_huge_change_and_too_many_are_refused(lab):  # n
 
 def test_a_guard_can_refuse_a_proposal(lab, monkeypatch):  # noqa: F811
     setup(lab)
-    monkeypatch.setattr(proposals, "GUARDS", [lambda f, old, new, who: "no, because of a safety rule"])
+    monkeypatch.setattr(proposals, "GUARDS", [lambda d: "no, because of a safety rule"])
     with pytest.raises(proposals.ProposalError, match="safety rule"):
         make(lab)
 
@@ -121,7 +121,7 @@ def test_approval_applies_through_the_config_editor_with_a_version_and_audit(lab
         kept and configedit.version_text(lab.settings.state_dir, "ignore.yaml", kept[0].stamp) == old
     )  # rollback
     assert actions(lab, ("proposal", "config")) == [
-        ("agent:triage", "proposal.create"),
+        ("agent:helper", "proposal.create"),
         ("admin:me", "config.proposal"),
         ("admin:me", "proposal.approved"),
     ]
@@ -193,7 +193,7 @@ def test_an_agent_proposes_through_its_tools_and_must_cite_real_results(lab):  #
         calls(("propose_change", bad), ("propose_change", fake), ("propose_change", good)),
         final("I proposed a change [ref:r5]."),
     )
-    r = go(lab, model, name="triage")
+    r = go(lab, model, name="helper")
     assert r.outcome == "ok"
     assert [(s["tool"], s["outcome"]) for s in rows(lab, "agent_step")] == [
         ("get_status", "ok"),
@@ -203,7 +203,7 @@ def test_an_agent_proposes_through_its_tools_and_must_cite_real_results(lab):  #
         ("propose_change", "ok"),
     ]
     made = proposals.listing(lab.store)
-    assert len(made) == 1 and made[0].source == "agent:triage" and made[0].run_id == r.run_id
+    assert len(made) == 1 and made[0].source == "agent:helper" and made[0].run_id == r.run_id
     assert "Results cited: r1 (get_status)" in made[0].evidence
     assert not (cfg(lab) / "ignore.yaml").exists()  # still only a proposal
 
@@ -216,15 +216,15 @@ def test_an_agent_makes_at_most_three_proposals_per_run(lab):  # noqa: F811
                             "evidence": "ok [ref:r1]"})
         for i in range(5)
     ]  # fmt: skip
-    r = go(lab, Model(calls(("get_status", {})), calls(*tries), final("done [ref:r1].")), name="triage")
+    r = go(lab, Model(calls(("get_status", {})), calls(*tries), final("done [ref:r1].")), name="helper")
     assert len(proposals.listing(lab.store)) == 3 and r.outcome == "ok"
 
 
 def test_a_cloud_agent_can_neither_read_nor_propose_config(lab):  # noqa: F811
     cloud = "  - {id: far, type: openai_compatible, base_url: 'https://cloud.invalid/v1', model: m, enabled: true, locality: cloud}\n"
-    setup(lab, providers=cloud, allow_cloud="[triage]", agents=TRIAGE.replace("CHAIN", "far"))
+    setup(lab, providers=cloud, allow_cloud="[helper]", agents=TRIAGE.replace("CHAIN", "far"))
     model = Model(final("x [ref:r1]"))
-    go(lab, model, name="triage")
+    go(lab, model, name="helper")
     assert {t["function"]["name"] for t in model.bodies[0]["tools"]} == {"get_status"}
 
 
@@ -284,9 +284,9 @@ def test_the_ai_page_shows_the_diff_and_approves_and_rejects(lab):  # noqa: F811
 def test_cli_lists_shows_approves_and_rejects(box, capsys):  # noqa: F811
     _, user, state, store = box
     old, _ = configedit.current("ignore.yaml")
-    a = proposals.create(store, "agent:triage", "ignore.yaml", edited(old), "noisy", "seen [ref:r1]")
+    a = proposals.create(store, "agent:helper", "ignore.yaml", edited(old), "noisy", "seen [ref:r1]")
     b = proposals.create(
-        store, "agent:triage", "ignore.yaml", edited(old) + "# b\n", "again", "seen [ref:r1]"
+        store, "agent:helper", "ignore.yaml", edited(old) + "# b\n", "again", "seen [ref:r1]"
     )
     assert cli.main(["proposal", "list"]) == 0 and "noisy" in capsys.readouterr().out
     assert cli.main(["proposal", "show", str(a)]) == 0
@@ -296,7 +296,7 @@ def test_cli_lists_shows_approves_and_rejects(box, capsys):  # noqa: F811
     assert cli.main(["proposal", "approve", str(b)]) == 1 and "changed after" in capsys.readouterr().err
     assert cli.main(["proposal", "reject", str(a)]) == 1  # already decided
     c = proposals.create(
-        store, "agent:triage", "ignore.yaml", (user / "ignore.yaml").read_text() + "# c\n", "c", "e"
+        store, "agent:helper", "ignore.yaml", (user / "ignore.yaml").read_text() + "# c\n", "c", "e"
     )
     assert cli.main(["proposal", "reject", str(c), "--note", "later"]) == 0
     assert cli.main(["proposal", "list", "--all"]) == 0 and "rejected" in capsys.readouterr().out

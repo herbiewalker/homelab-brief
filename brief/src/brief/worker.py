@@ -13,7 +13,19 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brief import __version__, agentrun, aitasks, detect, livestatus, proposals, registry, selfmon, weekly
+from brief import (
+    __version__,
+    agentnotes,
+    agentrun,
+    agenttriggers,
+    aitasks,
+    detect,
+    livestatus,
+    proposals,
+    registry,
+    selfmon,
+    weekly,
+)
 from brief.alerts import drain_feedback
 from brief.collectors import framework
 from brief.config import ConfigError, config_file, load_mapping
@@ -239,6 +251,11 @@ class Worker:
             tx.set_meta("last_weekly_key", self._schedule().weekly_key(now))
         log("weekly_written", week=monday.isoformat(), path=str(path.name))
         self._weekly_summary(path, now)
+        try:
+            for job in agenttriggers.after_weekly(self.store, now, self.env):
+                log("agent_queued", job=job)
+        except Exception as exc:  # agents are secondary to the report
+            log("agent_trigger_failed", error=f"{type(exc).__name__}: {exc}")
         return path
 
     def _weekly_summary(self, report: Path, now: datetime) -> None:
@@ -288,7 +305,18 @@ class Worker:
         )
         with self.store.write() as tx:
             tx.set_meta("last_daily_date", now.strftime("%Y-%m-%d"))
+        self._agent_follow_up(now)
         return digest
+
+    def _agent_follow_up(self, now: datetime) -> None:
+        """After a daily run: queue what is worth an agent's time, and put existing notes on the new pages."""
+        try:
+            status_doc = read_json(self.out_dir / "latest" / "status.json") or {}
+            for job in agenttriggers.after_daily(self.store, status_doc, now, self.env):
+                log("agent_queued", job=job)
+            agentnotes.attach(self.store, self.out_dir, status_doc, now)
+        except Exception as exc:  # agents are secondary to the brief
+            log("agent_trigger_failed", error=f"{type(exc).__name__}: {exc}")
 
     def _apply_feedback(self) -> None:
         """Home Assistant button presses (ack, snooze) that arrived since the last cycle."""
@@ -321,6 +349,10 @@ class Worker:
                 livestatus.provider(self.store, self.settings, self.state),
                 env=self.env,
             )
+            if done and done.startswith("investigator"):
+                agentnotes.attach(
+                    self.store, self.out_dir, read_json(self.out_dir / "latest" / "status.json") or {}
+                )
             if done:
                 log("agent_job", result=done)
         except Exception as exc:  # agents are secondary to ingest

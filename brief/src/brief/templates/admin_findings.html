@@ -8,7 +8,7 @@
 {% elif stories %}
 <table class="wide">
   <thead><tr><th>#</th><th>Story</th><th>System</th><th>Route</th><th class="num">Findings</th></tr></thead>
-  {% for s in stories %}<tr><td>{{ s.rank }}</td><td>{{ s.title }}</td><td>{{ s.system or '' }}</td><td><span class="badge {{ 'bad' if s.route == 'push_now' else '' }}">{{ s.route }}</span></td><td class="num">{{ s.count }}</td></tr>{% endfor %}
+  {% for s in stories %}<tr><td>{{ s.rank }}</td><td>{{ s.title }}</td><td>{{ s.system or '' }}</td><td><span class="badge {{ 'bad' if s.route == 'push_now' else '' }}">{{ s.route }}</span></td><td class="num">{{ s.count }}</td></tr>{% if notes.get(s.id) %}<tr><td></td><td colspan="4"><details><summary>Investigation note <span class="muted">(AI agent; every line cites a tool result)</span></summary><pre>{{ notes[s.id].output }}</pre></details></td></tr>{% endif %}{% endfor %}
 </table>
 {% else %}Nothing needs a look.{% endif %}
 </div>

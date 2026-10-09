@@ -208,9 +208,9 @@ Spec: `docs/guide/10-agents.md`. Starts after Tasks 19, 20, 24, and 26, because 
 - [x] Proposal objects (file, diff, reason, evidence) created only by agents or a `propose`-scoped MCP token; shown on the AI page; approve or reject; approval applies through the normal config path (validation, versioning, rollback, audit log).
 - Accept: a proposal changes nothing until approved; approval and rejection are both logged; an invalid proposal cannot be approved.
 
-## Task 29: Investigator, triage, tuner, ask the lab
-- [ ] The four agents and their prompts, with structured outputs; the investigator's note attaches to the finding in the GUI, the brief's detail page, and MCP.
-- [ ] Locked safety rules: triage never proposes ignoring disk, authentication, or security events; the tuner never proposes changes that would hide an acknowledged or urgent finding, and every tuner proposal carries replay evidence.
+## Task 29: Investigator, triage, tuner, ask the lab (built 2026-10-09, version 0.0.39; scripted model only)
+- [x] The four agents and their prompts, with structured outputs; the investigator's note attaches to the finding in the GUI, the brief's detail page, and MCP.
+- [x] Locked safety rules: triage never proposes ignoring disk, authentication, or security events; the tuner never proposes changes that would hide an acknowledged or urgent finding, and every tuner proposal carries replay evidence.
 - Accept: each agent produces a valid output on its fixtures; the safety rules are enforced in code, not only in prompts.
 
 ## Task 30: Agent evaluation

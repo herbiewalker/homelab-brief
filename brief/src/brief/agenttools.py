@@ -92,6 +92,11 @@ def list_findings(ctx: Context, args: Mapping) -> dict:
     for key in ("stories", "developing", "quiet"):
         doc[key] = _without_device_findings(list(doc.get(key) or []), ctx)
     doc["stories"] = doc["stories"][:limit]
+    from brief import agentnotes
+
+    for s in doc["stories"]:
+        if isinstance(s, dict) and isinstance(s.get("id"), str) and agentnotes.note_for(ctx.store, s["id"]):
+            s["has_investigation"] = True  # read it with get_finding
     return doc
 
 
@@ -321,6 +326,22 @@ def get_finding(ctx: Context, args: Mapping) -> dict:
     finding_id = _text(args, "finding_id", 300, required=True)
     _, systems, _ = ctx.status()
     finding = aitasks.find_finding(ctx.store, systems, finding_id, datetime.now(UTC))
+    if finding is None and finding_id.startswith("group-"):
+        # a grouped story is not one finding: all there is to read is the investigation, if any
+        from brief import agentnotes
+
+        device_level = any(finding_id.startswith(f"group-{k}-") for k in DEVICE_KINDS)
+        note = (
+            None
+            if device_level and not ctx.client.allows("devices")
+            else agentnotes.note_for(ctx.store, finding_id)
+        )
+        if note:
+            return {
+                "id": finding_id,
+                "grouped": True,
+                "investigation": {"run": note["run_id"], "when": note["started"], "note": note["output"]},
+            }
     if finding is None or (finding.kind in DEVICE_KINDS and not ctx.client.allows("devices")):
         raise ToolError("there is no such finding")
     detail = {k: v for k, v in finding.detail.items() if v is not None}
@@ -330,6 +351,11 @@ def get_finding(ctx: Context, args: Mapping) -> dict:
         out["host"] = finding.host
     if ctx.client.allows("logs"):
         out["recent_lines"] = aitasks._samples(ctx.store, finding)
+    from brief import agentnotes
+
+    note = agentnotes.note_for(ctx.store, finding.id)
+    if note:
+        out["investigation"] = {"run": note["run_id"], "when": note["started"], "note": note["output"]}
     return out
 
 
@@ -468,6 +494,10 @@ def propose_change(ctx: Context, args: Mapping) -> dict:
         _text(args, "reason", proposals.MAX_REASON),
         _text(args, "evidence", proposals.MAX_EVIDENCE),
     )
+    if ctx.source == "agent" and ctx.client.name in STRUCTURED_AGENTS:
+        raise ToolError(
+            "this agent's proposals are made by the product from its structured answer, not with this tool"
+        )
     if ctx.source == "agent":
         cited = set(re.findall(r"\[ref:(r\d+)\]", evidence))
         known = ctx.evidence or {}
@@ -485,6 +515,10 @@ def propose_change(ctx: Context, args: Mapping) -> dict:
     return {"proposal": pid, "status": "pending", "note": "Nothing has changed. A person must approve it."}
 
 
+STRUCTURED_AGENTS = (
+    "triage",
+    "tuner",
+)  # their proposals come from agentout, which adds the replay and the checks
 PROPOSABLE_FILES = (
     "ignore.yaml",
     "priorities.yaml",

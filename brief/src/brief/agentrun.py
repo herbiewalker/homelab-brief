@@ -23,7 +23,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from brief import ai, lifecycle
+from brief import agentout, ai, lifecycle
+from brief.agentout import check_citations  # noqa: F401  (re-exported)
 from brief.agenttools import TOOLS, Context, call_tool
 from brief.aiguard import privacy_leak, private_terms
 from brief.config import ConfigError, config_file, load_mapping
@@ -40,8 +41,6 @@ LIMITS = {  # key: (lowest, highest) accepted in agents.yaml
     "timeout_s": (10, 3600),
     "max_runs_per_day": (1, 500),
 }
-CITATION = re.compile(r"\[ref:(r\d+)\]")
-SENTENCE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\[])")
 BUSY_WINDOW = timedelta(minutes=2)  # a model call this recent by anything else means the server is busy
 MAX_QUEUE = 50
 MAX_SUBJECT = 600
@@ -86,6 +85,13 @@ class Result:
 # ---------------------------------------------------------------- agents.yaml
 
 
+def _output(name: str, value) -> str:
+    value = str(value or "text")
+    if value not in agentout.OUTPUTS:
+        raise ConfigError(f"agents.yaml: agents.{name}.output must be one of {', '.join(agentout.OUTPUTS)}")
+    return value
+
+
 def parse(data: Mapping) -> dict[str, Spec]:
     """The agents in agents.yaml with their defaults filled in. Raises ConfigError for anything unusable."""
     defaults = data.get("defaults") or {}
@@ -128,7 +134,7 @@ def parse(data: Mapping) -> dict[str, Spec]:
             tools=tuple(dict.fromkeys(tools)),
             chain=tuple(chain),
             prompt=str(merged.get("prompt") or f"prompts/agent_{name}.md"),
-            output=str(merged.get("output") or "text"),
+            output=_output(name, merged.get("output")),
             trigger=merged.get("trigger") or {},
             **limits,
         )
@@ -142,45 +148,6 @@ def load(env: Mapping[str, str] | None = None) -> dict[str, Spec]:
     except (ConfigError, OSError) as exc:
         log("config_error", file="agents.yaml", error=str(exc), kept="no agents")
         return {}
-
-
-# ---------------------------------------------------------------- the output: evidence or it is dropped
-
-
-def check_citations(text: str, evidence: set[str]) -> tuple[str, int, int]:
-    """(kept text, statements kept, statements dropped). A statement is kept only if it cites at least one
-    result and every result it cites is real and succeeded. A heading survives only with something under it."""
-    blocks: list[tuple[str, list[str]]] = [("", [])]  # (heading line, kept statements)
-    kept = dropped = 0
-    for line in ai.clean(text).splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        if re.match(r"^#{1,6}\s", stripped) or (
-            stripped.endswith(":") and not CITATION.search(stripped) and len(stripped) < 60
-        ):
-            blocks.append((stripped, []))
-            continue
-        prefix = re.match(r"^\s*(?:[-*]|\d+[.)])\s+", line)
-        lead = prefix.group(0).strip() + " " if prefix else ""
-        body = line[prefix.end() :].strip() if prefix else stripped
-        first = True
-        for sentence in SENTENCE.split(body):
-            cited = CITATION.findall(sentence)
-            if cited and all(c in evidence for c in cited):
-                blocks[-1][1].append((lead if first else "") + sentence)
-                first = False
-                kept += 1
-            else:
-                dropped += 1
-    lines: list[str] = []
-    for heading, statements in blocks:
-        if not statements:
-            continue
-        if heading:
-            lines.append(heading)
-        lines.extend(statements)
-    return "\n".join(lines), kept, dropped
 
 
 # ---------------------------------------------------------------- talking to a provider with tools
@@ -370,7 +337,7 @@ def _loop(store, spec, subject, settings, app, status, now, background, post, en
                 store, now, task, p, "skipped", detail="every tool of this agent reads device or log detail"
             )
             continue
-        user = f"Subject: {subject}" if subject else "No subject was given."
+        user = agentout.user_message(spec.output, subject)
         if cloud:
             leak = privacy_leak(system + "\n" + user, terms)
             if leak:
@@ -383,7 +350,21 @@ def _loop(store, spec, subject, settings, app, status, now, background, post, en
         ctx = Context(store, app, client, status, source="agent", run_id=run_id)
         try:
             return _converse(
-                store, spec, p, system, user, names, ctx, settings, now, post, clock, run_id, task
+                store,
+                spec,
+                p,
+                system,
+                user,
+                names,
+                ctx,
+                settings,
+                now,
+                post,
+                clock,
+                run_id,
+                task,
+                subject,
+                env,
             )
         except ai.ProviderError as exc:
             ai._record(store, now, task, p, exc.outcome, detail=exc.detail[:120])
@@ -391,7 +372,9 @@ def _loop(store, spec, subject, settings, app, status, now, background, post, en
     return Result("failed", detail=last)
 
 
-def _converse(store, spec, p, system, user, names, ctx, settings, now, post, clock, run_id, task) -> Result:
+def _converse(
+    store, spec, p, system, user, names, ctx, settings, now, post, clock, run_id, task, subject, env
+) -> Result:
     messages: list[dict] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     allowed = set(names)
     started = clock()
@@ -456,10 +439,12 @@ def _converse(store, spec, p, system, user, names, ctx, settings, now, post, clo
             )
     if final is None:
         return r
-    kept_text, r.kept, r.dropped = check_citations(final, set(evidence))
+    kept_text, r.kept, r.dropped = agentout.finish(
+        store, spec, subject, final, evidence, run_id, env, datetime.now(UTC), systems=ctx.status()[1]
+    )
     r.text = kept_text
-    r.outcome = "ok" if kept_text else "no_evidence"
-    r.detail = "" if kept_text else "nothing in the reply cited a tool result"
+    r.outcome = "ok" if r.kept else "no_evidence"
+    r.detail = "" if r.kept else "nothing in the reply cited a tool result"
     return r
 
 
@@ -567,5 +552,38 @@ def queue(store: Store) -> list[dict]:
             for r in db.execute(
                 "SELECT job_id, agent, subject, trigger, created, status FROM agent_job "
                 "WHERE status IN ('queued', 'running') ORDER BY created"
+            )
+        ]
+
+
+def ask_history(store: Store, limit: int = 5) -> tuple[list[dict], list[dict]]:
+    """(recent Ask-the-lab runs with their answers, questions still waiting)."""
+    with store.read() as db:
+        done = [
+            dict(r)
+            for r in db.execute(
+                "SELECT run_id, started, subject, outcome, output, detail FROM agent_run "
+                "WHERE agent = 'ask_the_lab' ORDER BY run_id DESC LIMIT ?",
+                (limit,),
+            )
+        ]
+        waiting = [
+            dict(r)
+            for r in db.execute(
+                "SELECT job_id, created, subject FROM agent_job WHERE agent = 'ask_the_lab' "
+                "AND status IN ('queued', 'running') ORDER BY created"
+            )
+        ]
+    return done, waiting
+
+
+def verdicts(store: Store, limit: int = 20) -> list[dict]:
+    with store.read() as db:
+        return [
+            dict(r)
+            for r in db.execute(
+                "SELECT v.sig_id, v.verdict, v.reason, v.created, s.app FROM agent_verdict v "
+                "LEFT JOIN signature s ON s.sig_id = v.sig_id ORDER BY v.created DESC, v.sig_id LIMIT ?",
+                (limit,),
             )
         ]

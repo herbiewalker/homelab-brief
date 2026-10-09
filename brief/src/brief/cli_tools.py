@@ -194,6 +194,8 @@ def add_parsers(sub) -> None:
     ar.add_argument("subject", nargs="?", default="", help="a finding id or a question")
     ar.add_argument("--now", action="store_true", help="run here, now, and print the note")
     ag.add_parser("queue", help="runs waiting for the worker")
+    agv = ag.add_parser("verdicts", help="what the triage agent decided about new signatures")
+    agv.add_argument("--limit", type=int, default=20)
     arr = ag.add_parser("runs", help="recent runs")
     arr.add_argument("--limit", type=int, default=20)
     ag.add_parser("show", help="one run: its tool steps and its note").add_argument("run_id", type=int)
@@ -595,6 +597,13 @@ def _agent(args, state, store, out, err) -> int:
                 f"{r['kept']} kept {r['dropped']} dropped  {r['subject'] or ''}"[:160])  # fmt: skip
         if not rows:
             out("No agent runs yet.")
+        return 0
+    if args.cmd == "verdicts":
+        rows = agentrun.verdicts(store, args.limit)
+        for v in rows:
+            out(f"sig {v['sig_id']:<6}{v['verdict']:<9}{(v['app'] or '')[:14]:<15}{v['reason'][:90]}")
+        if not rows:
+            out("No triage verdicts yet.")
         return 0
     if args.cmd == "queue":
         rows = agentrun.queue(store)

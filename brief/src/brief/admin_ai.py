@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from brief import (
     agentrun,
+    ai,
     aiconfig,
     aitasks,
     aitools,
@@ -39,6 +40,7 @@ DONE = {
     "revoked": "Token revoked. It no longer works.",
     "approved": "Approved and applied through the config editor (see its history for the old version).",
     "rejected": "Rejected. Nothing was changed.",
+    "asked": "Asked. The answer appears under Ask the lab when the worker has run it.",
 }
 
 
@@ -81,6 +83,7 @@ def register(admin: APIRouter, d: Deps) -> None:
                 for s in agentrun.load().values()
             ],
             agent_runs=agentrun.recent_runs(d.store, 10),
+            verdicts=agentrun.verdicts(d.store, 15),
             agent_queue=agentrun.queue(d.store),
             proposals=[proposals.view(p) for p in proposals.listing(d.store)],
             proposal_history=proposals.listing(d.store, None, 10),
@@ -153,6 +156,27 @@ def register(admin: APIRouter, d: Deps) -> None:
         except proposals.ProposalError as exc:
             return page(request, exc.status, error=str(exc))
         return RedirectResponse("/admin/ai?done=rejected", status_code=303)
+
+    @admin.post("/ai/ask")
+    async def ask(request: Request):
+        form = await request.form()
+        question = str(form.get("question", "")).strip()[:300]
+        user = f"admin:{d.session(request).username}"
+        spec = agentrun.load().get("ask_the_lab")
+        if not question:
+            return page(request, 422, error="Type a question first.")
+        if spec is None or not spec.enabled or not ai.feature_on(ai.load_settings(), "agents"):
+            return page(
+                request, 422, error="Ask the lab is off: switch on AI, the agents feature, and this agent."
+            )
+        if not agentrun.enqueue(d.store, "ask_the_lab", question, "on_demand", user):
+            return page(request, 422, error="That question is already waiting, or the queue is full.")
+        return RedirectResponse("/admin/ai?done=asked", status_code=303)
+
+    @admin.get("/ai/ask/recent", response_class=HTMLResponse)
+    def ask_recent(request: Request):
+        done, waiting = agentrun.ask_history(d.store)
+        return d.render(request, "_ask_recent.html", done=done, waiting=waiting)
 
     @admin.get("/ai", response_class=HTMLResponse)
     def ai_page(request: Request, done: str = ""):

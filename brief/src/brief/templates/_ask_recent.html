@@ -1,0 +1,7 @@
+<div{% if waiting %} hx-get="/admin/ai/ask/recent" hx-trigger="every 4s" hx-swap="outerHTML"{% endif %}>
+{% for w in waiting %}<p class="muted">Waiting for the worker: {{ w.subject }}</p>{% endfor %}
+{% for r in done %}<div class="card">
+  <p><strong>{{ r.subject }}</strong> <span class="muted">{{ r.started }}, {{ r.outcome }}{% if r.detail %} ({{ r.detail }}){% endif %}</span></p>
+  {% if r.output %}<pre>{{ r.output }}</pre>{% else %}<p class="muted">No cited answer.</p>{% endif %}
+</div>{% endfor %}
+</div>

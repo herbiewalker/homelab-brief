@@ -27,9 +27,24 @@ MAX_REASON = 600
 MAX_EVIDENCE = 4000
 EXPIRE_AFTER = timedelta(days=14)
 
-# Extra rules a proposal must pass: (file, old text, new text, who) -> a reason to refuse, or None.
-# Task 29 adds the safety lines for the triage and tuner agents here.
-Guard = Callable[[str, str, str, str], str | None]
+
+@dataclass
+class Draft:
+    """A proposal about to be recorded, as the safety rules see it."""
+
+    store: Store
+    file: str
+    old: str
+    new: str
+    source: str
+    evidence: str
+    env: Mapping[str, str] | None
+    now: datetime
+
+
+# Extra rules a proposal must pass: (Draft) -> a reason to refuse, or None. The locked safety rules for the
+# triage and tuner agents live in agentguards.RULES and always run; GUARDS is for anything added beyond them.
+Guard = Callable[[Draft], str | None]
 GUARDS: list[Guard] = []
 
 
@@ -92,8 +107,11 @@ def create(
         raise ProposalError(
             f"A proposal may change at most {MAX_CHANGED_LINES} lines; propose a smaller step."
         )
-    for guard in GUARDS:
-        refusal = guard(file, old, new_text, source)
+    from brief import agentguards
+
+    draft = Draft(store, file, old, new_text, source, evidence, env, now)
+    for guard in [*agentguards.RULES, *GUARDS]:
+        refusal = guard(draft)
         if refusal:
             raise ProposalError(refusal)
     base = configedit.digest(old)

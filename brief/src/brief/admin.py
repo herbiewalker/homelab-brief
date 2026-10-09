@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from brief import __version__, admin_data, alerts, health
+from brief import __version__, admin_data, agentnotes, alerts, health
 from brief.settings import Settings
 from brief.store import Store
 
@@ -109,6 +109,9 @@ def register(admin: APIRouter, d: Deps) -> None:
             headline=status.get("headline"),
             generated=status.get("daily_generated_at"),
             stories=status.get("stories") or [],
+            notes=agentnotes.notes_by_story(
+                d.store, [s["id"] for s in status.get("stories") or [] if isinstance(s.get("id"), str)]
+            ),
             developing=status.get("developing") or [],
             alerts=admin_data.alert_rows(d.store, now),
         )
