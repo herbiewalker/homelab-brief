@@ -100,6 +100,9 @@
         "version_behind",
         "firmware_pending",
         "new_infrastructure",
+        "new_device",
+        "traffic_spike",
+        "odd_hours",
         "absence"
       ],
       "learning": false,
@@ -168,6 +171,9 @@
         "version_behind",
         "firmware_pending",
         "new_infrastructure",
+        "new_device",
+        "traffic_spike",
+        "odd_hours",
         "absence"
       ],
       "learning": false,

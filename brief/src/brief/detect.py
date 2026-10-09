@@ -13,9 +13,10 @@ from collections import defaultdict
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from brief import detect_hw
+from brief import detect_clients, detect_hw
 from brief import detectors as d
 from brief.config import ConfigError, config_file, load_mapping
+from brief.devices import DeviceBook
 from brief.learning import DEFAULT_DAYS, learning_status
 from brief.store import Store, iso
 from brief.systems import Systems
@@ -45,9 +46,20 @@ DEFAULTS = {
     "parity_slow": {"floor_mb_s": 40, "drop_vs_previous_pct": 50, "max_age_days": 40, "history": 5},
     "version_behind": {"days": 30},
     "new_infrastructure": {"settle_hours": 24, "show_days": 7},
+    "new_device": {"settle_hours": 24, "show_days": 3},
+    "traffic_spike": {"multiple": 5, "floor_gb": 2, "window_days": 14, "min_history_days": 3},
+    "odd_hours": {"min_online_min": 30},
     "storage_low": {"min_free_pct": 15, "min_days_until_full": 14},
 }
-DAILY = ("novelty", "deviation", "off_hours", "clock_skew", "metric_drift", *detect_hw.KINDS)
+DAILY = (
+    "novelty",
+    "deviation",
+    "off_hours",
+    "clock_skew",
+    "metric_drift",
+    *detect_hw.KINDS,
+    *detect_clients.KINDS,
+)
 HOURLY = ("absence",)
 ALL = HOURLY + DAILY
 
@@ -440,6 +452,7 @@ def run(
             md["min_samples"],
         )
     findings += _tag_systems(detect_hw.run(store, now, t, kinds), systems)
+    findings += detect_clients.run(store, now, t, kinds, DeviceBook.load(env))
     return {"learning": learning, "findings": findings}
 
 

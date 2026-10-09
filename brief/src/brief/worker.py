@@ -18,6 +18,7 @@ from brief.alerts import drain_feedback
 from brief.collectors import framework
 from brief.config import ConfigError, config_file, load_mapping
 from brief.configguard import ConfigGuard
+from brief.devices import ClientPolicy
 from brief.ignore import IgnoreRules
 from brief.ingest import CycleResult, Pipeline
 from brief.jsonlog import log
@@ -118,6 +119,7 @@ class Worker:
                 log("config_error", file=name, error=str(exc), kept="last good version")
         if hasattr(self, "pipeline"):
             self.pipeline.set_config(self.systems, self.ignore)
+            self.pipeline.set_client_policy(ClientPolicy.load(self.env))
 
     def run_once(self) -> CycleResult:
         self._reload()

@@ -23,7 +23,8 @@ class UnifiApi:
         timeout: float = 10.0,
         verify_tls: bool = True,
     ):
-        self.base = base_url.rstrip("/") + "/" + api_path.strip("/")
+        self.root = base_url.rstrip("/")
+        self.base = self.root + "/" + api_path.strip("/")
         self._key, self.timeout = key, timeout
         self._context = tls_context(base_url, verify_tls)
 
@@ -49,3 +50,10 @@ class UnifiApi:
             if not batch or (isinstance(total, int) and offset >= total):
                 break
         return items
+
+    def get_root(self, path: str) -> dict:
+        """GET a path on the console itself (outside the Integration API), for the older Network endpoints."""
+        data = request_json(self.root + path, {"x-api-key": self._key}, self.timeout, self._context)
+        if not isinstance(data, dict):
+            raise ApiError("bad_response", "the reply was not an object")
+        return data

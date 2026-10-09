@@ -33,6 +33,13 @@ collectors:
     enabled: {enabled}
     url_var: UNIFI_URL
     key_var: UNIFI_API_KEY
+    clients: true
+    client_logs: true
+"""
+DEVICES = """schema: 1
+devices:
+  - { mac: "00:00:5e:00:53:41", label: "Full laptop", profile: full }
+  - { mac: "00:00:5e:00:53:42", label: "Security console", profile: security_only }
 """
 
 
@@ -68,6 +75,7 @@ def main(argv):
     (tmp / "config").chmod(0o777)
     conf = tmp / "config/brief/collectors.yaml"
     conf.write_text(YAML.format(enabled="true", fake=FAKE))
+    (tmp / "config/brief/devices.yaml").write_text(DEVICES)
     problems: list[str] = []
 
     def check(ok, message):
@@ -181,6 +189,44 @@ def main(argv):
         check(
             "7.5.10+17129" in result and "(2,)" in result,
             f"inventory and topology after the header: {result}",
+        )
+        # ---- clients: presence from the API, DNS and AP lines through Vector, each limited by profile
+        check(unifi["metrics"].get("unifi_clients") == 2, f"UniFi clients: {unifi['metrics']}")
+        lines = []
+        for mac in ("00:00:5e:00:53:41", "00:00:5e:00:53:42"):
+            dns = (
+                '{"type":"dnsAdBlock","category":"ADVERTISEMENT","domain":"ads.example","ip":"198.51.100.19",'
+                f'"mac":"{mac}","src_ip":"198.51.100.19"}}'
+            )
+            lines.append(f"host-gw host-gw coredns[4650]: {dns}")
+            lines.append(
+                f"host-ap 00005e005310,U7-Pro-Max-8.7.11+19419: wevent[7482]: wevent.ubnt_custom_event(): EVENT_STA_JOIN wifi2ap12: {mac} / 1"
+            )
+        send2 = (
+            "import socket,time;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);t=time.strftime('%b %e %H:%M:%S');"
+            f"[s.sendto(f'<14>{{t}} {{l}}'.encode(),('127.0.0.1',5514)) for l in {lines!r}]"
+        )
+        docker("exec", APP, "python", "-c", send2)
+        sql = (
+            "import sqlite3,json;c=sqlite3.connect('file:/state/baseline.db?mode=ro',uri=True);"
+            "print(json.dumps({'dns':[tuple(r) for r in c.execute(\"select client,queries,blocked from dns_hourly\")],"
+            "'clients':sorted(r[0] for r in c.execute(\"select mac from client\")),"
+            "'minutes':[tuple(r) for r in c.execute(\"select mac,online_min from client_hourly\")],"
+            "'suppressed':sorted(r[0] for r in c.execute(\"select rule from suppressed\") if r[0].startswith('device:'))}))"
+        )
+        until(
+            "the log lines to be ingested",
+            lambda: (
+                lambda seen: all(x in seen for x in ('"dns": [["00:00:5e:00:53:41"', "device:security_only"))
+            )(docker("exec", APP, "python", "-c", sql).stdout),
+        )
+        got = json.loads(docker("exec", APP, "python", "-c", sql).stdout)
+        check(got["dns"] == [["00:00:5e:00:53:41", 1, 1]], f"DNS rows: {got['dns']}")
+        check(got["clients"] == ["00:00:5e:00:53:41", "00:00:5e:00:53:42"], f"client rows: {got['clients']}")
+        check(got["minutes"] == [["00:00:5e:00:53:41", 60]], f"presence minutes: {got['minutes']}")
+        check(
+            got["suppressed"] == ["device:security_only"],
+            f"suppressed: {got['suppressed']}",
         )
         bad2 = docker(
             "exec", "-e", "UNIFI_API_KEY=wrong", APP, "brief", "collector", "test", "unifi", check=False

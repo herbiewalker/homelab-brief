@@ -161,9 +161,9 @@ Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.
 - [x] Detectors: `firmware_pending`, `new_infrastructure`.
 - Accept: fixture responses produce inventory, topology rows, and findings.
 
-## Task 21: Clients, traffic, and DNS activity
-- [ ] Client presence and hourly traffic (UniFi API, plus AP join/leave events from logs); per-client DNS activity from the gateway's coredns log lines (an AdGuard Home or Pi-hole adapter only if wanted).
-- [ ] Detectors: `new_device`, `traffic_spike`, `odd_hours`; all profile-aware via `devices.yaml`.
+## Task 21: Clients, traffic, and DNS activity (built 2026-10-09, version 0.0.31; the UniFi API parts are NOT yet proven against a live console, the log parts were proven through Vector in the real image)
+- [x] Client presence and hourly traffic (UniFi API, plus AP join/leave events from logs); per-client DNS activity from the gateway's coredns log lines (an AdGuard Home or Pi-hole adapter only if wanted).
+- [x] Detectors: `new_device`, `traffic_spike`, `odd_hours`; all profile-aware via `devices.yaml`.
 - Accept: a spike is judged against the device's own baseline; `security_only` suppresses activity detail; `ignore` stores nothing.
 
 ## Task 22: SNMP and iDRAC (optional)

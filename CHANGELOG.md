@@ -5,6 +5,15 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.31
+
+Task 21: clients, traffic, and DNS activity (off by default; every device is limited by its `devices.yaml` profile).
+
+- Presence and hourly traffic per device from the UniFi API (`clients`, `traffic`), and gateway DNS and access point join and leave lines from syslog (`client_logs`).
+- Profiles are enforced where data would be stored: `ignore` keeps nothing (its log lines are only counted as suppressed), `security_only` (the default for an unlisted device) keeps that the device exists and its traffic volume, `full` also keeps DNS detail and hourly presence. Client log lines of non-`full` devices stay out of the signature counts and samples.
+- Detectors `new_device`, `traffic_spike` (judged against the device's own usual day), and `odd_hours`, with playbook advice; hourly rows roll up to daily rows after 90 days. Migration none (tables from 0007).
+- `scripts/e2e_collector.py` now sends DNS and join lines through Vector in the real image and checks what each profile kept.
+
 ## 0.0.30
 
 Task 20: the UniFi collector (off by default; needs a read-only API key from the Network application).

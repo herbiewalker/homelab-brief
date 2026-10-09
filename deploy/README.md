@@ -105,6 +105,16 @@ The project proves the upgrade path in the release workflow: the new image is st
 4. **Without a key.** Firmware is read from the syslog headers of switches, access points, and PDUs anyway, so inventory and `firmware_pending` have it as soon as those devices log to the container. The collector reports the missing key as a failed run, but the header firmware is still stored.
 5. **What it finds.** `firmware_pending` (an update is waiting; after 30 days it becomes `version_behind`) and `new_infrastructure` (a gateway, switch, access point, PDU, or server that appeared after the first discovery pass; the first pass is treated as your starting inventory). Uplinks feed the network map.
 
+### Clients, traffic, and DNS (Task 21)
+
+This is the most personal data the product can hold, so it is off until you turn it on and every device is limited by its profile.
+
+1. **Profiles first.** Copy `brief/devices.example.yaml` to `config/brief/devices.yaml` and list the devices you care about by MAC with a `profile`: `full` (presence timeline, DNS detail, odd-hours check, traffic, new-device), `security_only` (that the device exists and when, and its traffic volume; **the default for any device you do not list**), or `ignore` (nothing at all is stored). Agree the profiles with the people whose devices they are. Quiet hours there are UTC.
+2. **Switch it on** in `collectors.yaml` under `unifi`: `clients: true` (who is connected, hourly), `traffic: true` (hourly byte counters from the older `stat/sta` endpoint; whether your console accepts the API key there is what `brief collector test unifi` and the `unifi_traffic_ok` sensor tell you), and `client_logs: true` (gateway DNS and access point join and leave lines from syslog).
+3. **What the logs add.** The gateway logs the blocked or categorised DNS queries, not every query, so DNS data is a view of filtering (which domains and categories were blocked for which device), not total DNS volume. For a device that is not `full`, its DNS and join lines are taken out of the generic log counts and samples, so they are not kept anywhere; for an `ignore` device they are counted only as "suppressed".
+4. **What it finds.** `new_device` (a device that appeared after the first pass and is not in `devices.yaml`), `traffic_spike` (the last 24 hours against that device's own usual day, never against other devices), and `odd_hours` (a `full` device online during its own quiet hours). Thresholds are in `playbook.yaml`.
+5. **Retention.** Hourly rows roll up to daily rows after `rollup_after_days` (90) in `retention.yaml`. Nothing here ever leaves the container: the AI layer never receives device-level data.
+
 - In Home Assistant, enable `mqtt_statestream` with base topic `homelab/ha` for the power entities you want, then list them in `collectors.yaml` (or the GUI).
 
 ## Rollback

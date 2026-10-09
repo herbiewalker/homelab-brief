@@ -1,6 +1,8 @@
 # Template. Copy to brief/devices.yaml (gitignored) and fill in real values there.
 # Never commit real MACs, names, or owners.
 # profile: full | security_only | ignore   (unknown devices default to security_only)
+# full: presence, DNS detail, odd-hours checks, traffic.  security_only: that it exists, and its traffic volume.
+# ignore: nothing is stored about it.  quiet_hours are UTC like every time in the config files.
 schema: 1
 devices:
   - mac: "00:00:00:00:00:01"

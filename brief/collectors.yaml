@@ -31,6 +31,12 @@ collectors:
     url_var: UNIFI_URL
     key_var: UNIFI_API_KEY
     verify_tls: true
+    # Client data (Task 21) is off until you turn it on, and every device is limited by its profile in
+    # devices.yaml (full | security_only | ignore; a device not listed is security_only). Quiet hours there are UTC.
+    clients: false             # who is connected now (hourly): client rows, and presence for `full` devices
+    traffic: false             # hourly traffic per device, from the older stat/sta endpoint (needs clients: true)
+    client_logs: false         # gateway DNS and access point join/leave lines from syslog (see docs/guide/06)
+    # traffic_path: /proxy/network/api/s/{site}/stat/sta
     # site: Default            # a site name; leave out for every site
     # api_path: /proxy/network/integration   # a UniFi OS console; a self-hosted application uses /integration
     # Firmware is also read from the syslog headers of switches, access points, and PDUs on every pass,

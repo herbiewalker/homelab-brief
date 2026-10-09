@@ -19,6 +19,8 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
+from brief import clients
+from brief.devices import ClientPolicy
 from brief.ignore import IgnoreRules
 from brief.signatures import Signatures
 from brief.store import Store, iso
@@ -66,6 +68,7 @@ class _Acc:
     latest_event: datetime | None = None
     skew: dict[str, list[float]] = field(default_factory=dict)  # host -> event minus receive, seconds
     devices: dict[str, tuple] = field(default_factory=dict)  # host -> (stamp, mac, model, firmware), newest
+    activity: clients.Activity = field(default_factory=clients.Activity)  # client events, filtered by profile
 
 
 class Pipeline:
@@ -88,6 +91,7 @@ class Pipeline:
         self.samples_per_signature = samples_per_signature
         self.max_bytes = max_bytes_per_cycle
         self.clock = clock
+        self.client_policy: ClientPolicy | None = None  # None until the worker loads devices.yaml
         with store.write() as tx:
             self.generation = tx.miner_generation()
             # If the miner's state file is gone but signatures exist, Drain3 would hand out cluster
@@ -100,6 +104,9 @@ class Pipeline:
 
     def set_config(self, systems: Systems, ignore: IgnoreRules) -> None:
         self.systems, self.ignore = systems, ignore
+
+    def set_client_policy(self, policy: ClientPolicy | None) -> None:
+        self.client_policy = policy
 
     # ------------------------------------------------------------------ the cycle
 
@@ -219,6 +226,9 @@ class Pipeline:
             result.suppressed += 1
             return
 
+        if self._client_event(app, msg, host, stamp, day, hour, acc, result):
+            return
+
         cluster = self.signatures.classify(app, msg)
         sig_id = ignored.get((self.generation, cluster.cluster_id))
         if sig_id is not None:
@@ -242,6 +252,24 @@ class Pipeline:
         c.samples.append((stamp, host, msg[:MAX_SAMPLE_CHARS]))
         if len(c.samples) > self.samples_per_signature * 4:  # keep memory bounded within a cycle
             c.samples = sorted(c.samples)[-self.samples_per_signature :]
+
+    def _client_event(self, app, msg, host, stamp, day, hour, acc, result) -> bool:
+        """Take client activity (gateway DNS, access point join and leave) out of the log stream, keeping what
+        the device's profile allows. True when the line was one, so the caller leaves it out of the signature
+        counts and samples unless the device is `full`."""
+        policy = self.client_policy
+        if policy is None or not policy.logs:
+            return False
+        event = clients.parse(app, msg)
+        if event is None:
+            return False
+        profile = policy.book.profile_of(event.mac)
+        acc.activity.record(event, profile, stamp, day, hour)
+        if profile == "full":
+            return False
+        acc.suppressed[(day, hour, host, f"device:{profile}")] += 1
+        result.suppressed += 1
+        return True
 
     # ------------------------------------------------------------------ the one transaction
 
@@ -275,6 +303,8 @@ class Pipeline:
                 tx.set_clock_skew(host, statistics.median(samples), now)
             for host, (stamp, mac, model, firmware) in acc.devices.items():
                 tx.set_device_header(host, mac, model, firmware, stamp)
+            if acc.activity:
+                clients.flush(tx.db, acc.activity)
             if acc.live_since is not None:
                 tx.note_live_data(acc.live_since)
             tx.set_offsets(new_offsets, now)

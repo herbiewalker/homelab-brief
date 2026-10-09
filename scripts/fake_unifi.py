@@ -46,6 +46,26 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(
                 200, page([{"id": "site-1", "name": "Default", "internalReference": "default"}])
             )
+        if path == "/v1/sites/site-1/clients":
+            return self.reply(
+                200,
+                page(
+                    [
+                        {
+                            "id": "cl-1",
+                            "macAddress": "00:00:5E:00:53:41",
+                            "name": "laptop-host",
+                            "type": "WIRELESS",
+                        },
+                        {
+                            "id": "cl-2",
+                            "macAddress": "00:00:5E:00:53:42",
+                            "name": "console-host",
+                            "type": "WIRELESS",
+                        },
+                    ]
+                ),
+            )
         if path == "/v1/sites/site-1/devices":
             return self.reply(200, page([{k: v for k, v in d.items() if k != "uplink"} for d in DEVICES]))
         match = re.fullmatch(r"/v1/sites/site-1/devices/(dev-\d+)", path)

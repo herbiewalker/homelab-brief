@@ -16,16 +16,20 @@ so inventory has firmware even when the API cannot be reached or no key is set.
 Clients, traffic, and DNS are Task 21; this collector never reads them.
 """
 
+import json
 import re
 from dataclasses import dataclass
+from datetime import timedelta
 
+from brief import clients
 from brief.collectors import topology
 from brief.collectors.base import Collector, CollectorError, Context
 from brief.collectors.framework import register
 from brief.collectors.httpjson import ApiError
 from brief.collectors.unifi_api import UnifiApi
-from brief.config import ConfigError
+from brief.config import ConfigError, config_file, load_mapping
 from brief.detectors_hw import UPDATE_FLAG
+from brief.devices import DeviceBook, norm_mac
 from brief.jsonlog import log
 from brief.store import iso
 
@@ -97,6 +101,68 @@ def parse_devices(items: list[dict]) -> list[Device]:
     return out
 
 
+@dataclass
+class Client:
+    mac: str  # colon form
+    hostname: str | None = None
+    vendor: str | None = None
+    vlan: str | None = None
+    tx: int | None = None  # byte counters since the device joined, from the access point's side
+    rx: int | None = None
+
+    def merged_over(self, base: "Client | None") -> "Client":
+        """This record (richer) with any field it lacks taken from `base`."""
+        if base is None:
+            return self
+        return Client(
+            self.mac,
+            self.hostname or base.hostname,
+            self.vendor or base.vendor,
+            self.vlan or base.vlan,
+            self.tx if self.tx is not None else base.tx,
+            self.rx if self.rx is not None else base.rx,
+        )
+
+
+def parse_clients(items: list[dict]) -> list[Client]:
+    """Connected clients from the Integration API list. A client without a MAC (a VPN session) is skipped."""
+    out = []
+    for row in items:
+        mac = norm_mac(row.get("macAddress"))
+        if mac:
+            out.append(Client(mac, str(row.get("name") or "").strip() or None))
+    return out
+
+
+def _int(value) -> int | None:
+    return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def parse_stations(payload: dict) -> list[Client]:
+    """Clients from the older `stat/sta` endpoint, which also has vendor, network name, and byte counters."""
+    out = []
+    for row in payload.get("data") or []:
+        mac = norm_mac(row.get("mac")) if isinstance(row, dict) else None
+        if mac:
+            name = str(row.get("hostname") or row.get("name") or "").strip() or None
+            out.append(
+                Client(
+                    mac, name, str(row.get("oui") or "").strip() or None,
+                    str(row.get("network") or "").strip() or None,
+                    _int(row.get("tx_bytes")),
+                    _int(row.get("rx_bytes")),
+                )
+            )  # fmt: skip
+    return out
+
+
+def _rollup_days(env) -> int:
+    try:
+        return max(7, int(load_mapping(config_file("retention.yaml", env)).get("rollup_after_days", 90)))
+    except (ConfigError, OSError, ValueError, TypeError):
+        return 90
+
+
 def _config(config: dict, key: str, default):
     value = config.get(key)
     return default if value in (None, "") else value
@@ -120,9 +186,17 @@ class UnifiCollector(Collector):
             raise ConfigError("verify_tls must be true or false")
         if "site" in config and not isinstance(config["site"], str):
             raise ConfigError("site must be text (a site name; leave out for every site)")
+        for key in ("clients", "traffic", "client_logs"):
+            if key in config and not isinstance(config[key], bool):
+                raise ConfigError(f"{key} must be true or false")
+        if config.get("traffic") and not config.get("clients"):
+            raise ConfigError("traffic needs clients: true")
+        path = str(_config(config, "traffic_path", "/proxy/network/api/s/{site}/stat/sta"))
+        if not path.startswith("/") or ".." in path or "?" in path or path.count("{site}") != 1:
+            raise ConfigError("traffic_path must start with / and contain {site} once")
 
     def metrics(self, config: dict) -> list[dict]:
-        return [
+        declared = [
             {
                 "id": f"unifi_{suffix}",
                 "name": f"UniFi: {label}",
@@ -131,6 +205,17 @@ class UnifiCollector(Collector):
             }
             for suffix, label, u in METRICS
         ]
+        if config.get("clients"):
+            declared.append({"id": "unifi_clients", "name": "UniFi: clients connected", "group": "unifi"})
+        if config.get("traffic"):
+            declared.append(
+                {
+                    "id": "unifi_traffic_ok",
+                    "name": "UniFi: client traffic readable (1 = yes)",
+                    "group": "unifi",
+                }
+            )
+        return declared
 
     # ---- connecting
 
@@ -182,7 +267,7 @@ class UnifiCollector(Collector):
         numbers: dict[str, float | str] = {}
         try:
             api = self._api(ctx)
-            devices, application = self._fetch(api, ctx.config.get("site"))
+            devices, application, sites = self._fetch(api, ctx.config.get("site"))
             seen_macs = {d.mac for d in devices}
             self._store(ctx, devices, application)
             numbers = {
@@ -190,6 +275,8 @@ class UnifiCollector(Collector):
                 "unifi_devices_offline": sum(not d.online for d in devices),
                 "unifi_updates_available": sum(d.updatable for d in devices),
             }
+            if ctx.config.get("clients"):
+                numbers.update(self._clients(ctx, api, sites))
         except ApiError as exc:
             api_failure = CollectorError(exc.message)
             log("unifi_api_failed", kind=exc.kind, reason=exc.message)
@@ -201,7 +288,7 @@ class UnifiCollector(Collector):
         numbers["unifi_header_devices"] = header_count
         return numbers
 
-    def _fetch(self, api: UnifiApi, site: str | None) -> tuple[list[Device], str]:
+    def _fetch(self, api: UnifiApi, site: str | None) -> tuple[list[Device], str, list[dict]]:
         try:
             application = str(api.get("/v1/info").get("applicationVersion") or "")
         except ApiError as exc:
@@ -209,7 +296,8 @@ class UnifiCollector(Collector):
                 raise
             application = ""
         devices: list[Device] = []
-        for s in self._sites(api, site):
+        sites = self._sites(api, site)
+        for s in sites:
             site_devices = parse_devices(api.paged(f"/v1/sites/{s['id']}/devices"))
             by_api_id = {d.api_id: d for d in site_devices}
             for d in site_devices:
@@ -223,7 +311,70 @@ class UnifiCollector(Collector):
                     uplink = None
                 d.uplink_mac = by_api_id[uplink].mac if uplink in by_api_id else None
             devices += site_devices
-        return devices, application
+        return devices, application, sites
+
+    # ---- clients (Task 21), every write gated by the device's profile
+
+    def _clients(self, ctx: Context, api: UnifiApi, sites: list[dict]) -> dict[str, float | str]:
+        found: dict[str, Client] = {}
+        for s in sites:
+            for client in parse_clients(api.paged(f"/v1/sites/{s['id']}/clients")):
+                found[client.mac] = client
+        numbers: dict[str, float | str] = {"unifi_clients": len(found)}
+        if ctx.config.get("traffic"):
+            numbers["unifi_traffic_ok"] = 0
+            template = str(_config(ctx.config, "traffic_path", "/proxy/network/api/s/{site}/stat/sta"))
+            try:
+                for s in sites:
+                    ref = str(s.get("internalReference") or str(s.get("name") or "default").lower())
+                    for client in parse_stations(api.get_root(template.format(site=ref))):
+                        base = found.get(client.mac)
+                        found[client.mac] = client.merged_over(base)
+                numbers["unifi_traffic_ok"] = 1
+            except ApiError as exc:
+                log("unifi_traffic_failed", kind=exc.kind, reason=exc.message)
+        self._store_clients(
+            ctx, found, bool(ctx.config.get("traffic")) and numbers.get("unifi_traffic_ok") == 1
+        )
+        return numbers
+
+    @staticmethod
+    def _store_clients(ctx: Context, found: dict[str, "Client"], with_traffic: bool) -> None:
+        """Write what each device's profile allows. An `ignore` device is not stored at all, not even its
+        traffic counters; a `security_only` device gets a client row and traffic but no presence minutes."""
+        book = DeviceBook.load(ctx.env)
+        now = iso(ctx.now)
+        day, hour = now[:10], ctx.now.hour
+        with ctx.store.write() as tx:
+            db = tx.db
+            row = db.execute("SELECT value FROM meta WHERE key = 'unifi:traffic'").fetchone()
+            try:
+                counters = json.loads(row["value"]) if row else {}
+            except ValueError:
+                counters = {}
+            kept: dict[str, list[int]] = {}
+            for mac, c in found.items():
+                profile = book.profile_of(mac)
+                if profile == "ignore":
+                    continue
+                clients.touch_client(db, mac, now, now, c.hostname, c.vendor, c.vlan)
+                up = down = 0
+                if with_traffic and c.tx is not None and c.rx is not None:
+                    before = counters.get(mac)
+                    kept[mac] = [c.tx, c.rx]
+                    if before:  # the first sighting has no earlier counter, so it adds nothing
+                        down = c.tx - before[0] if c.tx >= before[0] else c.tx  # a smaller counter: it reset
+                        up = c.rx - before[1] if c.rx >= before[1] else c.rx
+                online = 60 if profile == "full" else 0
+                if up or down or online:
+                    clients.add_hourly(db, day, hour, mac, up, down, online)
+            if with_traffic:
+                tx.set_meta("unifi:traffic", json.dumps(kept))
+            today = now[:10]
+            if tx.get_meta("clients:last_rollup") != today:
+                cutoff = (ctx.now - timedelta(days=_rollup_days(ctx.env))).strftime("%Y-%m-%d")
+                clients.rollup(db, cutoff)
+                tx.set_meta("clients:last_rollup", today)
 
     # ---- storing
 
