@@ -11,6 +11,7 @@ A failed run says so (`run_ok: false`) and carries no values.
   /api/v1/findings    ranked stories and developing issues from the last daily run
   /api/v1/metrics     every sensor: id, name, unit, kind, and its current value
   /api/v1/alerts      open, acknowledged, and snoozed alerts
+  /api/v1/map         the network map: nodes, links, status colours, saved layout (when map.yaml is enabled)
 """
 
 from collections.abc import Callable
@@ -102,7 +103,11 @@ def open_alert_count(store: Store) -> int:
         return db.execute("SELECT COUNT(*) FROM alert WHERE state != 'resolved'").fetchone()[0]
 
 
-def build_router(current: Callable[[], tuple[dict, Systems, list[dict]]], store: Store) -> APIRouter:
+def build_router(
+    current: Callable[[], tuple[dict, Systems, list[dict]]],
+    store: Store,
+    map_doc: Callable[[], dict | None] | None = None,
+) -> APIRouter:
     """`current()` gives (status document, systems, registry metrics) for this moment."""
     router = APIRouter(prefix="/api/v1")
 
@@ -111,8 +116,9 @@ def build_router(current: Callable[[], tuple[dict, Systems, list[dict]]], store:
 
     @router.get("")
     def index() -> JSONResponse:
+        endpoints = [*ENDPOINTS, "map"] if map_doc and map_doc() is not None else ENDPOINTS
         return reply(
-            {"schema": SCHEMA, "version": __version__, "endpoints": [f"/api/v1/{e}" for e in ENDPOINTS]}
+            {"schema": SCHEMA, "version": __version__, "endpoints": [f"/api/v1/{e}" for e in endpoints]}
         )
 
     @router.get("/status")
@@ -136,5 +142,14 @@ def build_router(current: Callable[[], tuple[dict, Systems, list[dict]]], store:
     @router.get("/alerts")
     def open_alerts() -> JSONResponse:
         return reply(alerts_doc(store))
+
+    if map_doc:
+
+        @router.get("/map")
+        def network_map() -> JSONResponse:
+            doc = map_doc()
+            if doc is None:
+                return JSONResponse({"error": "The network map is switched off (map.yaml)."}, status_code=404)
+            return reply(doc)
 
     return router

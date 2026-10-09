@@ -10,6 +10,7 @@
   brief network show | test [--wait N]       mode, warnings, the live syslog test
   brief backup create|restore                download-style backup, config-only restore
   brief collector list|test NAME|run [NAME]  Phase 2 data collectors: status, connection test, run now
+  brief map show|svg|drawio|layout-export|layout-import|layout-reset   the network map and its default layout
   brief ssh show                             whether the optional SSH server is on and ready
   brief ai status|enable|disable|feature|provider|chain|guardrail|test|models|calls|preview|explain   the AI settings and tests (see cli_ai.py)
 
@@ -44,6 +45,7 @@ GROUPS = (
     "network",
     "backup",
     "collector",
+    "map",
     "ssh",
     "ai",
 )
@@ -165,6 +167,24 @@ def add_parsers(sub) -> None:
     ct.add_argument("name")
     cr = co.add_parser("run", help="run enabled collectors now, whether or not they are due")
     cr.add_argument("name", nargs="?", default=None)
+
+    mp = sub.add_parser(
+        "map", help="the network map: nodes, drawings, and the default layout"
+    ).add_subparsers(dest="cmd", required=True)
+    ms = mp.add_parser("show", help="list the nodes, or print map.json with --json")
+    ms.add_argument("--json", action="store_true")
+    ms.add_argument("--out", default="", help="write to this file instead of printing")
+    for name, text in (
+        ("svg", "the static drawing"),
+        ("drawio", "a diagrams.net file"),
+        ("layout-export", "the saved default layout"),
+    ):
+        p = mp.add_parser(name, help=f"print or write {text}")
+        p.add_argument("--out", default="", help="write to this file instead of printing")
+    mp.add_parser(
+        "layout-import", help="save a layout file (from Export layout) as the default"
+    ).add_argument("path")
+    mp.add_parser("layout-reset", help="remove the saved default layout")
 
     ini = sub.add_parser("init", help="first-run setup: name your systems from the senders seen")
     ini.add_argument("--assign", action="append", default=[], metavar="HOST=NAME[:LABEL]",
@@ -463,6 +483,63 @@ def _logs(args, state, store, out, err) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- network map
+
+
+def _map(args, state, store, out, err) -> int:
+    import json
+
+    from brief import mapsvg, mapview
+    from brief.outputs import read_json
+    from brief.status import build_status
+
+    path = mapview.layout_path(state)
+    if args.cmd == "layout-reset":
+        path.unlink(missing_ok=True)
+        store.audit(actor(), "map.layout", "default layout removed")
+        out("The default layout is removed; nodes will be placed automatically.")
+        return 0
+    if args.cmd == "layout-import":
+        saved = mapview.save_default_layout(state, json.loads(Path(args.path).read_text(encoding="utf-8")))
+        store.audit(actor(), "map.layout", f"default layout imported: {len(saved)} nodes")
+        out(f"Saved the default layout ({len(saved)} nodes).")
+        return 0
+    s = _settings()
+    systems = _systems()
+    status = build_status(
+        store, systems, s.syslog_port, s.interval, time.monotonic() + 3600,
+        network=netinfo.network_info(s), previous=read_json(s.out_dir / "latest" / "status.json"), state_dir=state,
+    )  # fmt: skip
+    doc = mapview.current_map(store, state, status, systems)
+    if doc is None:
+        err("The network map is switched off (map.yaml: enabled: true turns it on).")
+        return 1
+    if args.cmd == "show" and not args.json:
+        names = {n["id"]: n["label"] for n in doc["nodes"]}
+        out(
+            f"{len(doc['nodes'])} nodes, {len(doc['edges'])} links, {len(doc['layout'])} with a saved position"
+        )
+        for n in doc["nodes"]:
+            badges = f"  [{' '.join(n['badges'])}]" if n["badges"] else ""
+            parent = f" in {names[n['parent']]}" if n["parent"] else ""
+            out(f"{n['state']:<8}{n['kind']:<13}{n['label']}{parent}{badges}")
+        return 0
+    if args.cmd == "layout-export":
+        text = json.dumps(doc["layout"], indent=1)
+    elif args.cmd == "svg":
+        text = mapview.svg_of(doc)
+    elif args.cmd == "drawio":
+        text = mapsvg.render_drawio(doc)
+    else:
+        text = json.dumps(doc, indent=2)
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+        out(f"Wrote {args.out}")
+    else:
+        out(text)
+    return 0
+
+
 # ---------------------------------------------------------------- network
 
 
@@ -716,6 +793,7 @@ HANDLERS = {
     "network": _network,
     "backup": _backup,
     "collector": _collector,
+    "map": _map,
     "ssh": _ssh,
     "init": _init,
     "support-bundle": _support,

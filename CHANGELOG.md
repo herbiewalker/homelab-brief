@@ -5,6 +5,15 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.35
+
+Task 25: the network map (off until `map.yaml` has `enabled: true`).
+
+- `/api/v1/map` (JSON), `/map.html` (interactive, Cytoscape.js 3.34.3 vendored, read-only), `/map.svg` (static, drawn in Python for old tablets and picture cards), an admin **Network map** page with **Save as default** (audited), and an optional `map.drawio` download (`drawio_export`).
+- Built from what the collectors found (UniFi devices and uplinks, Unraid servers with their containers and VMs) merged with `topology.yaml` (manual entries win; `hide` and relabel overrides). Node colour follows the system state in `status.json`; badges show open findings, pending firmware, and new devices. A failed run shows grey and says so.
+- Servers are boxes holding their containers and VMs (double-click folds them); network, services, and power layers toggle; clients are one count per VLAN and devices with the `ignore` profile are never counted.
+- Drag any node: positions persist in the browser; export or import a layout file; the saved default also drives `map.svg`. `brief map show|svg|drawio|layout-export|layout-import|layout-reset` does it all from a shell.
+
 ## 0.0.34
 
 Task 24: the AI provider layer, completed (still off by default).

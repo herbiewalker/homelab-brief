@@ -31,11 +31,13 @@ from brief import (
     admin_ai,
     admin_config,
     admin_manage,
+    admin_map,
     admin_network,
     admin_setup,
     admin_tools,
     api,
     health,
+    mapview,
     registry,
     selfmon,
 )
@@ -82,6 +84,15 @@ ADMIN_CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
     "form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 )
+
+
+# Cytoscape sets inline style attributes on its canvas container, so the map pages (and only those) allow
+# inline styles; scripts stay limited to our own origin.
+MAP_CSP = (
+    "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
+)
+ADMIN_MAP_CSP = ADMIN_CSP.replace("style-src 'self'", "style-src 'self' 'unsafe-inline'")
 
 
 class LoginRequired(Exception):
@@ -184,7 +195,8 @@ def create_app(
             response.headers.setdefault(key, value)  # a view may set its own (inline CSS, no scripts)
         if request.url.path.startswith("/admin"):
             response.headers["Cache-Control"] = "no-store"
-            response.headers["Content-Security-Policy"] = ADMIN_CSP
+            map_page = request.url.path == "/admin/map"
+            response.headers["Content-Security-Policy"] = ADMIN_MAP_CSP if map_page else ADMIN_CSP
         return response
 
     # ------------------------------------------------------------------ read-only views
@@ -266,8 +278,34 @@ def create_app(
         text = metrics_text(doc, metrics, __version__, api.open_alert_count(store), sources)
         return Response(text, media_type=PROMETHEUS_TYPE, headers={"Cache-Control": "no-cache"})
 
-    app.state.api_router = api.build_router(current_status, store)  # kept so tests can walk its routes
+    def map_doc() -> dict | None:
+        status, systems, _ = current_status()
+        return mapview.current_map(store, settings.state_dir, status, systems)
+
+    app.state.api_router = api.build_router(
+        current_status, store, map_doc
+    )  # kept so tests can walk its routes
     app.include_router(app.state.api_router)
+
+    @app.get("/map.svg")
+    def map_svg() -> Response:
+        doc = map_doc()
+        if doc is None:
+            return Response("The network map is switched off.", status_code=404, media_type="text/plain")
+        return Response(
+            mapview.svg_of(doc),
+            media_type="image/svg+xml",
+            headers={
+                "Cache-Control": "no-cache",
+                "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+            },
+        )
+
+    @app.get("/map.html", response_class=HTMLResponse)
+    def map_page(request: Request) -> HTMLResponse:
+        page = render(request, "map.html", save_url=None)
+        page.headers["Content-Security-Policy"] = MAP_CSP
+        return page
 
     @app.get("/", response_class=HTMLResponse)
     def status_page(request: Request) -> HTMLResponse:
@@ -466,6 +504,7 @@ def create_app(
     admin_config.register(admin, deps)
     admin_ai.register(admin, deps)
     admin_network.register(admin, deps)
+    admin_map.register(admin, deps)
     admin_tools.register(admin, deps)
     admin_manage.register(admin, deps)
     admin_setup.register(admin, deps)

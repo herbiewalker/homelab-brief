@@ -184,8 +184,8 @@ Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.
 - [x] Deployment notes for an Ollama container on the GPU server (NVIDIA runtime, context cap, short keep-alive, one loaded model, firewall rule or key gateway).
 - Accept: with `enabled: false` no model is called anywhere; each feature switch works independently; the same task runs against two different OpenAI-compatible servers by changing only `ai.yaml`; with every provider down the template publishes; a fixture with device detail never reaches a cloud provider; output naming an unknown host falls through.
 
-## Task 25: Network map
-- [ ] `map.json` from topology, systems, status, and findings; interactive page (vendored Cytoscape.js) with drag, compound server nodes, layers, detail panel, saved and exportable layouts; static SVG; optional draw.io export. Integrated into the admin GUI and also available read-only.
+## Task 25: Network map (built 2026-10-09, version 0.0.35; seeded rows and a real browser, NOT live inventory)
+- [x] `map.json` from topology, systems, status, and findings; interactive page (vendored Cytoscape.js) with drag, compound server nodes, layers, detail panel, saved and exportable layouts; static SVG; optional draw.io export. Integrated into the admin GUI and also available read-only.
 - Accept: the "Done when" list in `docs/guide/07-network-map.md` passes.
 
 ## Task 26: MCP server and Home Assistant AI integration

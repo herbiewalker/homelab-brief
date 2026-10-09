@@ -16,3 +16,4 @@ select = ["E", "F", "I", "UP", "B"]
 "brief/src/brief/supportbundle.py" = ["E501"]  # one-line summary text
 "brief/src/brief/redact.py" = ["E501"]  # regexes and word lists
 "brief/src/brief/privateconf.py" = ["E501"]  # one-line messages
+"brief/src/brief/mapsvg.py" = ["E501"]  # SVG and draw.io markup strings

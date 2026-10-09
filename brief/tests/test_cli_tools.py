@@ -407,3 +407,35 @@ def test_config_set_with_nothing_on_stdin_does_not_wipe_the_file(box, capsys, mo
     monkeypatch.setattr(sys, "stdin", io.StringIO(""))  # `docker exec` without -i gives an empty stdin
     assert run("config", "set", "views.yaml") == 1
     assert "would be empty" in capsys.readouterr().err and "stories: 7" in (user / "views.yaml").read_text()
+
+
+# ---------------------------------------------------------------- the network map
+
+
+def test_map_commands_show_draw_and_manage_the_default_layout(box, capsys, tmp_path):
+    from brief.collectors import topology
+
+    _, user, state, store = box
+    assert run("map", "show") == 1  # off until map.yaml enables it
+    assert "switched off" in capsys.readouterr().err
+    (user / "map.yaml").write_text("schema: 1\nenabled: true\n")
+    with store.write() as tx:
+        topology.upsert_node(tx.db, "unifi:aa", "gateway", "Gateway", None, {}, "2026-10-09T10:00:00Z")
+    assert run("map", "show") == 0
+    assert "Gateway" in capsys.readouterr().out
+    svg = tmp_path / "map.svg"
+    assert run("map", "svg", "--out", str(svg)) == 0 and svg.read_text().startswith("<svg")
+    capsys.readouterr()
+    assert run("map", "show", "--json") == 0
+    assert json.loads(capsys.readouterr().out)["nodes"][0]["id"] == "unifi:aa"
+
+    layout = tmp_path / "layout.json"
+    layout.write_text(json.dumps({"unifi:aa": {"x": 10, "y": 20}}))
+    assert run("map", "layout-import", str(layout)) == 0
+    assert run("map", "layout-export") == 0
+    assert json.loads(capsys.readouterr().out.split("\n", 1)[1])["unifi:aa"] == {"x": 10.0, "y": 20.0}
+    layout.write_text('{"unifi:aa": {"x": "bad"}}')
+    assert run("map", "layout-import", str(layout)) == 1
+    assert run("map", "layout-reset") == 0 and not (state / "map_layout.json").exists()
+    assert [a["action"] for a in audit(store, "map.%")] == ["map.layout", "map.layout"]
+    assert {a["user"] for a in audit(store, "map.%")} == {"cli:tester"}
