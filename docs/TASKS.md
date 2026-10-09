@@ -198,10 +198,10 @@ Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.
 
 Spec: `docs/guide/10-agents.md`. Starts after Tasks 19, 20, 24, and 26, because agents use the same tools, provider layer, and switches. Everything stays off until enabled on the AI page.
 
-## Task 27: Tool registry and agent runtime
-- [ ] One registry of read-only tools shared by the MCP server and the agent loop (status, findings, a finding, history, signature, log search, inventory, Unraid notifications, systems, map, replay).
-- [ ] A small agent loop over OpenAI-compatible tool calling: per-run limits (steps, tool calls, tokens, time), a background queue, GPU-idle and quiet-hours rules, citation checking that drops uncited statements, and privacy filtering that withholds device-level tools from cloud-only chains.
-- [ ] Agents defined in `brief/agents.yaml`; master and feature switches from `ai.yaml` respected.
+## Task 27: Tool registry and agent runtime (built 2026-10-09, version 0.0.37; proven against a scripted model, NOT a real tool-calling model)
+- [x] One registry of read-only tools shared by the MCP server and the agent loop (status, findings, a finding, history, signature, log search, inventory, Unraid notifications, systems, map, replay).
+- [x] A small agent loop over OpenAI-compatible tool calling: per-run limits (steps, tool calls, tokens, time), a background queue, GPU-idle and quiet-hours rules, citation checking that drops uncited statements, and privacy filtering that withholds device-level tools from cloud-only chains.
+- [x] Agents defined in `brief/agents.yaml`; master and feature switches from `ai.yaml` respected.
 - Accept: with AI disabled nothing runs; a fixture run stays within every limit; uncited claims are removed; a cloud-only agent never receives device-level tools.
 
 ## Task 28: Proposals workflow

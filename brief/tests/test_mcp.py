@@ -178,9 +178,10 @@ def test_tools_listed_are_only_those_the_scope_allows(lab):  # noqa: F811
     names = lambda s: {t["name"] for t in rpc(client, s, "tools/list").json()["result"]["tools"]}  # noqa: E731
     assert names(token(lab, name="default")) == {
         "get_status", "list_findings", "explain_finding", "get_history", "list_systems", "get_map",
+        "get_finding", "get_signature", "get_inventory", "run_replay",
     }  # fmt: skip
     assert "search_logs" in names(token(lab, ("status", "logs"), name="logs"))
-    assert names(token(lab, ("systems",), name="small")) == {"list_systems"}
+    assert names(token(lab, ("systems",), name="small")) == {"list_systems", "get_inventory"}
     tool = rpc(client, token(lab, ("status",), name="one"), "tools/list").json()["result"]["tools"][0]
     assert tool["annotations"]["readOnlyHint"] is True and tool["inputSchema"]["type"] == "object"
 

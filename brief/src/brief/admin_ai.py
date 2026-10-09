@@ -11,13 +11,13 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from brief import aiconfig, aitasks, aitools, cli_ai, configedit, mcpserver, mcptokens, outputs
+from brief import agentrun, aiconfig, aitasks, aitools, cli_ai, configedit, mcpserver, mcptokens, outputs
 from brief.admin import Deps
 from brief.config import ConfigError
 from brief.systems import Systems
 
 PROMPT_KEYS = {n.removeprefix("prompts/").removesuffix(".md"): n for n in configedit.PROMPTS}
-FEATURE_TASK = {  # which task chain each feature switch controls (agents and MCP have none yet)
+FEATURE_TASK = {  # which task chain each feature switch controls (agents and MCP have none)
     "morning_brief": "morning_brief",
     "explain_finding": "explain_finding",
     "weekly_summary": "weekly_summary",
@@ -63,6 +63,12 @@ def register(admin: APIRouter, d: Deps) -> None:
             feature_task=FEATURE_TASK,
             used=usage_by_task(),
             calls=aitools.recent_calls(d.store, 30),
+            agents=[
+                {"spec": s, "runs": agentrun.runs_today(d.store, s.name, datetime.now(UTC))}
+                for s in agentrun.load().values()
+            ],
+            agent_runs=agentrun.recent_runs(d.store, 10),
+            agent_queue=agentrun.queue(d.store),
             tokens=mcptokens.listing(d.store),
             all_scopes=mcptokens.SCOPES,
             default_scopes=mcpserver.default_scopes(),

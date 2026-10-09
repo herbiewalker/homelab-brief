@@ -13,7 +13,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brief import __version__, aitasks, detect, registry, selfmon, weekly
+from brief import __version__, agentrun, aitasks, detect, livestatus, registry, selfmon, weekly
 from brief.alerts import drain_feedback
 from brief.collectors import framework
 from brief.config import ConfigError, config_file, load_mapping
@@ -308,6 +308,23 @@ class Worker:
         except Exception as exc:  # the daily run is secondary to ingest; it is tried again next cycle
             log("daily_failed", error=f"{type(exc).__name__}: {exc}")
 
+    def _agents_if_any(self, backlog: bool) -> None:
+        """Run at most one queued agent job after the cycle. It never delays ingest by more than its own run,
+        and does nothing unless AI and the agents feature are on."""
+        if backlog:
+            return
+        try:
+            done = agentrun.work_one(
+                self.store,
+                self.settings,
+                livestatus.provider(self.store, self.settings, self.state),
+                env=self.env,
+            )
+            if done:
+                log("agent_job", result=done)
+        except Exception as exc:  # agents are secondary to ingest
+            log("agent_job_failed", error=f"{type(exc).__name__}: {exc}")
+
     def _publish_if_due(self, next_publish: float, every: float) -> float:
         if time.monotonic() < next_publish:
             return next_publish
@@ -331,6 +348,7 @@ class Worker:
                 self._daily_if_due(bool(result.backlog_bytes))
                 self._weekly_if_due(bool(result.backlog_bytes))
                 self._apply_feedback()
+                self._agents_if_any(bool(result.backlog_bytes))
                 if result.backlog_bytes:
                     continue
             except Exception as exc:  # keep going: one bad cycle must not stop the pipeline

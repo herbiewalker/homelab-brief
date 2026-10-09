@@ -5,6 +5,16 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.37
+
+Task 27: the agent runtime (everything off by default: needs `ai.yaml` `enabled` and `features.agents`, and each agent `enabled` in `agents.yaml`).
+
+- One read-only tool registry (`agenttools.py`) now serves both the MCP server and the agents, with five more tools: `get_finding`, `get_signature`, `get_inventory`, `get_unraid_notifications`, `run_replay`. Neither front door can do more than the other.
+- A small tool-calling loop (`agentrun.py`) over OpenAI-compatible tool calling with hard limits per run (steps, tool calls, tokens, time) and a daily cap per agent. Every statement in the output must cite a tool result as `[ref:rN]`; uncited or wrongly cited statements are deleted before anything is stored or shown.
+- A cloud provider is used only for an agent named in `allow_cloud_for`, is offered no tool that reads logs, devices, or DNS, is sent nothing the privacy scan flags, and sees only scanned tool results.
+- Background queue (`agent_job`): the worker runs one job after each cycle; quiet hours and a busy model server make a background job wait, a person's on-demand run does not. `brief agent list|run|queue|runs|show`, and an Agents section on the AI page. Runs, steps, and tokens are recorded without content (the validated note is the only content kept).
+- `agents.yaml` is validated on every load (unknown tools, out-of-range limits, `require_citations: false` are refused).
+
 ## 0.0.36
 
 Task 26: the MCP server (off until `ai.yaml` has `enabled: true` and `features.mcp_server: true`).

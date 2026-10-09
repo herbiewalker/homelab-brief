@@ -69,6 +69,8 @@ class Settings:
     max_cloud_tokens_per_day: int = 200000
     allow_cloud_for: tuple[str, ...] = ()
     validation: str = "strict"
+    agents_when_idle: bool = True  # background agents wait while the model server is busy
+    agents_off_in_quiet_hours: bool = True
 
 
 class ProviderError(Exception):
@@ -121,6 +123,8 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         max_cloud_tokens_per_day=int(guard.get("max_cloud_tokens_per_day", 200000)),
         allow_cloud_for=tuple(guard.get("allow_cloud_for") or ()),
         validation="lenient" if guard.get("output_validation") == "lenient" else "strict",
+        agents_when_idle=guard.get("run_agents_only_when_gpu_idle", True) is not False,
+        agents_off_in_quiet_hours=guard.get("quiet_hours_no_agents", True) is not False,
     )
 
 

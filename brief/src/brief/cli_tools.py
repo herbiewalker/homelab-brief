@@ -10,6 +10,7 @@
   brief network show | test [--wait N]       mode, warnings, the live syslog test
   brief backup create|restore                download-style backup, config-only restore
   brief collector list|test NAME|run [NAME]  Phase 2 data collectors: status, connection test, run now
+  brief agent list|run NAME [SUBJECT] [--now]|queue|runs|show ID   the AI agents (off unless ai.yaml has agents on)
   brief mcp [--scope S] | token-list|token-create NAME|token-revoke ID   the MCP server over stdio and its client tokens
   brief map show|svg|drawio|layout-export|layout-import|layout-reset   the network map and its default layout
   brief ssh show                             whether the optional SSH server is on and ready
@@ -48,6 +49,7 @@ GROUPS = (
     "collector",
     "map",
     "mcp",
+    "agent",
     "ssh",
     "ai",
 )
@@ -169,6 +171,19 @@ def add_parsers(sub) -> None:
     ct.add_argument("name")
     cr = co.add_parser("run", help="run enabled collectors now, whether or not they are due")
     cr.add_argument("name", nargs="?", default=None)
+
+    ag = sub.add_parser("agent", help="the AI agents: list, run, queue, and past runs").add_subparsers(
+        dest="cmd", required=True
+    )
+    ag.add_parser("list", help="every agent, whether it is on, and today's runs")
+    ar = ag.add_parser("run", help="queue a run (or run it here with --now)")
+    ar.add_argument("name")
+    ar.add_argument("subject", nargs="?", default="", help="a finding id or a question")
+    ar.add_argument("--now", action="store_true", help="run here, now, and print the note")
+    ag.add_parser("queue", help="runs waiting for the worker")
+    arr = ag.add_parser("runs", help="recent runs")
+    arr.add_argument("--limit", type=int, default=20)
+    ag.add_parser("show", help="one run: its tool steps and its note").add_argument("run_id", type=int)
 
     mc = sub.add_parser("mcp", help="the MCP server over stdio (no subcommand), and its client tokens")
     mc.add_argument(
@@ -502,13 +517,93 @@ def _logs(args, state, store, out, err) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- agents
+
+
+def _agent(args, state, store, out, err) -> int:
+    from brief import agentrun, ai, livestatus
+
+    specs = agentrun.load()
+    if args.cmd == "list":
+        settings = ai.load_settings()
+        on = ai.feature_on(settings, "agents")
+        out(f"Agents are {'ON' if on else 'OFF'} (ai.yaml: enabled and features.agents).")
+        for spec in specs.values():
+            out(f"{spec.name:<14}{'on ' if spec.enabled else 'off'}  {agentrun.runs_today(store, spec.name, datetime.now(UTC))}/{spec.max_runs_per_day} runs today  "
+                f"{spec.max_steps} steps, {spec.max_tool_calls} calls  tools: {', '.join(spec.tools)}")  # fmt: skip
+        return 0
+    if args.cmd == "runs":
+        rows = agentrun.recent_runs(store, args.limit)
+        for r in rows:
+            out(f"#{r['run_id']:<5}{r['started']}  {r['agent']:<14}{r['outcome']:<12}{r['steps']} steps {r['tool_calls']} calls  "
+                f"{r['kept']} kept {r['dropped']} dropped  {r['subject'] or ''}"[:160])  # fmt: skip
+        if not rows:
+            out("No agent runs yet.")
+        return 0
+    if args.cmd == "queue":
+        rows = agentrun.queue(store)
+        for r in rows:
+            out(
+                f"job {r['job_id']:<4}{r['created']}  {r['agent']:<14}{r['trigger']:<10}{r['subject'] or ''}"[
+                    :160
+                ]
+            )
+        if not rows:
+            out("The queue is empty.")
+        return 0
+    if args.cmd == "show":
+        with store.read() as db:
+            row = db.execute("SELECT * FROM agent_run WHERE run_id = ?", (args.run_id,)).fetchone()
+            steps = db.execute(
+                "SELECT * FROM agent_step WHERE run_id = ? ORDER BY n", (args.run_id,)
+            ).fetchall()
+        if row is None:
+            err("There is no such run.")
+            return 1
+        out(
+            f"run {row['run_id']}: {row['agent']} ({row['trigger']}), {row['outcome']}"
+            + (f" - {row['detail']}" if row["detail"] else "")
+        )
+        out(f"provider {row['provider'] or '-'}  {row['steps']} steps, {row['tool_calls']} tool calls, "
+            f"{row['tokens_in'] + row['tokens_out']} tokens, {row['kept']} statements kept, {row['dropped']} dropped")  # fmt: skip
+        for s in steps:
+            out(f"  {s['result'] or '-':<5}{s['tool']:<26}{s['outcome']}")
+        if row["output"]:
+            out("")
+            out(row["output"])
+        return 0
+    # run: queue it, or with --now run it here (a person asking: quiet hours and a busy server do not stop it)
+    spec = specs.get(args.name)
+    if spec is None:
+        err(f"There is no agent called {args.name!r}. See `brief agent list`.")
+        return 1
+    if not args.now:
+        job = agentrun.enqueue(store, spec.name, args.subject, "on_demand", actor())
+        out(f"Queued as job {job}." if job else "That is already queued (or the queue is full).")
+        return 0 if job else 1
+    settings = ai.load_settings()
+    s = _settings()
+    result = agentrun.run(
+        store, spec, args.subject, "on_demand", settings, s, livestatus.provider(store, s, state)
+    )
+    out(
+        f"{spec.name}: {result.outcome}"
+        + (f" ({result.detail})" if result.detail else "")
+        + f"  [run {result.run_id}]"
+    )
+    if result.text:
+        out("")
+        out(result.text)
+    return 0 if result.outcome == "ok" else 1
+
+
 # ---------------------------------------------------------------- MCP server
 
 
 def _mcp(args, state, store, out, err) -> int:
     import json
 
-    from brief import ai, mcpserver, mcptokens, registry
+    from brief import ai, livestatus, mcpserver, mcptokens
 
     if args.cmd == "token-list":
         rows = mcptokens.listing(store, include_revoked=args.all)
@@ -553,21 +648,8 @@ def _mcp(args, state, store, out, err) -> int:
         err(f"unknown scope {bad[0]!r}; use {', '.join(mcptokens.SCOPES)}")
         return 2
     s = _settings()
-    systems = _systems()
 
-    def status():
-        from brief.outputs import read_json
-        from brief.status import build_status
-
-        doc = build_status(
-            store, systems, s.syslog_port, s.interval, time.monotonic() + 3600,
-            network=netinfo.network_info(s), previous=read_json(s.out_dir / "latest" / "status.json"), state_dir=state,
-        )  # fmt: skip
-        try:
-            metrics = registry.load(None, systems)
-        except (ConfigError, OSError):
-            metrics = []
-        return doc, systems, metrics
+    status = livestatus.provider(store, s, state)
 
     ctx = mcpserver.Context(
         store, s, mcptokens.Client("stdio", f"stdio:{actor()}", frozenset(scopes), "lan"), status
@@ -892,6 +974,7 @@ HANDLERS = {
     "collector": _collector,
     "map": _map,
     "mcp": _mcp,
+    "agent": _agent,
     "ssh": _ssh,
     "init": _init,
     "support-bundle": _support,

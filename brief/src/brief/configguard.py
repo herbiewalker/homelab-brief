@@ -70,6 +70,9 @@ def _agents(path: Path) -> None:
     for name, agent in agents.items():
         if "enabled" in agent and not isinstance(agent["enabled"], bool):
             raise ConfigError(f"{path.name}: agents.{name}.enabled must be true or false")
+    from brief import agentrun
+
+    agentrun.parse(data)  # tool names, limits, and the locked citation rule
     if not isinstance(data.get("defaults") or {}, dict):
         raise ConfigError(f"{path.name}: defaults must be a mapping")
 
