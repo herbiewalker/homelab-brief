@@ -10,6 +10,7 @@
   brief network show | test [--wait N]       mode, warnings, the live syslog test
   brief backup create|restore                download-style backup, config-only restore
   brief collector list|test NAME|run [NAME]  Phase 2 data collectors: status, connection test, run now
+  brief mcp [--scope S] | token-list|token-create NAME|token-revoke ID   the MCP server over stdio and its client tokens
   brief map show|svg|drawio|layout-export|layout-import|layout-reset   the network map and its default layout
   brief ssh show                             whether the optional SSH server is on and ready
   brief ai status|enable|disable|feature|provider|chain|guardrail|test|models|calls|preview|explain   the AI settings and tests (see cli_ai.py)
@@ -46,6 +47,7 @@ GROUPS = (
     "backup",
     "collector",
     "map",
+    "mcp",
     "ssh",
     "ai",
 )
@@ -167,6 +169,23 @@ def add_parsers(sub) -> None:
     ct.add_argument("name")
     cr = co.add_parser("run", help="run enabled collectors now, whether or not they are due")
     cr.add_argument("name", nargs="?", default=None)
+
+    mc = sub.add_parser("mcp", help="the MCP server over stdio (no subcommand), and its client tokens")
+    mc.add_argument(
+        "--scope", action="append", default=[], help="a scope for stdio (repeat); default: the default scope"
+    )
+    mcs = mc.add_subparsers(dest="cmd")
+    tl = mcs.add_parser("token-list", help="the client tokens")
+    tl.add_argument("--all", action="store_true", help="include revoked ones")
+    tc = mcs.add_parser("token-create", help="make a token (shown once)")
+    tc.add_argument("name")
+    tc.add_argument(
+        "--scope", action="append", default=[], help="a scope (repeat); default: the default scope"
+    )
+    tc.add_argument(
+        "--cloud", action="store_true", help="a cloud-hosted client (no logs, devices, or dns scope)"
+    )
+    mcs.add_parser("token-revoke", help="stop a token working").add_argument("ident", help="its id or name")
 
     mp = sub.add_parser(
         "map", help="the network map: nodes, drawings, and the default layout"
@@ -483,6 +502,84 @@ def _logs(args, state, store, out, err) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- MCP server
+
+
+def _mcp(args, state, store, out, err) -> int:
+    import json
+
+    from brief import ai, mcpserver, mcptokens, registry
+
+    if args.cmd == "token-list":
+        rows = mcptokens.listing(store, include_revoked=args.all)
+        for t in rows:
+            state_text = (
+                f"revoked {t['revoked']}" if t["revoked"] else f"last used {t['last_used'] or 'never'}"
+            )
+            out(f"{t['token_id']}  {t['name']:<24}{t['locality']:<6}{','.join(t['scopes'])}  ({state_text})")
+        if not rows:
+            out("No tokens.")
+        return 0
+    if args.cmd == "token-create":
+        scopes = args.scope or mcpserver.default_scopes()
+        try:
+            token_id, secret = mcptokens.create(
+                store, args.name, scopes, "cloud" if args.cloud else "lan", by=actor()
+            )
+        except mcptokens.TokenError as exc:
+            err(str(exc))
+            return 1
+        store.audit(actor(), "mcp.token.create", f"{args.name} ({token_id}): {','.join(sorted(set(scopes)))}")
+        out(f"Token for {args.name} ({token_id}), scopes {', '.join(sorted(set(scopes)))}:")
+        out(secret)
+        out("Copy it now: it cannot be shown again. Send it as the header  Authorization: Bearer <token>.")
+        return 0
+    if args.cmd == "token-revoke":
+        try:
+            name = mcptokens.revoke(store, args.ident)
+        except mcptokens.TokenError as exc:
+            err(str(exc))
+            return 1
+        store.audit(actor(), "mcp.token.revoke", name)
+        out(f"Revoked {name}.")
+        return 0
+    # stdio: one JSON-RPC message per line, for a local client started with `docker exec -i`
+    if not ai.feature_on(ai.load_settings(), "mcp_server"):
+        err("The MCP server is off (ai.yaml: enabled, and features.mcp_server).")
+        return 1
+    scopes = args.scope or mcpserver.default_scopes()
+    bad = [s for s in scopes if s not in mcptokens.SCOPES]
+    if bad:
+        err(f"unknown scope {bad[0]!r}; use {', '.join(mcptokens.SCOPES)}")
+        return 2
+    s = _settings()
+    systems = _systems()
+
+    def status():
+        from brief.outputs import read_json
+        from brief.status import build_status
+
+        doc = build_status(
+            store, systems, s.syslog_port, s.interval, time.monotonic() + 3600,
+            network=netinfo.network_info(s), previous=read_json(s.out_dir / "latest" / "status.json"), state_dir=state,
+        )  # fmt: skip
+        try:
+            metrics = registry.load(None, systems)
+        except (ConfigError, OSError):
+            metrics = []
+        return doc, systems, metrics
+
+    ctx = mcpserver.Context(
+        store, s, mcptokens.Client("stdio", f"stdio:{actor()}", frozenset(scopes), "lan"), status
+    )
+    for line in sys.stdin:
+        if line.strip():
+            reply = mcpserver.handle_text(line, ctx)
+            if reply is not None:
+                print(json.dumps(reply), flush=True)
+    return 0
+
+
 # ---------------------------------------------------------------- network map
 
 
@@ -794,6 +891,7 @@ HANDLERS = {
     "backup": _backup,
     "collector": _collector,
     "map": _map,
+    "mcp": _mcp,
     "ssh": _ssh,
     "init": _init,
     "support-bundle": _support,

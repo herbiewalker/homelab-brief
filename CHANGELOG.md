@@ -5,6 +5,15 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.36
+
+Task 26: the MCP server (off until `ai.yaml` has `enabled: true` and `features.mcp_server: true`).
+
+- `POST /mcp` (Streamable HTTP, JSON replies, HTTPS only) and `brief mcp` (stdio). Hand-written, no new dependency. Read-only tools: `get_status`, `list_findings`, `explain_finding`, `get_history`, `list_systems`, `get_map`, `search_logs`; resources: latest digest, latest weekly report, systems.
+- Per-client bearer tokens (stored as a hash, shown once) with scopes, made and revoked on the AI page or with `brief mcp token-create|token-list|token-revoke`. The default scope has no device-level findings, DNS data, or raw log lines; those need the `devices`, `dns`, `logs` scopes, which a cloud client can never hold, and what a cloud client receives is scanned for addresses and private names.
+- Every call is in the audit log as `mcp:<client>` (tool and outcome only), failed bearer checks are throttled, and cross-origin requests are refused.
+- `deploy/home-assistant-ai.md`: HA's MCP client speaks only SSE with OAuth, so it needs a bridge to reach this server; the Assist-sensors route works without one.
+
 ## 0.0.35
 
 Task 25: the network map (off until `map.yaml` has `enabled: true`).

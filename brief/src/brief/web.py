@@ -35,9 +35,12 @@ from brief import (
     admin_network,
     admin_setup,
     admin_tools,
+    ai,
     api,
     health,
     mapview,
+    mcpserver,
+    mcptokens,
     registry,
     selfmon,
 )
@@ -66,6 +69,7 @@ VIEWS = {
     "status.png": "image/png",
 }
 MAX_BODY = 5 * 1024 * 1024  # the largest write the admin accepts (a config text, a small backup upload)
+MCP_MAX_BODY = 256 * 1024  # the largest MCP request accepted
 HOST_RE = re.compile(r"^[A-Za-z0-9.\-]+$")
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -491,6 +495,52 @@ def create_app(
         except AuthError as exc:
             return again(400, str(exc))
         return RedirectResponse("/admin/login?notice=" + quote("Account created. Sign in."), status_code=303)
+
+    # ------------------------------------------------------------------ HTTPS: the MCP endpoint
+
+    mcp_throttle = mcptokens.Throttle()
+
+    def mcp_reply(status_code: int, body: dict | None = None, headers: dict | None = None) -> Response:
+        out = {"Cache-Control": "no-store", **(headers or {})}
+        if body is None:
+            return Response(status_code=status_code, headers=out)
+        return JSONResponse(body, status_code=status_code, headers=out)
+
+    def plain(text: str, code: int, headers: dict | None = None) -> Response:
+        return Response(text, status_code=code, media_type="text/plain", headers=headers)
+
+    @app.api_route("/mcp", methods=["GET", "DELETE", "PUT", "PATCH"])
+    def mcp_not_allowed() -> Response:
+        return Response("The MCP endpoint takes POST only.", status_code=405, headers={"Allow": "POST"})
+
+    @app.post("/mcp")
+    async def mcp_endpoint(request: Request) -> Response:
+        """Streamable HTTP, JSON replies only: one POST per message, answered with application/json."""
+        ai_settings = ai.load_settings()
+        if not ai.feature_on(ai_settings, "mcp_server"):
+            return Response("The MCP server is off.", status_code=404, media_type="text/plain")
+        origin = request.headers.get("origin")
+        if origin and urlsplit(origin).netloc != request.headers.get("host"):
+            return Response(
+                "Cross-origin requests are not accepted.", status_code=403, media_type="text/plain"
+            )
+        who = client_ip(request)
+        if mcp_throttle.blocked(who):
+            return plain("Too many failed attempts. Try again later.", 429, {"Retry-After": "300"})
+        header = request.headers.get("authorization", "")
+        client = mcptokens.verify(store, header[7:].strip()) if header[:7].lower() == "bearer " else None
+        if client is None:
+            mcp_throttle.failed(who)
+            log("mcp_auth_failed")
+            www = {"WWW-Authenticate": 'Bearer realm="homelab-brief"'}
+            return plain("A valid bearer token is required.", 401, www)
+        if int(request.headers.get("content-length") or 0) > MCP_MAX_BODY:
+            return Response("That request is too large.", status_code=413, media_type="text/plain")
+        raw = await request.body()
+        if len(raw) > MCP_MAX_BODY:
+            return Response("That request is too large.", status_code=413, media_type="text/plain")
+        reply = mcpserver.handle_text(raw, mcpserver.Context(store, settings, client, current_status))
+        return mcp_reply(202) if reply is None else mcp_reply(200, reply)
 
     deps = admin_pages.Deps(
         store=store,

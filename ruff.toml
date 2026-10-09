@@ -17,3 +17,5 @@ select = ["E", "F", "I", "UP", "B"]
 "brief/src/brief/redact.py" = ["E501"]  # regexes and word lists
 "brief/src/brief/privateconf.py" = ["E501"]  # one-line messages
 "brief/src/brief/mapsvg.py" = ["E501"]  # SVG and draw.io markup strings
+"brief/src/brief/mcpserver.py" = ["E501"]  # tool descriptions and schema literals
+"brief/src/brief/mcptokens.py" = ["E501"]  # one-line messages

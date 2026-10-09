@@ -104,6 +104,34 @@
   </div>
 </div>
 
+<h2>MCP clients</h2>
+<div class="card">
+  <p class="muted">Outside AI clients (Home Assistant, Claude, others) reach read-only tools at <code>/mcp</code> over HTTPS with a bearer token. Needs the master switch and the <strong>mcp_server</strong> feature on. A token is shown once, stored only as a hash, and every call is in the <a href="/admin/audit">audit log</a>. The default scope has no per-device activity, DNS data, or raw log lines; a <em>cloud</em> client can never have those, and what it receives is scanned for addresses and private names.</p>
+  {% if tokens %}<div class="scroll"><table class="wide">
+    <tr><th>Name</th><th>Scopes</th><th>Where</th><th>Created</th><th>Last used</th><th></th></tr>
+    {% for t in tokens %}<tr>
+      <td>{{ t.name }} <span class="muted">({{ t.token_id }})</span></td>
+      <td>{{ t.scopes|join(', ') }}</td>
+      <td>{{ t.locality }}</td>
+      <td>{{ t.created }}</td>
+      <td>{{ t.last_used or 'never' }}</td>
+      <td><form class="inline" method="post" action="/admin/ai/mcp/revoke" x-data="confirmForm" @submit="ask" data-confirm="Revoke {{ t.name }}? It stops working at once.">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="token_id" value="{{ t.token_id }}">
+        <button type="submit" class="quiet">Revoke</button></form></td>
+    </tr>{% endfor %}
+  </table></div>{% else %}<p>No clients yet.</p>{% endif %}
+  <form method="post" action="/admin/ai/mcp/create" class="spaced">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="row">
+      <input name="name" placeholder="Client name, such as home-assistant" required maxlength="40">
+      <select name="locality"><option value="lan">on my LAN</option><option value="cloud">cloud-hosted</option></select>
+    </div>
+    <p>{% for s in all_scopes %}<label><input type="checkbox" name="scope" value="{{ s }}"{% if s in default_scopes %} checked{% endif %}> {{ s }}</label> {% endfor %}</p>
+    <p class="muted">logs, devices, and dns reveal more about your household; leave them off unless this client needs them (not allowed for cloud clients).</p>
+    <button type="submit">Create token</button>
+  </form>
+</div>
+
 <h2>Prompts</h2>
 <div class="card">
   <p class="muted">Plain Markdown, edited with history and rollback like any config file.</p>

@@ -188,10 +188,10 @@ Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.
 - [x] `map.json` from topology, systems, status, and findings; interactive page (vendored Cytoscape.js) with drag, compound server nodes, layers, detail panel, saved and exportable layouts; static SVG; optional draw.io export. Integrated into the admin GUI and also available read-only.
 - Accept: the "Done when" list in `docs/guide/07-network-map.md` passes.
 
-## Task 26: MCP server and Home Assistant AI integration
-- [ ] MCP server over Streamable HTTP at `/mcp` (HTTPS) and stdio through `brief mcp`; read-only tools (`get_status`, `list_findings`, `explain_finding`, `get_history`, `list_systems`, `get_map`, `search_logs`) and resources (latest digest, weekly report, systems).
-- [ ] Per-client bearer tokens with scopes, created and revoked on the AI page, stored hashed; device detail, DNS data, and raw logs only for explicitly scoped tokens; every call in the audit log.
-- [ ] Documentation for Home Assistant: pointing HA's AI integration at the same model server, exposing this product's sensors to Assist, and connecting HA's MCP client to `/mcp` (verify integration names against the installed HA version).
+## Task 26: MCP server and Home Assistant AI integration (built 2026-10-09, version 0.0.36; proven with TestClient and stdio, NOT with a real MCP client or HA)
+- [x] MCP server over Streamable HTTP at `/mcp` (HTTPS) and stdio through `brief mcp`; read-only tools (`get_status`, `list_findings`, `explain_finding`, `get_history`, `list_systems`, `get_map`, `search_logs`) and resources (latest digest, weekly report, systems).
+- [x] Per-client bearer tokens with scopes, created and revoked on the AI page, stored hashed; device detail, DNS data, and raw logs only for explicitly scoped tokens; every call in the audit log.
+- [x] Documentation for Home Assistant: pointing HA's AI integration at the same model server, exposing this product's sensors to Assist, and connecting HA's MCP client to `/mcp` (verify integration names against the installed HA version).
 - Accept: an MCP client with a default-scope token can list findings and history but cannot reach device detail or raw logs; HA, pointed at the same model server, answers a homelab question from the exposed sensors.
 
 # Phase 3: Agents

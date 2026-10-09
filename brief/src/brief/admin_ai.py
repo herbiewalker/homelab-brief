@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from brief import aiconfig, aitasks, aitools, cli_ai, configedit, outputs
+from brief import aiconfig, aitasks, aitools, cli_ai, configedit, mcpserver, mcptokens, outputs
 from brief.admin import Deps
 from brief.config import ConfigError
 from brief.systems import Systems
@@ -23,7 +23,10 @@ FEATURE_TASK = {  # which task chain each feature switch controls (agents and MC
     "weekly_summary": "weekly_summary",
     "ask_the_lab": "ask_the_lab",
 }
-DONE = {"saved": "Saved. The change applies on the next task."}
+DONE = {
+    "saved": "Saved. The change applies on the next task.",
+    "revoked": "Token revoked. It no longer works.",
+}
 
 
 def register(admin: APIRouter, d: Deps) -> None:
@@ -60,6 +63,9 @@ def register(admin: APIRouter, d: Deps) -> None:
             feature_task=FEATURE_TASK,
             used=usage_by_task(),
             calls=aitools.recent_calls(d.store, 30),
+            tokens=mcptokens.listing(d.store),
+            all_scopes=mcptokens.SCOPES,
+            default_scopes=mcpserver.default_scopes(),
             prompts=sorted(PROMPT_KEYS),
             task_names=[t for t in aiconfig.TASKS],
             notice=extra.pop("notice", None),
@@ -75,6 +81,38 @@ def register(admin: APIRouter, d: Deps) -> None:
         except (configedit.EditError, ConfigError, ValueError) as exc:
             return page(request, getattr(exc, "status", status_on_error), error=str(exc))
         return RedirectResponse("/admin/ai?done=saved", status_code=303)
+
+    @admin.post("/ai/mcp/create", response_class=HTMLResponse)
+    async def mcp_create(request: Request):
+        form = await request.form()
+        user = d.session(request).username
+        locality = str(form.get("locality", "lan"))
+        scopes = [str(s) for s in form.getlist("scope")]
+        name = str(form.get("name", ""))
+        try:
+            token_id, secret = mcptokens.create(d.store, name, scopes, locality, by=f"admin:{user}")
+        except mcptokens.TokenError as exc:
+            return page(request, 422, error=str(exc))
+        d.store.audit(
+            f"admin:{user}",
+            "mcp.token.create",
+            f"{name.strip()} ({token_id}): {','.join(sorted(set(scopes)))}; {locality}",
+        )
+        return d.render(
+            request, "admin_mcp_created.html", csrf=d.session(request).csrf, active="ai",
+            client_name=name.strip(), secret=secret, scopes=sorted(set(scopes)), locality=locality,
+        )  # fmt: skip
+
+    @admin.post("/ai/mcp/revoke")
+    async def mcp_revoke(request: Request):
+        form = await request.form()
+        user = d.session(request).username
+        try:
+            name = mcptokens.revoke(d.store, str(form.get("token_id", "")))
+        except mcptokens.TokenError as exc:
+            return page(request, 404, error=str(exc))
+        d.store.audit(f"admin:{user}", "mcp.token.revoke", name)
+        return RedirectResponse("/admin/ai?done=revoked", status_code=303)
 
     @admin.get("/ai", response_class=HTMLResponse)
     def ai_page(request: Request, done: str = ""):
