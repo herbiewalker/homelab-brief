@@ -13,7 +13,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from brief import __version__, agentrun, aitasks, detect, livestatus, registry, selfmon, weekly
+from brief import __version__, agentrun, aitasks, detect, livestatus, proposals, registry, selfmon, weekly
 from brief.alerts import drain_feedback
 from brief.collectors import framework
 from brief.config import ConfigError, config_file, load_mapping
@@ -314,6 +314,7 @@ class Worker:
         if backlog:
             return
         try:
+            proposals.sweep(self.store)
             done = agentrun.work_one(
                 self.store,
                 self.settings,

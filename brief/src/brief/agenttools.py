@@ -46,6 +46,8 @@ class Context:
     client: Client
     status: Callable[[], tuple[dict, Any, list]]  # (status document, systems, registry metrics) right now
     source: str = "mcp"  # who is calling: "mcp" or "agent" (the audit log prefix)
+    run_id: int | None = None  # the agent run making these calls
+    evidence: dict | None = None  # result id -> tool, for the results of this run that succeeded
 
 
 # ---------------------------------------------------------------- argument helpers
@@ -192,7 +194,7 @@ class Tool:
         if self.required:
             schema["required"] = list(self.required)
         return {"name": self.name, "description": self.description, "inputSchema": schema,
-                "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False}}  # fmt: skip
+                "annotations": {"readOnlyHint": self.scope != "propose", "destructiveHint": False, "openWorldHint": False}}  # fmt: skip
 
 
 TOOLS = {
@@ -439,3 +441,76 @@ _MORE = (
     ),  # fmt: skip
 )
 TOOLS.update({t.name: t for t in _MORE})
+
+
+# ---------------------------------------------------------------- proposals (the one tool that writes a record)
+
+
+def get_config(ctx: Context, args: Mapping) -> dict:
+    from brief import configedit, proposals
+
+    name = args.get("file")
+    if name not in proposals.PROPOSABLE:
+        raise ToolError(f"file must be one of {', '.join(proposals.PROPOSABLE)}")
+    text, customised = configedit.current(name)
+    return {"file": name, "customised": customised, "text": text}
+
+
+def propose_change(ctx: Context, args: Mapping) -> dict:
+    """Record a proposal for a person to approve. Changes no config file."""
+    from brief import proposals
+
+    file = _text(args, "file", 40, required=True)
+    new_text = args.get("new_text")
+    if not isinstance(new_text, str) or not new_text.strip() or len(new_text) > 200_000:
+        raise ToolError("new_text must be the complete new file")
+    reason, evidence = (
+        _text(args, "reason", proposals.MAX_REASON),
+        _text(args, "evidence", proposals.MAX_EVIDENCE),
+    )
+    if ctx.source == "agent":
+        cited = set(re.findall(r"\[ref:(r\d+)\]", evidence))
+        known = ctx.evidence or {}
+        if not cited or not cited <= set(known):
+            raise ToolError(
+                "evidence must cite the tool results it rests on, like [ref:r1], and only real ones"
+            )
+        evidence += "\n\nResults cited: " + ", ".join(f"{r} ({known[r]})" for r in sorted(cited))
+    try:
+        pid = proposals.create(
+            ctx.store, f"{ctx.source}:{ctx.client.name}", file, new_text, reason, evidence, run_id=ctx.run_id
+        )
+    except proposals.ProposalError as exc:
+        raise ToolError(str(exc)) from None
+    return {"proposal": pid, "status": "pending", "note": "Nothing has changed. A person must approve it."}
+
+
+PROPOSABLE_FILES = (
+    "ignore.yaml",
+    "priorities.yaml",
+    "playbook.yaml",
+)  # kept equal to proposals.PROPOSABLE (a test checks)
+_PROPOSE = (
+    Tool(
+        "get_config",
+        "logs",
+        "The current text of a file you may propose a change to (ignore.yaml, priorities.yaml, playbook.yaml).",
+        {"file": {"type": "string", "enum": list(PROPOSABLE_FILES)}},
+        get_config,
+        ("file",),
+    ),  # fmt: skip
+    Tool(
+        "propose_change",
+        "propose",
+        "Suggest a config change for a person to approve. Records a proposal and changes nothing. Give the complete new file, a reason, and evidence citing tool results.",
+        {
+            "file": {"type": "string", "enum": list(PROPOSABLE_FILES)},
+            "new_text": {"type": "string", "description": "the complete new file"},
+            "reason": {"type": "string"},
+            "evidence": {"type": "string", "description": "what supports it, citing results like [ref:r1]"},
+        },
+        propose_change,
+        ("file", "new_text", "reason", "evidence"),
+    ),  # fmt: skip
+)
+TOOLS.update({t.name: t for t in _PROPOSE})

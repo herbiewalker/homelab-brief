@@ -10,6 +10,7 @@
   brief network show | test [--wait N]       mode, warnings, the live syslog test
   brief backup create|restore                download-style backup, config-only restore
   brief collector list|test NAME|run [NAME]  Phase 2 data collectors: status, connection test, run now
+  brief proposal list [--all] | show ID | approve ID | reject ID [--note T]   changes agents suggested (nothing applies until approved)
   brief agent list|run NAME [SUBJECT] [--now]|queue|runs|show ID   the AI agents (off unless ai.yaml has agents on)
   brief mcp [--scope S] | token-list|token-create NAME|token-revoke ID   the MCP server over stdio and its client tokens
   brief map show|svg|drawio|layout-export|layout-import|layout-reset   the network map and its default layout
@@ -50,6 +51,7 @@ GROUPS = (
     "map",
     "mcp",
     "agent",
+    "proposal",
     "ssh",
     "ai",
 )
@@ -171,6 +173,17 @@ def add_parsers(sub) -> None:
     ct.add_argument("name")
     cr = co.add_parser("run", help="run enabled collectors now, whether or not they are due")
     cr.add_argument("name", nargs="?", default=None)
+
+    pr = sub.add_parser(
+        "proposal", help="changes agents suggested: list, show, approve, reject"
+    ).add_subparsers(dest="cmd", required=True)
+    pl = pr.add_parser("list")
+    pl.add_argument("--all", action="store_true", help="include decided ones")
+    pr.add_parser("show", help="the reason, evidence, and diff").add_argument("id", type=int)
+    pr.add_parser("approve", help="apply it through the config editor").add_argument("id", type=int)
+    prj = pr.add_parser("reject")
+    prj.add_argument("id", type=int)
+    prj.add_argument("--note", default="")
 
     ag = sub.add_parser("agent", help="the AI agents: list, run, queue, and past runs").add_subparsers(
         dest="cmd", required=True
@@ -514,6 +527,49 @@ def _logs(args, state, store, out, err) -> int:
         out("No matching lines.")
     note = f" Stopped at {result.stopped}: narrow the search to see more." if result.stopped else ""
     err(f"{result.files} file(s) read, {result.bytes_read:,} bytes.{note}")
+    return 0
+
+
+# ---------------------------------------------------------------- proposals
+
+
+def _proposal(args, state, store, out, err) -> int:
+    from brief import proposals
+
+    if args.cmd == "list":
+        rows = proposals.listing(store, None if args.all else "pending")
+        for p in rows:
+            out(f"#{p.proposal_id:<4}{p.status:<9}{p.file:<16}{p.source:<26}{p.reason[:70]}")
+        if not rows:
+            out("No proposals." if args.all else "No proposals are waiting.")
+        return 0
+    if args.cmd == "show":
+        p = proposals.get(store, args.id)
+        if p is None:
+            err("There is no such proposal.")
+            return 1
+        info = proposals.view(p)
+        out(
+            f"#{p.proposal_id} {p.file} from {p.source} ({p.status}), +{info['added']} -{info['removed']} lines"
+        )
+        out(f"Why: {p.reason}")
+        out(f"Evidence:\n{p.evidence}\n")
+        for line in info["diff"]:
+            out(("+" if line["kind"] == "add" else "-" if line["kind"] == "del" else " ") + line["text"])
+        if info["stale"]:
+            out("\nThe file has changed since this was proposed: it can no longer be approved.")
+        if info["problem"]:
+            out(f"\nNot valid now: {info['problem']}")
+        return 0
+    try:
+        if args.cmd == "approve":
+            out(proposals.approve(store, args.id, actor(), state))
+        else:
+            proposals.reject(store, args.id, actor(), args.note)
+            out(f"Rejected #{args.id}. Nothing was changed.")
+    except proposals.ProposalError as exc:
+        err(str(exc))
+        return 1
     return 0
 
 
@@ -975,6 +1031,7 @@ HANDLERS = {
     "map": _map,
     "mcp": _mcp,
     "agent": _agent,
+    "proposal": _proposal,
     "ssh": _ssh,
     "init": _init,
     "support-bundle": _support,

@@ -124,6 +124,28 @@
   </table></div>{% endif %}
 </div>
 
+<h2>Proposals</h2>
+<div class="card">
+  <p class="muted">Changes that an agent or an outside client suggests. <strong>Nothing changes until you approve.</strong> Approving saves the file through the config editor (checked again, kept as a version you can roll back, and written to the audit log). Rejecting is logged too. A proposal made against an older version of the file is closed instead of applied.</p>
+  {% for v in proposals %}
+  <div class="card">
+    <h3>#{{ v.p.proposal_id }}: {{ v.p.file }} <span class="muted">+{{ v.added }} −{{ v.removed }}, from {{ v.p.source }}, {{ v.p.created }}</span></h3>
+    <p><strong>Why:</strong> {{ v.p.reason }}</p>
+    <details><summary>Evidence</summary><pre>{{ v.p.evidence }}</pre></details>
+    <div class="diff">{% for l in v.diff %}<span class="{{ l.kind }}">{{ '+' if l.kind == 'add' else '-' if l.kind == 'del' else ' ' }}{{ l.text }}</span>{% endfor %}</div>
+    {% if v.stale %}<p class="error">The file has changed since this was proposed. It can no longer be approved.</p>{% endif %}
+    {% if v.problem %}<p class="error">It is not valid now: {{ v.problem }}</p>{% endif %}
+    <div class="row spaced">
+      {% if v.approvable %}<form class="inline" method="post" action="/admin/ai/proposal/{{ v.p.proposal_id }}/approve"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit">Approve and apply</button></form>{% endif %}
+      <form class="inline" method="post" action="/admin/ai/proposal/{{ v.p.proposal_id }}/reject"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input name="note" placeholder="Why not (optional)" maxlength="300"><button type="submit" class="quiet">Reject</button></form>
+    </div>
+  </div>
+  {% else %}<p>No proposals are waiting.</p>{% endfor %}
+  {% if proposal_history %}<div class="scroll"><table class="wide"><tr><th>#</th><th>File</th><th>From</th><th>Outcome</th><th>By</th></tr>
+    {% for p in proposal_history %}{% if p.status != 'pending' %}<tr><td>{{ p.proposal_id }}</td><td>{{ p.file }}</td><td>{{ p.source }}</td><td>{{ p.status }}{% if p.note %} <span class="muted">({{ p.note }})</span>{% endif %}</td><td>{{ p.decided_by or '' }}</td></tr>{% endif %}{% endfor %}
+  </table></div>{% endif %}
+</div>
+
 <h2>MCP clients</h2>
 <div class="card">
   <p class="muted">Outside AI clients (Home Assistant, Claude, others) reach read-only tools at <code>/mcp</code> over HTTPS with a bearer token. Needs the master switch and the <strong>mcp_server</strong> feature on. A token is shown once, stored only as a hash, and every call is in the <a href="/admin/audit">audit log</a>. The default scope has no per-device activity, DNS data, or raw log lines; a <em>cloud</em> client can never have those, and what it receives is scanned for addresses and private names.</p>

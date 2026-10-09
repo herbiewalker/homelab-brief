@@ -204,8 +204,8 @@ Spec: `docs/guide/10-agents.md`. Starts after Tasks 19, 20, 24, and 26, because 
 - [x] Agents defined in `brief/agents.yaml`; master and feature switches from `ai.yaml` respected.
 - Accept: with AI disabled nothing runs; a fixture run stays within every limit; uncited claims are removed; a cloud-only agent never receives device-level tools.
 
-## Task 28: Proposals workflow
-- [ ] Proposal objects (file, diff, reason, evidence) created only by agents or a `propose`-scoped MCP token; shown on the AI page; approve or reject; approval applies through the normal config path (validation, versioning, rollback, audit log).
+## Task 28: Proposals workflow (built 2026-10-09, version 0.0.38)
+- [x] Proposal objects (file, diff, reason, evidence) created only by agents or a `propose`-scoped MCP token; shown on the AI page; approve or reject; approval applies through the normal config path (validation, versioning, rollback, audit log).
 - Accept: a proposal changes nothing until approved; approval and rejection are both logged; an invalid proposal cannot be approved.
 
 ## Task 29: Investigator, triage, tuner, ask the lab

@@ -11,7 +11,18 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from brief import agentrun, aiconfig, aitasks, aitools, cli_ai, configedit, mcpserver, mcptokens, outputs
+from brief import (
+    agentrun,
+    aiconfig,
+    aitasks,
+    aitools,
+    cli_ai,
+    configedit,
+    mcpserver,
+    mcptokens,
+    outputs,
+    proposals,
+)
 from brief.admin import Deps
 from brief.config import ConfigError
 from brief.systems import Systems
@@ -26,6 +37,8 @@ FEATURE_TASK = {  # which task chain each feature switch controls (agents and MC
 DONE = {
     "saved": "Saved. The change applies on the next task.",
     "revoked": "Token revoked. It no longer works.",
+    "approved": "Approved and applied through the config editor (see its history for the old version).",
+    "rejected": "Rejected. Nothing was changed.",
 }
 
 
@@ -69,6 +82,8 @@ def register(admin: APIRouter, d: Deps) -> None:
             ],
             agent_runs=agentrun.recent_runs(d.store, 10),
             agent_queue=agentrun.queue(d.store),
+            proposals=[proposals.view(p) for p in proposals.listing(d.store)],
+            proposal_history=proposals.listing(d.store, None, 10),
             tokens=mcptokens.listing(d.store),
             all_scopes=mcptokens.SCOPES,
             default_scopes=mcpserver.default_scopes(),
@@ -119,6 +134,25 @@ def register(admin: APIRouter, d: Deps) -> None:
             return page(request, 404, error=str(exc))
         d.store.audit(f"admin:{user}", "mcp.token.revoke", name)
         return RedirectResponse("/admin/ai?done=revoked", status_code=303)
+
+    @admin.post("/ai/proposal/{pid}/approve")
+    async def proposal_approve(request: Request, pid: int):
+        user = f"admin:{d.session(request).username}"
+        try:
+            proposals.approve(d.store, pid, user, d.settings.state_dir)
+        except proposals.ProposalError as exc:
+            return page(request, exc.status, error=str(exc))
+        return RedirectResponse("/admin/ai?done=approved", status_code=303)
+
+    @admin.post("/ai/proposal/{pid}/reject")
+    async def proposal_reject(request: Request, pid: int):
+        form = await request.form()
+        user = f"admin:{d.session(request).username}"
+        try:
+            proposals.reject(d.store, pid, user, str(form.get("note", "")))
+        except proposals.ProposalError as exc:
+            return page(request, exc.status, error=str(exc))
+        return RedirectResponse("/admin/ai?done=rejected", status_code=303)
 
     @admin.get("/ai", response_class=HTMLResponse)
     def ai_page(request: Request, done: str = ""):

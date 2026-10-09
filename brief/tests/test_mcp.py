@@ -300,9 +300,13 @@ def test_an_unknown_tool_is_a_protocol_error(lab):  # noqa: F811
     assert r.json()["error"]["code"] == mcpserver.INVALID_PARAMS
 
 
-def test_no_tool_changes_anything():
-    assert all(t.listing()["annotations"]["readOnlyHint"] for t in mcpserver.TOOLS.values())
-    assert not any(re.search(r"set|delete|write|ack|snooze|ignore|restart", n) for n in mcpserver.TOOLS)
+def test_no_tool_changes_anything_but_the_proposal_record():
+    writers = {n for n, t in mcpserver.TOOLS.items() if not t.listing()["annotations"]["readOnlyHint"]}
+    assert writers == {"propose_change"}  # it records a pending proposal and changes no config file
+    assert mcpserver.TOOLS["propose_change"].scope == "propose"
+    assert not any(
+        re.search(r"set|delete|write|ack|snooze|ignore|restart|apply|approve", n) for n in mcpserver.TOOLS
+    )
 
 
 # ---------------------------------------------------------------- raw logs

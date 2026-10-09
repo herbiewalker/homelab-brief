@@ -16,8 +16,8 @@ from datetime import UTC, datetime, timedelta
 
 from brief.store import Store, iso
 
-SCOPES = ("status", "findings", "history", "systems", "map", "logs", "devices", "dns")
-SENSITIVE = ("logs", "devices", "dns")  # never part of the default scope; never for a cloud client
+SCOPES = ("status", "findings", "history", "systems", "map", "logs", "devices", "dns", "propose")
+SENSITIVE = ("logs", "devices", "dns", "propose")  # never part of the default scope; never for a cloud client
 LOCALITIES = ("lan", "cloud")
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$")
 PREFIX = "hbm_"

@@ -5,6 +5,14 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.38
+
+Task 28: the proposals workflow.
+
+- A proposal (file, complete new text, reason, evidence) is a record made by an agent (`propose_change`) or an MCP client with the new `propose` scope. Making one changes no config file. Only `ignore.yaml`, `priorities.yaml`, and `playbook.yaml` can be proposed, the new text must pass the pipeline's own validator, one run may make three, and twenty may wait. An agent's evidence must cite real tool results.
+- The **Proposals** section of the AI page shows each one with its reason, evidence, and a diff against the file as it is now. Approve saves it through the config editor (checked again, kept as a version for rollback, audited); reject is audited too. A proposal made against an older version of the file is closed, an invalid one cannot be approved, and an undecided one expires after 14 days. `brief proposal list|show|approve|reject` does the same from a shell.
+- New tool `get_config` (needs `logs`) lets an agent read the files it may propose against. `propose` is never in the default scope and never allowed for a cloud client; cloud agents are not offered either tool.
+
 ## 0.0.37
 
 Task 27: the agent runtime (everything off by default: needs `ai.yaml` `enabled` and `features.agents`, and each agent `enabled` in `agents.yaml`).

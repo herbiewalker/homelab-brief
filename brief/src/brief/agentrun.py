@@ -380,7 +380,7 @@ def _loop(store, spec, subject, settings, app, status, now, background, post, en
             frozenset(SCOPES) - (frozenset(SENSITIVE) if cloud else frozenset())
         )
         client = Client("agent", f"{spec.name}", scopes, "cloud" if cloud else "lan")
-        ctx = Context(store, app, client, status, source="agent")
+        ctx = Context(store, app, client, status, source="agent", run_id=run_id)
         try:
             return _converse(
                 store, spec, p, system, user, names, ctx, settings, now, post, clock, run_id, task
@@ -397,6 +397,7 @@ def _converse(store, spec, p, system, user, names, ctx, settings, now, post, clo
     started = clock()
     r = Result("limit", provider=p.id, model=p.model)
     evidence: dict[str, str] = {}  # result id -> tool, for results that succeeded
+    ctx.evidence = evidence
     spent = 0
     final: str | None = None
     for turn in range(spec.max_steps):
