@@ -98,6 +98,8 @@
         "parity_slow",
         "unraid_warning",
         "version_behind",
+        "firmware_pending",
+        "new_infrastructure",
         "absence"
       ],
       "learning": false,
@@ -164,6 +166,8 @@
         "parity_slow",
         "unraid_warning",
         "version_behind",
+        "firmware_pending",
+        "new_infrastructure",
         "absence"
       ],
       "learning": false,

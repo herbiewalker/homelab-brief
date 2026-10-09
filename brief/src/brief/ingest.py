@@ -65,6 +65,7 @@ class _Acc:
     live_since: str | None = None
     latest_event: datetime | None = None
     skew: dict[str, list[float]] = field(default_factory=dict)  # host -> event minus receive, seconds
+    devices: dict[str, tuple] = field(default_factory=dict)  # host -> (stamp, mac, model, firmware), newest
 
 
 class Pipeline:
@@ -186,6 +187,11 @@ class Pipeline:
             entry[0], entry[1] = min(entry[0], stamp), max(entry[1], stamp)
         if acc.latest_event is None or when > acc.latest_event:
             acc.latest_event = when
+        mac, model, firmware = event.get("device_mac"), event.get("model"), event.get("firmware")
+        if isinstance(mac, str) and isinstance(model, str) and isinstance(firmware, str):
+            seen = acc.devices.get(host)
+            if seen is None or stamp >= seen[0]:
+                acc.devices[host] = (stamp, mac, model, firmware)
         if not event.get("imported"):
             received = parse_received(event.get("timestamp")) or self.clock()
             if acc.live_since is None or iso(received) < acc.live_since:
@@ -267,6 +273,8 @@ class Pipeline:
                     result.unknown_hosts += 1
             for host, samples in acc.skew.items():
                 tx.set_clock_skew(host, statistics.median(samples), now)
+            for host, (stamp, mac, model, firmware) in acc.devices.items():
+                tx.set_device_header(host, mac, model, firmware, stamp)
             if acc.live_since is not None:
                 tx.note_live_data(acc.live_since)
             tx.set_offsets(new_offsets, now)

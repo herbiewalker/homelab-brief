@@ -32,6 +32,16 @@ class Server:
                 self.end_headers()
                 self.wfile.write(payload)
 
+            def do_GET(self):
+                outer.seen.append((self.headers.get("x-api-key"), self.path))
+                status, body = outer.script.pop(0) if len(outer.script) > 1 else outer.script[0]
+                payload = body if isinstance(body, bytes) else json.dumps(body).encode()
+                self.send_response(status)
+                self.send_header("content-type", "application/json")
+                self.send_header("content-length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
             def log_message(self, *args):
                 pass
 

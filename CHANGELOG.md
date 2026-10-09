@@ -5,6 +5,16 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.30
+
+Task 20: the UniFi collector (off by default; needs a read-only API key from the Network application).
+
+- Reads devices, models, firmware, update availability, and uplinks from the UniFi Network Integration API into inventory and the network map tables; sensors for device, offline, and update counts.
+- Firmware is also read from the `<mac>,<model>-<firmware>` token in switch, access point, and PDU syslog headers (new `device_header` table, written once per ingest cycle, migration 0009), so inventory has it when the API is unreachable or no key is set.
+- Detectors: `firmware_pending` (an update waiting; after 30 days it becomes `version_behind`) and `new_infrastructure` (a gateway, switch, access point, PDU, camera, or server first seen after discovery settled), with playbook advice.
+- The Unraid and UniFi collectors now share their HTTP and topology code; `detectors_disks` and `detect_disks` are now `detectors_hw` and `detect_hw`.
+- `scripts/e2e_collector.py` also runs the UniFi path (fake API, plus firmware arriving in a syslog header).
+
 ## 0.0.29
 
 Task 19: the Unraid collector (off by default; needs a read-only API key per server).

@@ -13,7 +13,7 @@ from collections import defaultdict
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
-from brief import detect_disks
+from brief import detect_hw
 from brief import detectors as d
 from brief.config import ConfigError, config_file, load_mapping
 from brief.learning import DEFAULT_DAYS, learning_status
@@ -44,9 +44,10 @@ DEFAULTS = {
     "disk_temp_hdd_c": {"warn": 50, "days": 3},
     "parity_slow": {"floor_mb_s": 40, "drop_vs_previous_pct": 50, "max_age_days": 40, "history": 5},
     "version_behind": {"days": 30},
+    "new_infrastructure": {"settle_hours": 24, "show_days": 7},
     "storage_low": {"min_free_pct": 15, "min_days_until_full": 14},
 }
-DAILY = ("novelty", "deviation", "off_hours", "clock_skew", "metric_drift", *detect_disks.KINDS)
+DAILY = ("novelty", "deviation", "off_hours", "clock_skew", "metric_drift", *detect_hw.KINDS)
 HOURLY = ("absence",)
 ALL = HOURLY + DAILY
 
@@ -438,7 +439,7 @@ def run(
             md["min_change_pct"],
             md["min_samples"],
         )
-    findings += _tag_systems(detect_disks.run(store, now, t, kinds), systems)
+    findings += _tag_systems(detect_hw.run(store, now, t, kinds), systems)
     return {"learning": learning, "findings": findings}
 
 

@@ -385,7 +385,7 @@ def test_findings_belong_to_the_system_with_the_same_id(tmp_path, servers):
 
 
 def test_version_behind_needs_an_available_version_that_has_waited(tmp_path):
-    from brief import detectors_disks as dd
+    from brief import detectors_hw as dd
 
     items = [
         dd.InventoryRow("a", "os", "Unraid OS", "7.3.1", "7.3.2", "2026-08-01T00:00:00Z"),

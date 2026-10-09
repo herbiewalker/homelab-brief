@@ -156,9 +156,9 @@ Spec: `docs/guide/06-phase2-device-intelligence.md`, `docs/guide/07-network-map.
 - [x] Detectors: `smart_trend`, `smart_failing`, `disk_temp`, `crc_rising`, `parity_slow`, `unraid_warning`, `version_behind`.
 - Accept: fixture responses for each server produce findings, metrics, inventory, and topology rows.
 
-## Task 20: UniFi collector (inventory, firmware, topology)
-- [ ] UniFi Network API with an API key (verify what the installed version offers): devices, models, firmware and update availability, uplinks for the map. Firmware is also read from log headers as a fallback.
-- [ ] Detectors: `firmware_pending`, `new_infrastructure`.
+## Task 20: UniFi collector (inventory, firmware, topology) (built 2026-10-09, version 0.0.30; NOT yet proven against a live console: run `brief collector test unifi` with a real read-only key first)
+- [x] UniFi Network API with an API key (verify what the installed version offers): devices, models, firmware and update availability, uplinks for the map. Firmware is also read from log headers as a fallback.
+- [x] Detectors: `firmware_pending`, `new_infrastructure`.
 - Accept: fixture responses produce inventory, topology rows, and findings.
 
 ## Task 21: Clients, traffic, and DNS activity

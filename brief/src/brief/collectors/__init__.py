@@ -5,4 +5,7 @@ from brief.collectors.framework import register
 
 __all__ = ["Collector", "CollectorError", "Context", "register"]
 
-from brief.collectors import unraid  # noqa: E402,F401  (registers the Unraid collector)
+from brief.collectors import (
+    unifi,  # noqa: E402,F401  (registers the UniFi collector)
+    unraid,  # noqa: E402,F401  (registers the Unraid collector)
+)

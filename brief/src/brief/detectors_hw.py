@@ -32,6 +32,7 @@ TREND = (
 )
 CRC = "199:UDMA_CRC_Error_Count"
 DAY = 86400
+UPDATE_FLAG = "update available"  # what the UniFi collector stores when the API only says that one exists
 
 
 @dataclass(frozen=True)
@@ -243,6 +244,7 @@ class InventoryRow:
     current_version: str
     available_version: str | None
     available_since: str | None
+    model: str = ""
 
 
 def version_behind(items: Iterable[InventoryRow], now: datetime, days: int = 30) -> list[Finding]:
@@ -258,7 +260,10 @@ def version_behind(items: Iterable[InventoryRow], now: datetime, days: int = 30)
                 id=f"version_behind:{i.item_id}",
                 kind="version_behind",
                 title=(
-                    f"{i.name} {i.available_version} has been available for {waiting} days "
+                    f"{i.name} has had a firmware update available for {waiting} days "
+                    f"(running {i.current_version})"
+                    if i.available_version == UPDATE_FLAG
+                    else f"{i.name} {i.available_version} has been available for {waiting} days "
                     f"(running {i.current_version})"
                 ),
                 value=waiting,
@@ -269,6 +274,84 @@ def version_behind(items: Iterable[InventoryRow], now: datetime, days: int = 30)
                     "available_version": i.available_version,
                     "days": waiting,
                 },
+            )
+        )
+    return out
+
+
+# ---------------------------------------------------------------- network devices
+
+NOT_DEVICES = ("os", "api", "plugin", "app")  # inventory kinds that are software, not hardware
+
+
+def firmware_pending(items: Iterable[InventoryRow], now: datetime, behind_days: int = 30) -> list[Finding]:
+    """A device with a firmware update available. Once it has waited `behind_days` it is version_behind's."""
+    out = []
+    for i in items:
+        if not i.available_version or i.kind in NOT_DEVICES:
+            continue
+        waiting = (now - parse_time(i.available_since)).days if i.available_since else 0
+        if waiting >= behind_days:
+            continue
+        out.append(
+            Finding(
+                id=f"firmware_pending:{i.item_id}",
+                kind="firmware_pending",
+                title=f"{i.name} has a firmware update available (running {i.current_version or 'unknown'})",
+                value=waiting,
+                escalates=False,
+                detail={
+                    "name": i.name,
+                    "model": i.model,
+                    "device_kind": i.kind,
+                    "current_version": i.current_version,
+                    "available_version": i.available_version,
+                    "days": waiting,
+                },
+            )
+        )
+    return out
+
+
+@dataclass(frozen=True)
+class NodeRow:
+    node_id: str
+    kind: str
+    label: str
+    first_seen: str
+
+
+INFRASTRUCTURE = ("gateway", "switch", "ap", "pdu", "camera", "server")
+
+
+def new_infrastructure(
+    nodes: Iterable[NodeRow], now: datetime, settle_hours: int = 24, show_days: int = 7
+) -> list[Finding]:
+    """A gateway, switch, access point, PDU, camera, or server that appeared after discovery had settled.
+
+    Everything found on a source's first pass is the starting inventory, not news: a node counts as new only
+    when it was first seen more than `settle_hours` after the earliest node from the same source (the part
+    of its id before the first colon), and it stays news for `show_days`."""
+    nodes = [n for n in nodes if n.kind in INFRASTRUCTURE]
+    started: dict[str, str] = {}
+    for n in nodes:
+        source = n.node_id.split(":", 1)[0]
+        started[source] = min(started.get(source, n.first_seen), n.first_seen)
+    out = []
+    for n in nodes:
+        source = n.node_id.split(":", 1)[0]
+        since_start = (parse_time(n.first_seen) - parse_time(started[source])).total_seconds()
+        age = (now - parse_time(n.first_seen)).total_seconds()
+        if since_start <= settle_hours * 3600 or age > show_days * DAY:
+            continue
+        out.append(
+            Finding(
+                id=f"new_infrastructure:{n.node_id}",
+                kind="new_infrastructure",
+                title=f"A new {n.kind} appeared: {n.label}",
+                value=1,
+                escalates=False,
+                detail={"device_kind": n.kind, "label": n.label, "first_seen": n.first_seen},
             )
         )
     return out

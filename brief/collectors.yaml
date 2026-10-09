@@ -24,9 +24,17 @@ collectors:
 
   unifi:
     enabled: false
-    interval: hourly            # clients and traffic hourly; inventory and firmware daily
+    interval: hourly
+    # Devices, firmware, and uplinks from the UniFi Network Integration API (create a read-only API key in
+    # the Network application). url_var holds the console address, for example https://<console-ip>;
+    # key_var holds the key. A console on a LAN address usually has a self-signed certificate: verify_tls: false.
     url_var: UNIFI_URL
     key_var: UNIFI_API_KEY
+    verify_tls: true
+    # site: Default            # a site name; leave out for every site
+    # api_path: /proxy/network/integration   # a UniFi OS console; a self-hosted application uses /integration
+    # Firmware is also read from the syslog headers of switches, access points, and PDUs on every pass,
+    # so inventory has it even when the API is not reachable or no key is set.
 
   snmp:
     enabled: false

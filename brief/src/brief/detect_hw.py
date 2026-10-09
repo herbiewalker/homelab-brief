@@ -1,13 +1,13 @@
 """Gather the rows the disk and server detectors need, as of `now` (so a replay sees only the past).
 
-The detectors themselves are in detectors_disks.py. This module is the part that reads the database
+The detectors themselves are in detectors_hw.py. This module is the part that reads the database
 (read-only connection) and runs them, so detect.run only has to ask for the kinds it wants.
 """
 
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-from brief import detectors_disks as dd
+from brief import detectors_hw as dd
 from brief.detectors import Finding
 from brief.store import Store, iso
 
@@ -19,6 +19,8 @@ KINDS = (
     "parity_slow",
     "unraid_warning",
     "version_behind",
+    "firmware_pending",
+    "new_infrastructure",
 )
 
 
@@ -135,23 +137,39 @@ def run(store: Store, now: datetime, t: dict, kinds: tuple[str, ...]) -> list[Fi
                     (iso(now),),
                 )
             )
-        if "version_behind" in wanted:
-            found += dd.version_behind(
+        if wanted & {"version_behind", "firmware_pending"}:
+            inventory = [
+                dd.InventoryRow(
+                    r["item_id"],
+                    r["kind"] or "",
+                    r["name"] or "",
+                    r["current_version"] or "",
+                    r["available_version"],
+                    r["available_since"],
+                    r["model"] or "",
+                )
+                for r in db.execute(
+                    "SELECT item_id, kind, name, model, current_version, available_version, available_since "
+                    "FROM inventory WHERE available_version IS NOT NULL"
+                )
+            ]
+            days = int(t["version_behind"]["days"])
+            if "version_behind" in wanted:
+                found += dd.version_behind(inventory, now, days)
+            if "firmware_pending" in wanted:
+                found += dd.firmware_pending(inventory, now, days)
+        if "new_infrastructure" in wanted:
+            n = t["new_infrastructure"]
+            found += dd.new_infrastructure(
                 (
-                    dd.InventoryRow(
-                        r["item_id"],
-                        r["kind"] or "",
-                        r["name"] or "",
-                        r["current_version"] or "",
-                        r["available_version"],
-                        r["available_since"],
-                    )
+                    dd.NodeRow(r["node_id"], r["kind"] or "", r["label"] or r["node_id"], r["first_seen"])
                     for r in db.execute(
-                        "SELECT item_id, kind, name, current_version, available_version, available_since "
-                        "FROM inventory WHERE available_version IS NOT NULL"
+                        "SELECT node_id, kind, label, first_seen FROM topo_node WHERE first_seen <= ?",
+                        (iso(now),),
                     )
                 ),
                 now,
-                int(t["version_behind"]["days"]),
+                int(n["settle_hours"]),
+                int(n["show_days"]),
             )
     return found

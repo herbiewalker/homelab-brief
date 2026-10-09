@@ -12,18 +12,17 @@ holds a read-only API key) one run asks the Unraid GraphQL API for its sections 
 
 and returns a few numbers per server (`unraid_<id>_...`) for Home Assistant and `/metrics`. Servers are
 independent: one that cannot be reached is reported as `unraid_<id>_reachable` 0 and the others still
-update. The detectors that read these tables are in `detectors_disks.py`.
+update. The detectors that read these tables are in `detectors_hw.py`.
 
 Nothing here changes a server: only GraphQL queries are sent.
 """
 
-import json
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
-from brief.collectors import smartctl
+from brief.collectors import smartctl, topology
 from brief.collectors.base import Collector, CollectorError, Context
 from brief.collectors.framework import register
 from brief.collectors.unraid_api import ApiError, UnraidApi
@@ -519,33 +518,16 @@ class UnraidCollector(Collector):
 
     @staticmethod
     def _topology(db, node: str, sid: str, snapshot: dict, now: str) -> None:
-        def upsert_node(node_id, kind, label, parent, attrs):
-            db.execute(
-                "INSERT INTO topo_node (node_id, kind, label, parent, system_id, source, attrs_json, "
-                "first_seen, "
-                "last_seen) VALUES (?, ?, ?, ?, NULL, 'discovered', ?, ?, ?) "
-                "ON CONFLICT (node_id) DO UPDATE SET label = excluded.label, parent = excluded.parent, "
-                "attrs_json = excluded.attrs_json, last_seen = excluded.last_seen",
-                (node_id, kind, label, parent, json.dumps(attrs), now, now),
-            )
-
-        def upsert_edge(src, dst):
-            db.execute(
-                "INSERT INTO topo_edge (src, dst, kind, attrs_json, source, last_seen) "
-                "VALUES (?, ?, 'hosts', NULL, 'discovered', ?) "
-                "ON CONFLICT (src, dst, kind) DO UPDATE SET last_seen = excluded.last_seen",
-                (src, dst, now),
-            )
-
-        upsert_node(node, "server", sid, None, {"os": "unraid"})
+        topology.upsert_node(db, node, "server", sid, None, {"os": "unraid"}, now)
         for c in snapshot["containers"]:
             child = f"{node}:ct:{c['name']}"
-            upsert_node(child, "container", c["name"], node, {"state": c["state"], "image": c["image"]})
-            upsert_edge(node, child)
+            attrs = {"state": c["state"], "image": c["image"]}
+            topology.upsert_node(db, child, "container", c["name"], node, attrs, now)
+            topology.upsert_edge(db, node, child, "hosts", now)
         for vm in snapshot["vms"]:
             child = f"{node}:vm:{vm['name']}"
-            upsert_node(child, "vm", vm["name"], node, {"state": vm["state"]})
-            upsert_edge(node, child)
+            topology.upsert_node(db, child, "vm", vm["name"], node, {"state": vm["state"]}, now)
+            topology.upsert_edge(db, node, child, "hosts", now)
 
     @staticmethod
     def _readings(db, disk_id: str, disk: Disk, now: datetime) -> None:

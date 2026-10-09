@@ -11,27 +11,15 @@ Only queries are ever sent. The key goes in the `x-api-key` header and is never 
 
 import json
 import re
-import ssl
-import urllib.error
-import urllib.request
 from collections.abc import Callable
 from copy import deepcopy
 
-MAX_RESPONSE = 8_000_000
+from brief.collectors.httpjson import ApiError, request_json, tls_context
+
 MAX_RETRIES = 4
 _UNKNOWN_FIELD = re.compile(r'Cannot query field "(\w+)"')
 
 Selection = dict  # field name -> nested Selection, or None for a leaf
-
-
-class ApiError(Exception):
-    """kind: auth (key rejected), unreachable (network, TLS, timeout), graphql (the server refused the query),
-    bad_response (not JSON, too large). `message` never contains the key."""
-
-    def __init__(self, kind: str, message: str):
-        super().__init__(message)
-        self.kind = kind
-        self.message = message
 
 
 def render(selection: Selection) -> str:
@@ -65,47 +53,17 @@ def prune(selection: Selection, field: str) -> bool:
 class UnraidApi:
     def __init__(self, url: str, key: str, timeout: float = 10.0, verify_tls: bool = True):
         self.url, self._key, self.timeout = url, key, timeout
-        self._context = None
-        if url.lower().startswith("https"):
-            self._context = ssl.create_default_context()
-            if not verify_tls:  # an Unraid server usually has a self-signed certificate on its own address
-                self._context.check_hostname = False
-                self._context.verify_mode = ssl.CERT_NONE
+        self._context = tls_context(url, verify_tls)  # an Unraid server usually has a self-signed certificate
 
     def raw(self, query: str) -> dict:
-        body = json.dumps({"query": query}).encode()
-        request = urllib.request.Request(
+        data = request_json(
             self.url,
-            data=body,
-            method="POST",
-            headers={
-                "content-type": "application/json",
-                "x-api-key": self._key,
-                "accept": "application/json",
-            },
+            {"content-type": "application/json", "x-api-key": self._key},
+            self.timeout,
+            self._context,
+            body=json.dumps({"query": query}).encode(),
+            error_json=True,
         )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout, context=self._context) as reply:
-                payload = reply.read(MAX_RESPONSE + 1)
-        except urllib.error.HTTPError as exc:
-            if exc.code in (401, 403):
-                raise ApiError("auth", "the API key was rejected") from None
-            try:
-                detail = json.loads(exc.read(MAX_RESPONSE) or b"{}")
-            except ValueError:
-                detail = {}
-            if isinstance(detail, dict) and detail.get("errors"):
-                return detail  # a GraphQL error carried on an HTTP 400: handled like any other
-            raise ApiError("unreachable", f"the server answered HTTP {exc.code}") from None
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            reason = getattr(exc, "reason", exc)
-            raise ApiError("unreachable", f"could not connect ({type(reason).__name__})") from None
-        if len(payload) > MAX_RESPONSE:
-            raise ApiError("bad_response", "the reply was larger than expected")
-        try:
-            data = json.loads(payload)
-        except ValueError:
-            raise ApiError("bad_response", "the reply was not JSON") from None
         if not isinstance(data, dict):
             raise ApiError("bad_response", "the reply was not a GraphQL response")
         return data

@@ -97,7 +97,14 @@ The project proves the upgrade path in the release workflow: the new image is st
 5. **SMART attributes (optional).** The API gives each disk's overall SMART verdict and temperature, not the attribute table. For reallocated, pending, and CRC trends set `smart_source: smartctl_files`, install `deploy/unraid-smart-export.sh` as an hourly User Script on each server (set `DEST` and `SERVER_ID` in it), and mount that share read-only into the container at `smart_files_path`.
 6. **What it finds.** `smart_failing`, `smart_trend`, `crc_rising`, `disk_temp`, `parity_slow` (a check far slower than the server's earlier ones or under 40 MB/s), `unraid_warning` (unread warning and alert notifications), and `version_behind`; thresholds are in `playbook.yaml`, wording and buckets in its `rules`.
 
-- UniFi: create a read-only API key in UniFi Network and add it as a template variable (Task 20).
+### UniFi collector (Task 20)
+
+1. **Key.** In the UniFi Network application create an API key (Settings, Control Plane, Integrations) and add two template variables to the container: `UNIFI_URL` (the console address, for example `https://<console-ip>`) and `UNIFI_API_KEY`.
+2. **Settings.** In `collectors.yaml` set `unifi.enabled: true`. A console on a LAN address usually has a self-signed certificate: add `verify_tls: false`. Use `site:` to read one site, and `api_path: /integration` for a self-hosted Network application (a UniFi OS console is the default).
+3. **Try it first.** `docker exec homelab-brief brief collector test unifi` says whether the console answered and how many devices and pending updates it found. The client follows the documented Integration API but was built without a live console, so this is the first real check; send me the message if it fails.
+4. **Without a key.** Firmware is read from the syslog headers of switches, access points, and PDUs anyway, so inventory and `firmware_pending` have it as soon as those devices log to the container. The collector reports the missing key as a failed run, but the header firmware is still stored.
+5. **What it finds.** `firmware_pending` (an update is waiting; after 30 days it becomes `version_behind`) and `new_infrastructure` (a gateway, switch, access point, PDU, or server that appeared after the first discovery pass; the first pass is treated as your starting inventory). Uplinks feed the network map.
+
 - In Home Assistant, enable `mqtt_statestream` with base topic `homelab/ha` for the power entities you want, then list them in `collectors.yaml` (or the GUI).
 
 ## Rollback

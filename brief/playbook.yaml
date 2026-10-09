@@ -25,6 +25,9 @@ thresholds:
   odd_hours: { min_online_min: 30 }
   disk_temp_hdd_c: { warn: 50, days: 3 }   # a spinning disk whose coolest sample over the days stays at or above warn
   version_behind: { days: 30 }
+  # a gateway, switch, access point, PDU, camera, or server first seen more than settle_hours after the first
+  # node from the same source (the starting inventory is not news) is reported for show_days
+  new_infrastructure: { settle_hours: 24, show_days: 7 }
   parity_slow: { floor_mb_s: 40, drop_vs_previous_pct: 50, max_age_days: 40, history: 5 }
   smart_trend: { window_days: 14 }   # the window for "rose by N" (reallocated, CRC, and so on)
   clock_skew: { max_minutes: 3 }
@@ -68,13 +71,14 @@ rules:
   firmware_pending:
     kind: firmware_pending
     advice: >
-      {name} ({model}) has firmware {available_version} available (running {current_version}).
-      Schedule the update for a maintenance window.
+      {name} ({model}) has a firmware update available (running {current_version}). Schedule the
+      update for a maintenance window; read the release notes first for a gateway or a switch
+      that other devices depend on.
 
   new_infrastructure:
     kind: new_infrastructure
     advice: >
-      A new {kind} ({label}) appeared on the network map. Confirm it is yours and give it a
+      A new {device_kind} ({label}) appeared on the network map. Confirm it is yours and give it a
       label in topology.yaml.
 
   parity_slow:

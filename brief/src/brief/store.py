@@ -214,6 +214,15 @@ class Tx:
             rows,
         )
 
+    def set_device_header(self, host: str, mac: str, model: str, firmware: str, seen: datetime | str) -> None:
+        """The newest "<mac>,<model>-<firmware>" token seen from a sender; an older one never replaces it."""
+        self.db.execute(
+            "INSERT INTO device_header (host, mac, model, firmware, seen) VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT (host) DO UPDATE SET mac = excluded.mac, model = excluded.model, "
+            "firmware = excluded.firmware, seen = excluded.seen WHERE excluded.seen >= device_header.seen",
+            (host, mac, model, firmware, iso(seen)),
+        )
+
     def touch_host(
         self,
         host: str,

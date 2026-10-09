@@ -7,7 +7,7 @@ unraid collector in collectors.yaml, and checks over real HTTP and the real CLI 
   - /metrics and /api/v1/metrics list the sensors the collector declared (no code outside the collector)
   - `brief collector test unraid` and `brief collector list` work, and a wrong key is reported, not hidden
   - the fake server saw the right key on every request and only queries
-Then switches the collector off and checks `brief collector list` says so.
+Then the UniFi collector the same way, with firmware arriving in a syslog header; and switches the collectors off and checks `brief collector list` says so.
 
   python3 scripts/e2e_collector.py [--image homelab-brief:dev] [--http-port 18082]
 """
@@ -22,13 +22,17 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NET, FAKE, APP = "hb-e2e-col-net", "hb-e2e-col-fake", "hb-e2e-col-app"
+NET, FAKE, FAKE2, APP = "hb-e2e-col-net", "hb-e2e-col-fake", "hb-e2e-col-unifi", "hb-e2e-col-app"
 YAML = """schema: 1
 collectors:
   unraid:
     enabled: {enabled}
     servers:
       - {{ id: server-1, url: "http://{fake}:8080/graphql", key_var: UNRAID_SERVER_1_API_KEY }}
+  unifi:
+    enabled: {enabled}
+    url_var: UNIFI_URL
+    key_var: UNIFI_API_KEY
 """
 
 
@@ -74,11 +78,14 @@ def main(argv):
     try:
         docker("network", "rm", NET, check=False)
         docker("network", "create", NET)
-        docker("rm", "-f", FAKE, APP, check=False)
+        docker("rm", "-f", FAKE, FAKE2, APP, check=False)
+        docker("run", "-d", "--name", FAKE2, "--network", NET, "-v", f"{ROOT}/scripts/fake_unifi.py:/fake.py:ro",
+               "--entrypoint", "python", args.image, "/fake.py")  # fmt: skip
         docker("run", "-d", "--name", FAKE, "--network", NET, "-v", f"{ROOT}/scripts/fake_unraid.py:/fake.py:ro",
                "--entrypoint", "python", args.image, "/fake.py")  # fmt: skip
         docker("run", "-d", "--name", APP, "--network", NET, "-e", "SYSLOG_PORT=5514", "-e", "BRIEF_INGEST_INTERVAL=1",
-               "-e", "UNRAID_SERVER_1_API_KEY=e2e-test-key", "-v", f"{tmp}/state:/state", "-v", f"{tmp}/config:/config",
+               "-e", "UNRAID_SERVER_1_API_KEY=e2e-test-key", "-e", f"UNIFI_URL=http://{FAKE2}:8081",
+               "-e", "UNIFI_API_KEY=e2e-unifi-key", "-v", f"{tmp}/state:/state", "-v", f"{tmp}/config:/config",
                "-v", f"{tmp}/archive:/archive", "-p", f"{args.http_port}:80", args.image)  # fmt: skip
 
         def status():
@@ -136,6 +143,53 @@ def main(argv):
             f"a wrong key: {bad.stdout} {bad.stderr}",
         )
 
+        # ---- UniFi: the API, the topology, and the firmware that arrives in a syslog header
+        until(
+            "the UniFi collector to run",
+            lambda: status().get("collectors", {}).get("unifi", {}).get("last_run"),
+        )
+        unifi = status()["collectors"]["unifi"]
+        check(unifi["ok"] is True, f"the UniFi collector did not succeed: {unifi}")
+        check(unifi["metrics"].get("unifi_devices") == 3, f"UniFi numbers: {unifi['metrics']}")
+        check(unifi["metrics"].get("unifi_updates_available") == 1, f"UniFi numbers: {unifi['metrics']}")
+        check("unifi_devices" in get(args.http_port, "/metrics"), "/metrics lacks the UniFi sensors")
+        utest = docker("exec", APP, "brief", "collector", "test", "unifi", check=False)
+        check(
+            utest.returncode == 0 and "3 devices, 1 with a firmware update" in utest.stdout,
+            f"unifi test: {utest.stdout} {utest.stderr}",
+        )
+        send = (
+            "import socket,time;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);t=time.strftime('%b %e %H:%M:%S');"
+            "s.sendto(f'<14>{t} host-x 00005e005399,USW-Flex-7.5.10+17129: : app[1]: hello'.encode(),('127.0.0.1',5514))"
+        )
+        docker("exec", APP, "python", "-c", send)
+        query = (
+            "import sqlite3;c=sqlite3.connect('file:/state/baseline.db?mode=ro',uri=True);"
+            "print(c.execute(\"select firmware from device_header\").fetchone() or '')"
+        )
+        until(
+            "the header firmware to be stored",
+            lambda: "7.5.10+17129" in docker("exec", APP, "python", "-c", query).stdout,
+        )
+        docker("exec", APP, "brief", "collector", "run", "unifi")
+        inventory = (
+            "import sqlite3;c=sqlite3.connect('file:/state/baseline.db?mode=ro',uri=True);"
+            "print(c.execute(\"select current_version from inventory where item_id='unifi:00005e005399'\").fetchone(),"
+            "c.execute(\"select count(*) from topo_edge where kind='uplink'\").fetchone())"
+        )
+        result = docker("exec", APP, "python", "-c", inventory).stdout
+        check(
+            "7.5.10+17129" in result and "(2,)" in result,
+            f"inventory and topology after the header: {result}",
+        )
+        bad2 = docker(
+            "exec", "-e", "UNIFI_API_KEY=wrong", APP, "brief", "collector", "test", "unifi", check=False
+        )
+        check(
+            bad2.returncode == 1 and "rejected" in bad2.stdout + bad2.stderr,
+            f"a wrong UniFi key: {bad2.stdout} {bad2.stderr}",
+        )
+
         conf.write_text(YAML.format(enabled="false", fake=FAKE))
         after = docker("exec", APP, "brief", "collector", "list", check=False).stdout
         check("off" in after, f"collector list after disabling: {after}")
@@ -146,7 +200,7 @@ def main(argv):
     finally:
         if problems:
             print(docker("logs", APP, check=False).stdout[-1500:])
-        docker("rm", "-f", FAKE, APP, check=False)
+        docker("rm", "-f", FAKE, FAKE2, APP, check=False)
         docker("network", "rm", NET, check=False)
         docker("run", "--rm", "--entrypoint", "rm", "-v", f"{tmp}:/t", args.image, "-rf",
                "/t/state", "/t/archive", "/t/config", check=False)  # fmt: skip
