@@ -71,3 +71,9 @@ class Collector:
 
     def run(self, ctx: Context) -> dict[str, float | str]:
         raise NotImplementedError
+
+    def required_vars(self, config: dict) -> list[str] | None:
+        """Template variables that must be set before a run. None (the default) means every `*_var` the
+        settings name. A collector that serves several independent targets (one key each) returns [] and
+        reports a missing key per target, so one forgotten key does not stop the others."""
+        return None

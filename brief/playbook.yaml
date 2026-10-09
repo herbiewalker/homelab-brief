@@ -23,9 +23,10 @@ thresholds:
   metric_drift: { recent_days: 7, baseline_days: 21, min_change_pct: 20, min_samples: 24 }
   traffic_spike: { multiple: 5, floor_gb: 2, window_days: 14 }
   odd_hours: { min_online_min: 30 }
-  disk_temp_hdd_c: { warn: 50, days: 3 }
-  version_behind_days: 30
-  parity_slow: { floor_mb_s: 40, drop_vs_previous_pct: 50 }
+  disk_temp_hdd_c: { warn: 50, days: 3 }   # a spinning disk whose coolest sample over the days stays at or above warn
+  version_behind: { days: 30 }
+  parity_slow: { floor_mb_s: 40, drop_vs_previous_pct: 50, max_age_days: 40, history: 5 }
+  smart_trend: { window_days: 14 }   # the window for "rose by N" (reallocated, CRC, and so on)
   clock_skew: { max_minutes: 3 }
   storage_low: { min_free_pct: 15, min_days_until_full: 14 }
 

@@ -340,7 +340,7 @@ def test_collector_commands_list_test_and_run(box, capsys, monkeypatch, tmp_path
     monkeypatch.setitem(framework.REGISTRY, "unifi", Fake)
     assert run("collector", "list") == 0
     assert f"{'unifi':16} off" in capsys.readouterr().out
-    assert run("collector", "test", "unraid") == 1  # nothing implements it yet
+    assert run("collector", "test", "snmp") == 1  # nothing implements it yet
     assert "not available in this version" in capsys.readouterr().err
     assert run("collector", "run") == 1
     assert "No enabled collector" in capsys.readouterr().err

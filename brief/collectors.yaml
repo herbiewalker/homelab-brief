@@ -5,12 +5,21 @@ schema: 1
 collectors:
   unraid:
     enabled: false
-    interval: hourly            # parity history, notifications, and inventory refresh daily
+    interval: hourly
+    timeout_s: 90               # for all servers together; each request also stops after request_timeout_s
+    request_timeout_s: 10
+    # One entry per Unraid server. id: lowercase letters, digits and hyphens (it names the sensors).
+    # key_var names the template variable holding that server's read-only API key. A server with a
+    # self-signed certificate (the usual case on a LAN address) needs verify_tls: false.
     servers:
-      - { id: server-1,     url: "https://<server-1-ip>/graphql",   key_var: UNRAID_SERVER_1_API_KEY }
-      - { id: server-2,     url: "https://<server-2-ip>/graphql", key_var: UNRAID_SERVER_2_API_KEY }
-      - { id: server-3,     url: "https://<model-server-ip>/graphql",        key_var: UNRAID_SERVER_3_API_KEY }
-    smart_source: api           # api | smartctl_files (fallback if the API lacks attributes)
+      - { id: server-1, url: "https://<server-1-ip>/graphql", key_var: UNRAID_SERVER_1_API_KEY, verify_tls: false }
+      - { id: server-2, url: "https://<server-2-ip>/graphql", key_var: UNRAID_SERVER_2_API_KEY, verify_tls: false }
+      - { id: server-3, url: "https://<model-server-ip>/graphql", key_var: UNRAID_SERVER_3_API_KEY, verify_tls: false }
+    # api: the overall SMART verdict and the temperature, which the Unraid API reports; it has no attribute table.
+    # smartctl_files: also read the attributes (reallocated, pending, CRC errors) from smartctl JSON files that a
+    # User Script on each server writes (deploy/unraid-smart-export.sh). Mount that share at smart_files_path;
+    # each server writes into a folder named after its id.
+    smart_source: api           # api | smartctl_files
     smart_files_path: /import-smart
 
   unifi:

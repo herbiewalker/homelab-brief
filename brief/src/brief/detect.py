@@ -10,8 +10,10 @@ including the current (partial) hour, and each earlier window is the 24 buckets 
 
 import json
 from collections import defaultdict
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
+from brief import detect_disks
 from brief import detectors as d
 from brief.config import ConfigError, config_file, load_mapping
 from brief.learning import DEFAULT_DAYS, learning_status
@@ -38,9 +40,13 @@ DEFAULTS = {
     "absence": {"gap_multiple": 3, "min_minutes": 30, "max_hours": 24},
     "clock_skew": {"max_minutes": 3},
     "metric_drift": {"recent_days": 7, "baseline_days": 21, "min_change_pct": 20, "min_samples": 24},
+    "smart_trend": {"window_days": 14},
+    "disk_temp_hdd_c": {"warn": 50, "days": 3},
+    "parity_slow": {"floor_mb_s": 40, "drop_vs_previous_pct": 50, "max_age_days": 40, "history": 5},
+    "version_behind": {"days": 30},
     "storage_low": {"min_free_pct": 15, "min_days_until_full": 14},
 }
-DAILY = ("novelty", "deviation", "off_hours", "clock_skew", "metric_drift")
+DAILY = ("novelty", "deviation", "off_hours", "clock_skew", "metric_drift", *detect_disks.KINDS)
 HOURLY = ("absence",)
 ALL = HOURLY + DAILY
 
@@ -432,6 +438,7 @@ def run(
             md["min_change_pct"],
             md["min_samples"],
         )
+    findings += _tag_systems(detect_disks.run(store, now, t, kinds), systems)
     return {"learning": learning, "findings": findings}
 
 
@@ -472,3 +479,13 @@ def as_json(result: dict) -> str:
     return json.dumps(
         {"learning": result["learning"], "findings": [f.__dict__ for f in result["findings"]]}, indent=2
     )
+
+
+def _tag_systems(findings: list[d.Finding], systems: Systems) -> list[d.Finding]:
+    """A collector finding names its `server`; when a system with that id exists, the finding belongs to it
+    (so it groups and shows under that tile)."""
+    known = {s.id for s in systems.systems}
+    return [
+        replace(f, system=f.detail["server"]) if f.system is None and f.detail.get("server") in known else f
+        for f in findings
+    ]

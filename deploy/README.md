@@ -88,7 +88,16 @@ The project proves the upgrade path in the release workflow: the new image is st
 
 ## Phase 2 additions (any order)
 
-- Create read-only API keys on each Unraid server and in UniFi Network, add them as template variables, enable the collectors on the Collectors page, and use "Test connection".
+### Unraid collector (Task 19)
+
+1. **Keys.** On each Unraid server create an API key with read-only access (Settings, Management Access, API Keys) and add it to the container as a template variable (Add another Variable), for example `UNRAID_SERVER_1_API_KEY`. The names in `collectors.yaml` (`key_var`) must match.
+2. **Settings.** In `config/brief/collectors.yaml` (or the config editor) set `unraid.enabled: true` and list your servers: an id (lowercase letters, digits, hyphens; it names the sensors), the URL `https://<address>/graphql`, the `key_var`, and `verify_tls: false` for a self-signed certificate. A server whose id matches a system id in `systems.yaml` shows its findings under that system's tile.
+3. **Try it first.** `docker exec homelab-brief brief collector test unraid` asks every server for every section and says which answered, which fields this Unraid version did not know (those are dropped, not fatal), and which sections it does not have (for example VMs). Run this before relying on it: the queries follow the Unraid API's documented shape but were built without a live server, so this is the first real check.
+4. **Run it.** The worker runs enabled collectors hourly; `brief collector run unraid` runs it now. `brief collector list` shows how the last run went, and `collector_unraid_ok` plus `unraid_<id>_reachable` appear as sensors.
+5. **SMART attributes (optional).** The API gives each disk's overall SMART verdict and temperature, not the attribute table. For reallocated, pending, and CRC trends set `smart_source: smartctl_files`, install `deploy/unraid-smart-export.sh` as an hourly User Script on each server (set `DEST` and `SERVER_ID` in it), and mount that share read-only into the container at `smart_files_path`.
+6. **What it finds.** `smart_failing`, `smart_trend`, `crc_rising`, `disk_temp`, `parity_slow` (a check far slower than the server's earlier ones or under 40 MB/s), `unraid_warning` (unread warning and alert notifications), and `version_behind`; thresholds are in `playbook.yaml`, wording and buckets in its `rules`.
+
+- UniFi: create a read-only API key in UniFi Network and add it as a template variable (Task 20).
 - In Home Assistant, enable `mqtt_statestream` with base topic `homelab/ha` for the power entities you want, then list them in `collectors.yaml` (or the GUI).
 
 ## Rollback

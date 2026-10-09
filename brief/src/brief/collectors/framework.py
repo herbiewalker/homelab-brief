@@ -291,7 +291,11 @@ def _safe_reason(exc: BaseException) -> str:
 
 
 def _check_vars(settings: Settings, env: Mapping[str, str]) -> None:
-    missing = [v for v in required_vars(settings.config) if not (env.get(v) or "").strip()]
+    cls = REGISTRY.get(settings.name)
+    needed = cls().required_vars(settings.config) if cls is not None else None
+    if needed is None:
+        needed = required_vars(settings.config)
+    missing = [v for v in needed if not (env.get(v) or "").strip()]
     if missing:
         raise CollectorError("these variables are not set: " + ", ".join(missing))
 

@@ -5,6 +5,16 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.29
+
+Task 19: the Unraid collector (off by default; needs a read-only API key per server).
+
+- Reads each server's GraphQL API: array state, disks with temperature and SMART verdict, parity check history, containers and VMs, unread warnings, OS and plugin versions. Servers are independent (an unreachable one reports `unraid_<id>_reachable` 0 and the others still update); a field or section a server does not have is dropped, not fatal.
+- Optional `smart_source: smartctl_files` reads reallocated, pending and CRC attributes from files a User Script writes (`deploy/unraid-smart-export.sh`), because the API does not report the attribute table.
+- Detectors: `smart_failing`, `smart_trend`, `crc_rising`, `disk_temp`, `parity_slow`, `unraid_warning`, `version_behind`, with playbook advice and buckets.
+- Rows for the network map (server, containers, VMs), inventory, and per-server sensors. Migration 0008.
+- `brief collector test unraid` reports per server and per section what answered. New end-to-end check `scripts/e2e_collector.py` runs the whole path against a fake Unraid API.
+
 ## 0.0.28
 
 Task 18: the Phase 2 framework. No collector ships yet (Tasks 19 to 23 add them), and every one is off.
