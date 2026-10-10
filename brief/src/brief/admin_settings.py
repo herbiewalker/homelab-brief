@@ -19,6 +19,13 @@ RESTART = {
 }
 
 
+def basis_text(file: str) -> str:
+    """The text a form edits: the user's file, or for a file that ships only as an example (devices, topology,
+    systems) an empty document, so the example's made-up rows are not shown as if they were yours."""
+    text, customised = configedit.current(file)
+    return text if customised or file not in settingspages.EXAMPLE_ONLY else "schema: 1\n"
+
+
 def vars_set(state: dict) -> dict[str, bool]:
     wanted = {v for v in state["values"].values() if isinstance(v, str) and settingsui.VAR_NAME.match(v)}
     return {v: bool(os.environ.get(v)) for v in wanted}
@@ -35,8 +42,10 @@ def render_card(
     toast: dict | None = None,
     extra_hidden: dict | None = None,
 ) -> HTMLResponse:
-    text, _ = configedit.current(section.file)
-    loaded = state or settingsui.load(section, text, configedit.starting_text(section.file))
+    text = configedit.current(section.file)[0]
+    loaded = state or settingsui.load(
+        section, basis_text(section.file), configedit.starting_text(section.file)
+    )
     response = d.render(
         request,
         "_settings_card.html",
@@ -113,7 +122,8 @@ def register(admin: APIRouter, d: Deps) -> None:
                 422,
             )
         file = section.file
-        text, _ = configedit.current(file)
+        text = basis_text(file)
+        real = configedit.current(file)[0]
         try:
             new = settingsui.apply(section, text, values, on)
             if new == text:
@@ -131,7 +141,7 @@ def register(admin: APIRouter, d: Deps) -> None:
                 file,
                 new,
                 user,
-                str(form.get("base") or configedit.digest(text)),
+                str(form.get("base") or configedit.digest(real)),
                 d.settings.state_dir,
             )
         except (yamlscalar.EditError, configedit.EditError) as exc:
@@ -210,7 +220,7 @@ def register(admin: APIRouter, d: Deps) -> None:
                 ok=False,
                 message="Fix the marked settings first, then preview.",
             )
-        old, _ = configedit.current(section.file)
+        old = basis_text(section.file)
         try:
             new = settingsui.apply(section, old, values, on)
         except yamlscalar.EditError as exc:

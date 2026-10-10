@@ -322,3 +322,349 @@ PAGES.update(
 )
 SECTIONS = {s.id: s for p in PAGES.values() for s in p.sections}
 SECTIONS.update({s.id: s for s in (NETWORK, PORTS, SYSTEMS)})
+
+
+# ---------------------------------------------------------------- playbook thresholds and advice (Task 34)
+# (group, heading, [(parameter, label, unit, help, whole number?, minimum, maximum)])
+THRESHOLD_GROUPS = (
+    ("learning", "Learning period", [
+        ("days", "Learn for", "days", "Live days of baseline collection before novelty and deviation findings start.", True, 0, 90),
+    ]),
+    ("novelty", "New or returning log patterns", [
+        ("quiet_days_before_return", "Quiet for", "days", "A pattern that was silent this long and appears again counts as returned.", True, 1, 90),
+        ("host_active_hours_in_gap", "Host logged other things for", "hours", "Only counts as a return if the host was otherwise active this long meanwhile; if the host was down, the host returned instead.", True, 0, 168),
+        ("min_prior_days", "Used to be regular", "days", "The pattern must have been seen on at least this many days before it went quiet.", True, 1, 90),
+    ]),
+    ("deviation", "Unusual volume", [
+        ("window_days", "Baseline window", "days", "How far back the normal volume is measured.", True, 3, 90),
+        ("min_count", "At least", "lines", "Smaller counts are never flagged.", True, 1, 100000),
+        ("mad_multiple", "Spread multiple", "x", "Flag above the median plus this many typical spreads (MAD).", False, 1, 50),
+        ("min_ratio", "At least this many times the median", "x", "Also required, when the median is not zero.", False, 1, 1000),
+        ("min_history_days", "Needs history of", "days", "Days of the pattern's own history before it can be flagged.", True, 1, 90),
+    ]),
+    ("off_hours", "Lines at an unusual hour", [
+        ("window_days", "Baseline window", "days", "", True, 3, 90),
+        ("min_count", "At least", "lines", "In the hour being judged.", True, 1, 100000),
+        ("min_history_days", "Needs history of", "days", "", True, 1, 90),
+        ("min_history_events", "Needs at least", "events", "Events in the history before a usual pattern is believed.", True, 1, 100000),
+        ("max_usual_hours", "Usually within", "hours of the day", "A pattern concentrated in at most this many hours of the day has a usual time.", True, 1, 24),
+    ]),
+    ("absence", "A source gone quiet", [
+        ("gap_multiple", "Silent for", "x its usual gap", "A host that has not sent for this many times its learned gap is silent.", False, 1, 100),
+        ("min_minutes", "Never sooner than", "minutes", "", True, 1, 10080),
+        ("max_hours", "Never later than", "hours", "The limit used before a gap has been learned.", True, 1, 720),
+    ]),
+    ("metric_drift", "Collector numbers drifting", [
+        ("recent_days", "Recent window", "days", "", True, 1, 90),
+        ("baseline_days", "Earlier window", "days", "", True, 2, 365),
+        ("min_change_pct", "Flag a change of", "%", "The recent mean must differ from the earlier mean by at least this much.", False, 1, 1000),
+        ("min_samples", "Needs at least", "samples", "In both windows.", True, 2, 100000),
+    ]),
+    ("traffic_spike", "Client traffic spike", [
+        ("multiple", "More than", "x its normal day", "", False, 1, 1000),
+        ("floor_gb", "and more than", "GB", "So a tiny device doubling is not news.", False, 0, 10000),
+        ("window_days", "Baseline window", "days", "", True, 3, 90),
+        ("min_history_days", "Needs history of", "days", "", True, 1, 90),
+    ]),
+    ("odd_hours", "Device online at odd hours", [
+        ("min_online_min", "Online at least", "minutes", "In an hour of the device's quiet hours (devices.yaml).", True, 1, 60),
+    ]),
+    ("new_device", "New client devices", [
+        ("settle_hours", "Starting population ends after", "hours", "Devices first seen within this time of the first one are the starting list, not news.", True, 1, 720),
+        ("show_days", "Report for", "days", "", True, 1, 60),
+    ]),
+    ("power_drift", "Power draw drifting up", [
+        ("recent_hours", "Recent window", "hours", "", True, 1, 168),
+        ("baseline_days", "Earlier window", "days", "", True, 2, 365),
+        ("min_increase_pct", "Flag an increase of", "%", "", False, 1, 1000),
+        ("min_increase_w", "and at least", "watts", "So a 3 W device doubling is not news.", False, 0, 100000),
+        ("min_samples", "Needs at least", "hourly readings", "", True, 2, 100000),
+    ]),
+    ("disk_temp_hdd_c", "Spinning disk temperature", [
+        ("warn", "Warn at", "degrees C", "A disk whose coolest sample over the days stays at or above this is flagged.", True, 30, 90),
+        ("days", "Over", "days", "", True, 1, 30),
+    ]),
+    ("version_behind", "Software out of date", [
+        ("days", "Behind for", "days", "", True, 1, 365),
+    ]),
+    ("new_infrastructure", "New network equipment", [
+        ("settle_hours", "Starting inventory ends after", "hours", "", True, 1, 720),
+        ("show_days", "Report for", "days", "", True, 1, 60),
+    ]),
+    ("parity_slow", "Slow parity check", [
+        ("floor_mb_s", "Below", "MB/s", "", False, 1, 10000),
+        ("drop_vs_previous_pct", "or down by", "% from the previous check", "", False, 1, 100),
+        ("max_age_days", "Look back", "days", "", True, 1, 365),
+        ("history", "Compare against the last", "checks", "", True, 1, 50),
+    ]),
+    ("smart_trend", "Disk SMART trends", [
+        ("window_days", "Window for a rise", "days", "Reallocated sectors, CRC errors and the like.", True, 1, 90),
+    ]),
+    ("clock_skew", "Clock skew", [
+        ("max_minutes", "Flag a clock off by more than", "minutes", "", True, 1, 1440),
+    ]),
+    ("storage_low", "Archive storage", [
+        ("min_free_pct", "Flag below", "% free", "", True, 1, 90),
+        ("min_days_until_full", "or fewer than", "days until full", "", True, 1, 365),
+    ]),
+)  # fmt: skip
+
+
+def _threshold_fields() -> tuple[Field, ...]:
+    out = []
+    for group, heading, params in THRESHOLD_GROUPS:
+        for param, label, unit, help_, whole, low, high in params:
+            out.append(
+                Field(
+                    f"thresholds.{group}.{param}",
+                    label,
+                    "number",
+                    help_,
+                    unit=unit,
+                    integer=whole,
+                    minimum=low,
+                    maximum=high,
+                    group=heading,
+                )
+            )
+    return tuple(out)
+
+
+THRESHOLDS = Section(
+    "playbook-thresholds",
+    "Thresholds",
+    "playbook.yaml",
+    (),
+    _threshold_fields(),
+    blurb="When each detector decides something is worth a finding. These are starting values to tune against your own data; use the preview to see what a change would have done to last week.",
+    icon="sliders",
+    switch="",
+    preview=True,
+)
+
+RULE_IDS = (
+    ("smart_failing", "A disk reports a failed SMART status"),
+    ("smart_pending_nonzero", "A disk has unreadable sectors"),
+    ("smart_realloc_rising", "A disk is remapping sectors"),
+    ("crc_rising", "CRC errors are rising"),
+    ("firmware_pending", "A firmware update is available"),
+    ("new_infrastructure", "New network equipment appeared"),
+    ("parity_slow", "A parity check was slow"),
+    ("clock_skew", "A clock is off"),
+    ("storage_low", "Archive storage is low"),
+    ("traffic_spike_generic", "A client moved far more data than usual"),
+    ("new_device_generic", "A new device joined"),
+    ("odd_hours_device", "A device was online in its quiet hours"),
+    ("power_drift_system", "A system's power draw rose"),
+)
+BUCKETS = ("watch", "plan", "act_now")
+
+
+def _advice_fields() -> tuple[Field, ...]:
+    out = []
+    for rule, heading in RULE_IDS:
+        out += [
+            Field(
+                f"rules.{rule}.advice",
+                "What to tell you",
+                "paragraph",
+                "Words in {braces} are filled in with the finding's details.",
+                lines=5,
+                group=heading,
+            ),
+            Field(
+                f"rules.{rule}.bucket",
+                "How soon",
+                "choice",
+                "watch: recheck in a week. plan: replace within roughly 4 to 8 weeks. act_now: do it today.",
+                BUCKETS,
+            ),
+        ]
+    return tuple(out)
+
+
+ADVICE = Section(
+    "playbook-advice",
+    "Advice wording",
+    "playbook.yaml",
+    (),
+    _advice_fields(),
+    blurb="The recommendation that goes with each kind of finding, in plain words, no model needed. The conditions that pick a rule, and adding a new rule, are edited as text.",
+    icon="file-text",
+    switch="",
+)  # fmt: skip
+
+PAGES["thresholds"] = Page(
+    "thresholds",
+    "Thresholds and advice",
+    "When each detector fires, and what the brief tells you to do about it.",
+    (THRESHOLDS, ADVICE),
+    "thresholds",
+    "playbook.yaml",
+)
+SECTIONS.update({THRESHOLDS.id: THRESHOLDS, ADVICE.id: ADVICE})
+
+
+# ---------------------------------------------------------------- devices, topology, map, views, sensors (Task 34)
+
+MAC_RE = r"^(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$"
+NODE_KINDS = (
+    "internet", "gateway", "switch", "ap", "server", "vm", "container", "service", "camera",
+    "iot_group", "client_group", "ups", "display", "other",
+)  # fmt: skip
+EDGE_KINDS = ("uplink", "hosts", "depends", "power")
+EXAMPLE_ONLY = ("systems.yaml", "devices.yaml", "topology.yaml")  # these ship only as an example: start blank
+
+DEVICES = Section(
+    "devices",
+    "Devices",
+    "devices.yaml",
+    (),
+    (
+        Rows(
+            "devices",
+            "Devices you want to treat specially",
+            (
+                Field("mac", "MAC address", "text", "Like 00:00:5E:00:53:01.", required=True, pattern=MAC_RE, pattern_help="a MAC address like 00:00:5E:00:53:01.", placeholder="00:00:5E:00:53:01"),
+                Field("label", "Name", "text", "What the brief calls it."),
+                Field("owner", "Owner", "text", "Optional."),
+                Field("profile", "What is kept about it", "choice", "full: presence, DNS detail, odd-hours checks, traffic. security_only: that it exists and its traffic volume (the default for any unlisted device). ignore: nothing is stored about it.", ("full", "security_only", "ignore"), initial="security_only"),
+                Field("quiet_hours", "Quiet hours (UTC)", "hours", "Optional, like 23:00-06:00. A full-profile device online during them is reported.", placeholder="23:00-06:00"),
+            ),
+            noun="device",
+            help="Only devices that need a name or a different privacy level have to be listed. Anything else a collector sees is kept at the security_only level.",
+        ),
+    ),
+    blurb="This file holds real MAC addresses and names, so it exists only on your server and is left out of support bundles. Client and DNS detail never leaves the LAN.",
+    icon="box",
+    switch="",
+)  # fmt: skip
+
+TOPOLOGY = Section(
+    "topology",
+    "Topology",
+    "topology.yaml",
+    (),
+    (
+        Rows(
+            "nodes",
+            "Extra things on the map",
+            (
+                Field("id", "Id", "text", "A short name; links refer to it.", required=True, pattern=r"^[A-Za-z0-9._-]{1,64}$", pattern_help="letters, digits, dots, hyphens, underscores.", placeholder="isp"),
+                Field("kind", "Kind", "choice", "", NODE_KINDS, initial="other"),
+                Field("label", "Label", "text"),
+            ),
+            noun="node",
+            help="Things the collectors cannot discover: the ISP modem, a UPS, Home Assistant, a tablet.",
+        ),
+        Rows(
+            "edges",
+            "Links",
+            (
+                Field("from", "From", "text", "A node id, discovered or listed above.", required=True, placeholder="isp"),
+                Field("to", "To", "text", required=True, placeholder="udm"),
+                Field("kind", "Kind", "choice", "uplink: network. hosts: runs on. depends: needs. power: power feed.", EDGE_KINDS, initial="uplink"),
+                Field("label", "Label", "text"),
+            ),
+            noun="link",
+        ),
+        Rows(
+            "overrides",
+            "Changes to discovered things",
+            (
+                Field("id", "Discovered id", "text", required=True),
+                Field("label", "Show as", "text"),
+                Field("hide", "Hide it", "switch"),
+            ),
+            noun="change",
+            help="Rename or hide something a collector found. Your entries win over discovery.",
+        ),
+    ),
+    blurb="Extra nodes and links for the network map, and changes to what was discovered.",
+    icon="map",
+    switch="",
+)  # fmt: skip
+
+MAP = Section(
+    "map",
+    "Network map",
+    "map.yaml",
+    (),
+    (
+        Field("refresh_s", "Refresh every", "number", "How often the interactive map re-reads its data.", unit="seconds", minimum=30, maximum=86400),
+        Field("layers", "Layers", "multi", "What the map draws.", ("network", "services", "power")),
+        Field("group_clients", "Client devices", "choice", "by_vlan: one node per network. none: hide them. each: one node per client (noisy, capped at 200).", ("by_vlan", "none", "each")),
+        Field("show_containers", "Show containers", "switch"),
+        Field("show_vms", "Show virtual machines", "switch"),
+        Field("auto_layout", "Automatic layout", "choice", "Used only for nodes without a saved position.", ("cose", "grid", "circle", "breadthfirst")),
+        Field("static_svg.enabled", "Also write a static picture (map.svg)", "switch", group="Static picture"),
+        Field("static_svg.width", "Width", "number", unit="pixels", minimum=200, maximum=8000),
+        Field("static_svg.height", "Height", "number", unit="pixels", minimum=200, maximum=8000),
+        Field("drawio_export", "Also write a draw.io file (map.drawio)", "switch", "For editing in diagrams.net.", group="Export"),
+    ),
+    blurb="Positions you drag on the map are saved separately; these are the defaults.",
+    icon="map",
+    switch="enabled",
+    switch_label="Show the network map",
+)  # fmt: skip
+
+VIEWS = Section(
+    "views",
+    "Tablet and picture board",
+    "views.yaml",
+    (),
+    (
+        Field("png.width", "Picture width", "number", "Match the tablet's screen so the board is not scaled.", unit="pixels", minimum=200, maximum=4000, group="Picture board (status.png)"),
+        Field("png.height", "Picture height", "number", unit="pixels", minimum=200, maximum=4000),
+        Field("png.font", "Font file", "text", "A .ttf in your config folder. Empty uses the image's built-in font.", clearable=True, placeholder="built-in"),
+        Field("board.refresh_s", "Reload every", "number", "The page reloads itself (a meta tag, no script). 0 turns it off.", unit="seconds", minimum=0, maximum=86400, group="Tablet board (board.html)"),
+        Field("board.stories", "Stories listed", "number", "How many top stories the board shows.", unit="stories", minimum=1, maximum=20),
+    ),
+    blurb="The static pages for tablets and e-readers. They use no scripts and no outside files.",
+    icon="monitor",
+    switch="",
+)  # fmt: skip
+
+REGISTRY = Section(
+    "registry",
+    "Sensors",
+    "registry.yaml",
+    (),
+    (
+        Rows(
+            "metrics",
+            "Sensors sent to Home Assistant",
+            (
+                Field("id", "Id", "text", "Changing an id makes a new sensor and leaves the old one behind.", required=True, pattern=r"^[a-z][a-z0-9_]{0,63}$", pattern_help="lowercase letters, digits, underscores."),
+                Field("name", "Name", "text", "Shown in Home Assistant."),
+                Field("group", "Group", "text"),
+                Field("kind", "Kind", "choice", "number, state (green, yellow, red), or text.", ("number", "state", "text"), initial="number"),
+                Field("unit", "Unit", "text"),
+                Field("interval", "How often", "choice", "", ("hourly", "daily"), initial="hourly"),
+            ),
+            noun="sensor",
+            help="Warning and critical levels on a sensor are edited as text.",
+        ),
+    ),
+    blurb="One sensor per entry. A new collector metric needs a line here to appear in Home Assistant.",
+    icon="radio",
+    switch="",
+)  # fmt: skip
+
+PAGES["devices"] = Page(
+    "devices",
+    "Devices and map",
+    "Devices with their own privacy level, extra things on the network map, and how the map is drawn.",
+    (DEVICES, TOPOLOGY, MAP),
+    "devices",
+    "",
+)
+PAGES["display"] = Page(
+    "display",
+    "Pages and sensors",
+    "The tablet and picture board, and the sensors published to Home Assistant.",
+    (VIEWS, REGISTRY),
+    "display",
+    "",
+)
+SECTIONS.update({s.id: s for s in (DEVICES, TOPOLOGY, MAP, VIEWS, REGISTRY)})

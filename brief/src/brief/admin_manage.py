@@ -31,7 +31,7 @@ def register(admin: APIRouter, d: Deps) -> None:
         section = settingspages.SYSTEMS
         states = {}
         if add and HOST.match(add):  # "Name them" from a banner: a new row with that sender already in it
-            text, _ = configedit.current(section.file)
+            text = admin_settings.basis_text(section.file)
             state = settingsui.load(section, text, configedit.starting_text(section.file))
             state["rows"]["systems"].append(
                 {**settingsui.blank_row(section.row_lists[0]), "hosts": add, "_orig": None}

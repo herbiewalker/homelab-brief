@@ -33,11 +33,14 @@ NAV_GROUPS = [
         ("network", "/admin/network", "Network and access", "network"),
         ("schedule", "/admin/schedule", "Schedule and retention", "clock"),
         ("notifications", "/admin/notifications", "Notifications", "bell"),
+        ("devices", "/admin/devices", "Devices and map", "box"),
+        ("display", "/admin/display", "Pages and sensors", "monitor"),
         ("config", "/admin/config", "Config files", "file-text"),
     ]),
     ("Detection", [
         ("ignore", "/admin/ignore", "Ignore rules", "list"),
         ("priorities", "/admin/priorities", "Priorities and alerts", "sliders"),
+        ("thresholds", "/admin/thresholds", "Thresholds and advice", "zap"),
     ]),
     ("Intelligence", [
         ("ai", "/admin/ai", "AI and agents", "sparkles"),

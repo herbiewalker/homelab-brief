@@ -3,7 +3,7 @@
 {% block title %}{{ page.title }}{% endblock %}
 {% block body %}
 {% call page_head(page.title, page.lead) %}
-<a class="btn btn--secondary" href="/admin/config/{{ page.config_file }}">{{ icon('file-text') }}<span>Edit as text</span></a>
+<a class="btn btn--secondary" href="/admin/config{{ ("/" ~ page.config_file) if page.config_file else "" }}">{{ icon('file-text') }}<span>Edit as text</span></a>
 {% endcall %}
 <div class="stack">
 {% for html in cards %}{{ html|safe }}{% endfor %}

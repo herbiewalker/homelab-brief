@@ -5,6 +5,15 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.50
+
+Task 34, second part: thresholds, advice, devices, topology, map, pages, and sensors are forms. Every setting in the detection and device files now has a control.
+
+- **Thresholds and advice** (new page): all seventeen detector groups in the playbook (learning period, new patterns, unusual volume, odd hours, silent sources, drifting numbers, traffic, power, disks, parity, clocks, storage) with units, limits, and help, and the wording and urgency of each of the thirteen advice rules. A change can be previewed against last week before it is saved. The conditions that pick a rule, and adding a rule, stay in the text editor.
+- **Devices and map** (new page): devices (MAC, name, owner, what is kept about it, quiet hours), extra nodes, links, and changes to discovered things for the map, and the map settings (layers, how clients are grouped, static picture, draw.io export).
+- **Pages and sensors** (new page): the tablet and picture board, and a row per sensor sent to Home Assistant (warning levels on a sensor stay in the text editor).
+- Files that ship only as an example (devices, topology, systems) start blank in the form, so the example rows are not shown as yours.
+
 ## 0.0.49
 
 Task 34, first part: ignore rules and priorities are forms.

@@ -386,6 +386,8 @@ def apply(section: Section, text: str, values: Mapping, enabled: bool | None = N
             continue
         elif value is MISSING:
             continue  # nothing typed: leave the file's own setting (or its absence) alone
+        if f.kind == "paragraph" and current is not MISSING and " ".join(str(current).split()) == value:
+            continue  # the same words: do not rewrite the block just because it was folded differently
         if (current is not MISSING and _same(current, value)) or (current is MISSING and value == ""):
             continue
         if f.kind == "paragraph":

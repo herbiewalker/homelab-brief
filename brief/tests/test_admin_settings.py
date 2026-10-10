@@ -315,3 +315,192 @@ def test_a_rule_is_tried_against_recent_lines_before_saving(lab):  # noqa: F811
     assert "Not a valid pattern" in test("(bad")
     assert "nothing to test against" in test("x", "no-such-host")
     assert "link down" in test("link down")  # an example line is shown
+
+
+# ---------------------------------------------------------------- Task 34: playbook thresholds and advice
+
+
+def test_an_untouched_playbook_form_changes_nothing_in_the_shipped_file():
+    from brief import settingsui
+
+    text = (_brief() / "playbook.yaml").read_text()
+    for section in (settingspages.THRESHOLDS, settingspages.ADVICE):
+        state = settingsui.load(section, text)
+        values, errors, on = settingsui.parse(section, form_of(section, state))
+        assert not errors, errors
+        assert settingsui.apply(section, text, values, on) == text, section.id
+
+
+def test_every_threshold_and_rule_in_the_shipped_file_has_a_control():
+    shipped = yaml.safe_load((_brief() / "playbook.yaml").read_text())
+    have = {f.key for f in settingspages.THRESHOLDS.scalar_fields}
+    for group, params in shipped["thresholds"].items():
+        for param in params:
+            assert f"thresholds.{group}.{param}" in have, (group, param)
+    assert set(shipped["rules"]) == {rule for rule, _ in settingspages.RULE_IDS}
+
+
+def test_a_threshold_is_edited_in_its_one_line_mapping(lab):  # noqa: F811
+    from brief import settingsui
+
+    ship(lab, "playbook.yaml")
+    text = (_brief() / "playbook.yaml").read_text()
+    form = form_of(settingspages.THRESHOLDS, settingsui.load(settingspages.THRESHOLDS, text))
+    form["f.thresholds.deviation.min_ratio"] = "3.5"
+    form["f.thresholds.storage_low.min_free_pct"] = "20"
+    r = save(lab, "/admin/thresholds", "playbook-thresholds", **form)
+    assert r.status_code == 200, r.text[-500:]
+    out = (lab.cfg / "playbook.yaml").read_text()
+    data = yaml.safe_load(out)["thresholds"]
+    assert data["deviation"]["min_ratio"] == 3.5 and data["deviation"]["mad_multiple"] == 4
+    assert data["storage_low"] == {"min_free_pct": 20, "min_days_until_full": 14}
+    assert "# the baseline counts only windows" in out  # comments between lines survive
+
+
+def test_changing_one_advice_text_rewrites_only_that_block(lab):  # noqa: F811
+    from brief import settingsui
+
+    ship(lab, "playbook.yaml")
+    text = (_brief() / "playbook.yaml").read_text()
+    form = form_of(settingspages.ADVICE, settingsui.load(settingspages.ADVICE, text))
+    form["f.rules.clock_skew.advice"] = "{system} clock is {minutes} min off.\nFix NTP."
+    form["f.rules.clock_skew.bucket"] = "plan"
+    r = save(lab, "/admin/thresholds", "playbook-advice", **form)
+    assert r.status_code == 200, r.text[-500:]
+    before, after = (
+        yaml.safe_load(text)["rules"],
+        yaml.safe_load((lab.cfg / "playbook.yaml").read_text())["rules"],
+    )
+    assert after["clock_skew"]["advice"].strip() == "{system} clock is {minutes} min off. Fix NTP."
+    assert after["clock_skew"]["bucket"] == "plan"
+    for rule in before:
+        if rule != "clock_skew":
+            assert after[rule] == before[rule], rule  # including the match lists of the others
+
+
+def test_a_threshold_out_of_range_is_refused(lab):  # noqa: F811
+    ship(lab, "playbook.yaml")
+    r = save(
+        lab, "/admin/thresholds", "playbook-thresholds", **{"f.thresholds.odd_hours.min_online_min": "500"}
+    )
+    assert r.status_code == 422 and "at most" in r.text and not (lab.cfg / "playbook.yaml").exists()
+
+
+# ---------------------------------------------------------------- Task 34: devices, topology, map, views, sensors
+
+
+def test_an_untouched_form_changes_nothing_in_each_shipped_file():
+    from brief import settingsui
+
+    for file, sections in (
+        ("map.yaml", (settingspages.MAP,)),
+        ("views.yaml", (settingspages.VIEWS,)),
+    ):
+        text = (_brief() / file).read_text()
+        for section in sections:
+            state = settingsui.load(section, text)
+            values, errors, on = settingsui.parse(section, form_of(section, state))
+            assert not errors, errors
+            assert settingsui.apply(section, text, values, on) == text, section.id
+
+
+def test_the_example_devices_are_not_shown_as_yours_and_a_device_saves_clean(lab):  # noqa: F811
+    ship(lab, "devices.example.yaml")
+    html = lab.client.get("/admin/devices").text
+    assert "Example laptop" not in html and "No devices yet" in html
+    data = {
+        "r.devices.count": "2",
+        "r.devices.0.mac": "00:00:5E:00:53:01", "r.devices.0.label": "Laptop", "r.devices.0.owner": "Me",
+        "r.devices.0.profile": "full", "r.devices.0.quiet_hours": "23:00-06:00",
+        "r.devices.1.mac": "00:00:5E:00:53:02", "r.devices.1.label": "Plug", "r.devices.1.profile": "ignore",
+    }  # fmt: skip
+    r = save(lab, "/admin/devices", "devices", **data)
+    assert r.status_code == 200, r.text[-500:]
+    rows = yaml.safe_load((lab.cfg / "devices.yaml").read_text())["devices"]
+    assert rows[0] == {
+        "mac": "00:00:5E:00:53:01",
+        "label": "Laptop",
+        "owner": "Me",
+        "profile": "full",
+        "quiet_hours": {"start": "23:00", "end": "06:00"},
+    }
+    assert rows[1]["profile"] == "ignore" and "quiet_hours" not in rows[1]
+    again = lab.client.get("/admin/devices").text
+    assert "23:00-06:00" in again and "00:00:5E:00:53:02" in again
+
+
+def test_a_bad_mac_or_hours_value_is_refused(lab):  # noqa: F811
+    ship(lab, "devices.example.yaml")
+    row = {"r.devices.count": "1", "r.devices.0.mac": "not-a-mac", "r.devices.0.quiet_hours": "late"}
+    r = save(lab, "/admin/devices", "devices", **row)
+    assert r.status_code == 422 and "MAC address" in r.text and "two times" in r.text
+    assert not (lab.cfg / "devices.yaml").exists()
+
+
+def test_topology_nodes_links_and_changes_are_three_row_lists(lab):  # noqa: F811
+    ship(lab, "topology.example.yaml")
+    data = {
+        "r.nodes.count": "1", "r.nodes.0.id": "isp", "r.nodes.0.kind": "internet", "r.nodes.0.label": "ISP",
+        "r.edges.count": "1", "r.edges.0.from": "isp", "r.edges.0.to": "udm", "r.edges.0.kind": "uplink",
+        "r.overrides.count": "1", "r.overrides.0.id": "aa-bb", "r.overrides.0.label": "Office switch", "r.overrides.0.hide": "on",
+    }  # fmt: skip
+    r = save(lab, "/admin/devices", "topology", **data)
+    assert r.status_code == 200, r.text[-500:]
+    out = yaml.safe_load((lab.cfg / "topology.yaml").read_text())
+    assert out["nodes"] == [{"id": "isp", "kind": "internet", "label": "ISP"}]
+    assert out["edges"] == [{"from": "isp", "to": "udm", "kind": "uplink"}]
+    assert out["overrides"] == [{"id": "aa-bb", "label": "Office switch", "hide": True}]
+
+
+def test_the_map_card_edits_scalars_a_tick_group_and_a_nested_value(lab):  # noqa: F811
+    from brief import settingsui
+
+    ship(lab, "map.yaml")
+    form = form_of(settingspages.MAP, settingsui.load(settingspages.MAP, (_brief() / "map.yaml").read_text()))
+    form.update(
+        {
+            "f.enabled": "on",
+            "f.layers": ["network", "power"],
+            "f.static_svg.width": "1200",
+            "f.group_clients": "none",
+        }
+    )
+    r = save(lab, "/admin/devices", "map", **form)
+    assert r.status_code == 200, r.text[-400:]
+    data = yaml.safe_load((lab.cfg / "map.yaml").read_text())
+    assert (
+        data["enabled"] is True and data["layers"] == ["network", "power"] and data["group_clients"] == "none"
+    )
+    assert data["static_svg"] == {"enabled": True, "width": 1200, "height": 1000}
+
+
+def test_views_and_sensors_save(lab):  # noqa: F811
+    from brief import settingsui
+
+    ship(lab, "views.yaml")
+    ship(lab, "registry.yaml")
+    form = form_of(
+        settingspages.VIEWS, settingsui.load(settingspages.VIEWS, (_brief() / "views.yaml").read_text())
+    )
+    form.update({"f.png.width": "1280", "f.board.stories": "5"})
+    assert save(lab, "/admin/display", "views", **form).status_code == 200
+    data = yaml.safe_load((lab.cfg / "views.yaml").read_text())
+    assert data["png"]["width"] == 1280 and data["board"] == {"refresh_s": 300, "stories": 5}
+    page = lab.client.get("/admin/display").text
+    assert "events_24h" in page and "Log events, last 24h" in page
+    sensors = settingsui.load(settingspages.REGISTRY, (_brief() / "registry.yaml").read_text())["rows"][
+        "metrics"
+    ]
+    form = {"r.metrics.count": str(len(sensors))}
+    for i, row in enumerate(sensors):
+        form[f"r.metrics.{i}.orig"] = str(row["_orig"])
+        for key in ("id", "name", "group", "kind", "unit", "interval"):
+            form[f"r.metrics.{i}.{key}"] = str(row.get(key, ""))
+    form["r.metrics.0.name"] = "Renamed in the form"
+    assert save(lab, "/admin/display", "registry", **form).status_code == 200
+    saved = yaml.safe_load((lab.cfg / "registry.yaml").read_text())["metrics"]
+    assert saved[0]["name"] == "Renamed in the form" and saved[2]["thresholds"] == {
+        "warn": 1,
+        "crit": 3,
+        "direction": "high",
+    }

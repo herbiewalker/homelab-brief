@@ -240,11 +240,11 @@ Spec: `docs/guide/11-admin-ui.md`. Started 2026-10-10 after the first real setup
 - [x] Systems, Network and access, Schedule and retention, Notifications (an Apprise channel with a test button), converted to the framework.
 - Accept: a fresh install configures the Unraid collector end to end with no text editor; the text editor shows the same file afterwards.
 
-## Task 34: Detection and device settings
-- [ ] Ignore rules: row editor with a pattern tester against recent lines and the match count.
-- [ ] Priorities: kinds table (rank, route, urgent), lifecycle settings, quiet hours with a time zone display, grouping.
-- [ ] Playbook thresholds: a control per threshold with units and help; the advice rules viewable and editable as rows.
-- [ ] Devices (profile per device, with the privacy explanation), topology and map settings, registry and views.
+## Task 34: Detection and device settings (built 2026-10-10, versions 0.0.49 and 0.0.50)
+- [x] Ignore rules: row editor with a pattern tester against recent lines and the match count.
+- [x] Priorities: kinds table (rank, route, urgent), lifecycle settings, quiet hours with a time zone display, grouping.
+- [x] Playbook thresholds: a control per threshold with units and help; the advice wording and urgency as text boxes (rule conditions and new rules stay in the text editor).
+- [x] Devices (profile per device, with the privacy explanation), topology and map settings, registry and views.
 - Accept: every value in these files has a control; a change shows what it would have done to last week (replay) before it is saved.
 
 ## Task 35: Operations pages
