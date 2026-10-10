@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from brief import __version__, admin_data, agentnotes, alerts, health
+from brief import __version__, admin_data, agentnotes, alerts, health, overviewdata
 from brief.settings import Settings
 from brief.store import Store
 
@@ -77,8 +77,14 @@ def register(admin: APIRouter, d: Deps) -> None:
         up = time.monotonic() - d.started()
         report = health.check_health(d.store, d.settings.syslog_port, d.settings.interval, up, now)
         return {
-            "data": admin_data.overview(
-                d.store, d.settings.out_dir, status, report, d.settings.state_dir, now
+            "data": overviewdata.build(
+                d.store,
+                d.settings.out_dir,
+                status,
+                report,
+                d.settings.state_dir,
+                now,
+                admin_data.shell_status(d.store, d.settings.out_dir)[1],
             ),
             "version": __version__,
             "uptime": uptime(up),
@@ -145,7 +151,8 @@ def register(admin: APIRouter, d: Deps) -> None:
             row = admin_data.alert_row(d.store, finding_id, now)
             if row is None:  # resolved meanwhile: the row simply goes away
                 return Response("", media_type="text/html")
-            return d.render(request, "_alert_row.html", csrf=session.csrf, a=row)
+            page = "_overview_alert.html" if form.get("compact") else "_alert_row.html"
+            return d.render(request, page, csrf=session.csrf, a=row)
         return RedirectResponse("/admin/findings", status_code=303)
 
     @admin.get("/audit", response_class=HTMLResponse)

@@ -105,12 +105,11 @@ def test_the_overview_shows_health_runs_pipeline_and_resources(lab):
     fill(lab)
     html = lab.client.get("/admin").text
     for text in (
-        "Health",
+        "Health checks",
         "Last runs",
         "Pipeline",
-        "Resources",
+        "Storage",
         "Busiest senders",
-        "Open items",
         "Memory",
         "Hourly status",
     ):
@@ -251,3 +250,44 @@ def test_no_admin_page_uses_an_inline_style_the_policy_would_block(lab):
     ):
         html = lab.client.get(path).text
         assert " style=" not in html and "<style" not in html, path
+
+
+# ---------------------------------------------------------------- overview (Task 32)
+
+
+def test_the_overview_leads_with_a_headline_and_the_one_fix_for_a_failed_run(lab, monkeypatch):
+    monkeypatch.setattr(health, "receiver_ok", lambda port: False)
+    html = lab.client.get("/admin").text
+    assert "hero--bad" in html and "Check the syslog port" in html and 'href="/admin/network"' in html
+
+
+def test_a_healthy_overview_has_no_fix_button(lab):
+    html = lab.client.get("/admin").text
+    assert "hero--" in html and "Check the syslog port" not in html
+
+
+def test_the_overview_has_health_tiles_system_tiles_and_a_checklist(lab):
+    fill(lab)
+    html = lab.client.get("/admin").text
+    for text in (
+        "Silent hosts",
+        "Collectors",
+        "AI and agents",
+        "Proposals",
+        "Systems",
+        "What changed since yesterday",
+    ):
+        assert text in html, text
+    assert "Point a device at this container" in html  # the checklist is there while steps are open
+    assert "Camera is silent" in html and "Snooze 24 h" in html  # top alerts with inline actions
+
+
+def test_an_inline_ack_on_the_overview_returns_a_compact_row(lab):
+    fill(lab)
+    token = re.search(r'name="csrf_token" value="([^"]+)"', lab.client.get("/admin").text).group(1)
+    r = lab.client.post(
+        "/admin/alerts/act",
+        data={"csrf_token": token, "finding_id": "absence-cam", "action": "ack", "compact": "1"},
+        headers={"HX-Request": "true"},
+    )
+    assert r.status_code == 200 and r.text.lstrip().startswith("<li") and "acked" in r.text

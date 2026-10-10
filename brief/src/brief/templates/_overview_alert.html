@@ -1,0 +1,11 @@
+<li>
+  <div class="grow"><strong>{{ a.title }}</strong>
+    <div class="muted">{{ a.kind }} · {{ a.level }} · opened {{ a.opened_text }} · <span class="badge {{ 'bad' if a.state == 'open' else 'ok' }}">{{ a.state }}</span>{% if a.snooze_until %} until {{ a.snooze_until }}{% endif %}</div></div>
+  <form class="inline" method="post" action="/admin/alerts/act" hx-post="/admin/alerts/act" hx-target="closest li" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="finding_id" value="{{ a.id }}">
+    <input type="hidden" name="compact" value="1">
+    <button class="btn btn--secondary btn--sm" name="action" value="ack" type="submit">Acknowledge</button>
+    <button class="btn btn--secondary btn--sm" name="action" value="snooze_24h" type="submit">Snooze 24 h</button>
+  </form>
+</li>

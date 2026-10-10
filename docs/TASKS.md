@@ -230,8 +230,8 @@ Spec: `docs/guide/11-admin-ui.md`. Started 2026-10-10 after the first real setup
 - [ ] Both the admin pages and the public pages (status, brief, map) use the shell and tokens.
 - Accept: a style guide page (admin only) shows every component in both themes; checked in a real browser at 360, 768, and 1280 px.
 
-## Task 32: Overview
-- [ ] The Overview described in the guide: headline strip, health cards, system tiles, top findings with inline ack and snooze, what changed, setup checklist, live refresh, empty states.
+## Task 32: Overview (built 2026-10-10, version 0.0.44)
+- [x] The Overview described in the guide: headline strip, health cards, system tiles, top findings with inline ack and snooze, what changed, setup checklist, live refresh, empty states.
 - Accept: a new install shows a useful checklist; an install with a failed run says why and shows the one action that fixes it.
 
 ## Task 33: Settings framework and the setup pages

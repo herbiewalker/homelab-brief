@@ -5,6 +5,16 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.44
+
+Task 32: the Overview page answers "is everything fine, and if not, what do I do?".
+
+- **Headline with the one fix.** A run that failed says why in plain words and shows a single button for the action that fixes it (check the syslog port, repoint a source, fix a broken config file, open the failing collector); a healthy run has no button.
+- **Health tiles** for the pipeline, silent hosts, storage (days left), memory, collectors, AI and agents, open alerts, and proposals waiting; each links to the page that explains it.
+- **System tiles** with state and a one-line summary, worst first; **Needs attention** shows the top open alerts with Acknowledge and Snooze right in the list; **What changed since yesterday** lists new alerts, patterns, and senders, and today's brief stories.
+- **Setup checklist** for a new install (account, point a device here, name your systems, optional collector, notifications, model), each step done or one click away; it disappears when everything is done.
+- Live refresh every 30 seconds that pauses while the tab is hidden or you are using a control in the page.
+
 ## 0.0.43
 
 The interface rebuild begins (Tasks 31 to 37 in `docs/TASKS.md`, design in `docs/guide/11-admin-ui.md`), prompted by the first real setup attempt: the Unraid collector could not be configured because the server address was only a placeholder in a YAML file and no control let you type it.

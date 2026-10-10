@@ -139,3 +139,12 @@
     var f = ev.target.closest && ev.target.closest(".field"); if (f) f.classList.remove("invalid");
   });
 })();
+
+// A polled region (data-poll) is not refreshed while the tab is hidden or while someone is using a control inside it,
+// so the page never changes under a click.
+document.body.addEventListener("htmx:beforeRequest", function (ev) {
+  var el = ev.detail.elt;
+  if (!el || !el.hasAttribute || !el.hasAttribute("data-poll")) return;
+  var active = document.activeElement;
+  if (document.hidden || (active && active !== document.body && el.contains(active) && /^(BUTTON|INPUT|SELECT|TEXTAREA|A)$/.test(active.tagName))) ev.preventDefault();
+});

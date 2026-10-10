@@ -1,8 +1,11 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, page_head %}
 {% block title %}Overview{% endblock %}
 {% block body %}
-<h1>Overview</h1>
-<div id="live" hx-get="/admin/overview/live" hx-trigger="every 30s" hx-swap="innerHTML">
+{% call page_head('Overview', 'Is everything fine, and if not, what to do about it.') %}
+<a class="btn btn--secondary" href="/brief.html">{{ icon('external') }}<span>Today's brief</span></a>
+{% endcall %}
+<div id="live" data-poll hx-get="/admin/overview/live" hx-trigger="every 30s" hx-swap="innerHTML">
 {% include "_overview_live.html" %}
 </div>
 {% endblock %}
