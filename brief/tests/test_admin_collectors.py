@@ -310,3 +310,11 @@ def test_run_now_needs_it_switched_on_then_runs(page, monkeypatch):
         in page.client.post("/admin/collectors/unifi/run", data={"csrf_token": token}).text
     )
     assert "Working" in page.client.get("/admin/collectors").text
+
+
+def test_a_key_typed_into_the_variable_field_is_refused_and_never_echoed(page):
+    secret = "x" * 8 + "abcdef0123456789" * 3  # a made-up key-shaped string
+    r = save(page, **unraid_form(**{"r.servers.0.key_var": secret}))
+    assert r.status_code == 422 and "looks like a key" in r.text
+    assert secret not in r.text  # not in the field, not in the badge
+    assert not (page.cfg / "collectors.yaml").exists()

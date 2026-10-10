@@ -168,7 +168,10 @@ def _one(f: Field, raw, errors: dict, where: str):
     if f.kind == "var":
         if not VAR_NAME.match(text):
             errors[where] = (
-                "A variable name is capital letters, digits, and underscores, for example UNRAID_KEY."
+                "This looks like a key, not a name. Type the name of the container variable that holds it, "
+                "for example UNRAID_KEY (capital letters, digits, underscores). Never type the key here."
+                if len(text) > 40 or text.isalnum() and text == text.lower() and len(text) > 20
+                else "A variable name is capital letters, digits, and underscores, for example UNRAID_KEY."
             )
             return MISSING
         return text

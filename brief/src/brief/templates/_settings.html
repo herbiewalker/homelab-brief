@@ -15,10 +15,10 @@
   {% elif f.kind == 'number' %}
   <div class="input-unit"><input id="{{ uid }}" type="number" name="{{ name }}" value="{{ value }}" inputmode="decimal" step="{{ '1' if f.integer else 'any' }}"{% if f.minimum is not none %} min="{{ f.minimum }}"{% endif %}{% if f.maximum is not none %} max="{{ f.maximum }}"{% endif %}{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}{% if err %} aria-invalid="true" aria-describedby="{{ uid }}-err"{% endif %}>{% if f.unit %}<span class="unit">{{ f.unit }}</span>{% endif %}</div>
   {% else %}
-  <input id="{{ uid }}" type="text" name="{{ name }}" value="{{ value }}" autocomplete="off" spellcheck="false"{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}{% if err %} aria-invalid="true" aria-describedby="{{ uid }}-err"{% endif %}>
+  <input id="{{ uid }}" type="text" name="{{ name }}" value="{{ '' if (f.kind == 'var' and err) else value }}" autocomplete="off" spellcheck="false"{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}{% if err %} aria-invalid="true" aria-describedby="{{ uid }}-err"{% endif %}>
   {% endif %}
   {% endif %}
-  {% if f.kind == 'var' and value %}
+  {% if f.kind == 'var' and value and not err %}
   <div class="hint">{% if vars_set.get(value) %}<span class="chip chip--ok"><span class="dot"></span>{{ value }} is set</span>{% else %}<span class="chip chip--warn"><span class="dot"></span>{{ value }} is not set</span> Add it to the container's environment (Compose Manager: the stack's variables; Unraid template: Add another Variable), then re-apply the container.{% endif %}</div>
   {% endif %}
   {% if f.help %}<div class="hint">{{ f.help }}</div>{% endif %}

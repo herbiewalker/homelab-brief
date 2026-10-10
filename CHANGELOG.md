@@ -5,6 +5,10 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.45
+
+- **A key typed into a "variable name" field is no longer echoed back.** The form now says "this looks like a key, not a name", empties the field, and shows no badge, so a pasted secret does not stay on the page. (Found when a real API key was pasted into the field.)
+
 ## 0.0.44
 
 Task 32: the Overview page answers "is everything fine, and if not, what do I do?".
