@@ -17,7 +17,7 @@ the environment variable that holds it.
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import yaml
 
@@ -45,11 +45,11 @@ class Field:
     )
     pattern: str = ""  # a regular expression the text must match, with the message in `pattern_help`
     pattern_help: str = ""
+    slug: bool = False  # any name is accepted and saved as a lowercase id (letters, digits, hyphens)
 
     def relaxed(self) -> "Field":
         """The same control without the 'needed before it can be switched on' rule."""
-        return Field(self.key, self.label, self.kind, self.help, self.choices, self.unit, self.placeholder,
-                     self.minimum, self.maximum, self.integer, False, self.pattern, self.pattern_help)  # fmt: skip
+        return replace(self, required=False)
 
 
 @dataclass(frozen=True)
@@ -178,6 +178,8 @@ def _one(f: Field, raw, errors: dict, where: str):
     if "<" in text or ">" in text:
         errors[where] = "Replace the placeholder with a real value."
         return MISSING
+    if f.slug:
+        text = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:31].strip("-")
     if f.pattern and not re.match(f.pattern, text):
         errors[where] = f.pattern_help or "That does not look right."
         return MISSING

@@ -5,6 +5,11 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.46
+
+- **Names can be typed the way you like.** A server or device name such as `Storage Server 2` is accepted and saved as the lowercase id `storage-server-2` (the id is what sensors and files use); only a name with no letters or digits is refused.
+- **A failed collector run now says why.** "No Unraid server could be read" now lists each server's reason (key not set, connection refused, certificate error, wrong address), the same detail Test connection shows.
+
 ## 0.0.45
 
 - **A key typed into a "variable name" field is no longer echoed back.** The form now says "this looks like a key, not a name", empties the field, and shows no badge, so a pasted secret does not stay on the page. (Found when a real API key was pasted into the field.)

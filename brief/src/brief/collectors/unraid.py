@@ -374,18 +374,20 @@ class UnraidCollector(Collector):
 
     def run(self, ctx: Context) -> dict[str, float | str]:
         numbers: dict[str, float | str] = {}
-        reached = 0
+        reached, reasons = 0, []
         for server in _servers(ctx.config):
             sid, prefix = str(server["id"]), f"unraid_{slug(str(server['id']))}_"
             numbers[prefix + "reachable"] = 0
             api = self._api(ctx, server)
             if isinstance(api, str):
                 log("unraid_server_skipped", server=sid, reason=api)
+                reasons.append(f"{sid}: {api}")
                 continue
             try:
                 snapshot = self._fetch(api)
             except ApiError as exc:
                 log("unraid_server_failed", server=sid, kind=exc.kind, reason=exc.message)
+                reasons.append(f"{sid}: {exc.message}")
                 continue
             extras = {}
             if ctx.config.get("smart_source") == "smartctl_files":
@@ -396,7 +398,7 @@ class UnraidCollector(Collector):
             numbers.update({prefix + k: v for k, v in extras.items()})
             numbers[prefix + "reachable"] = 1
         if not reached:
-            raise CollectorError("no Unraid server could be read")
+            raise CollectorError("no Unraid server could be read: " + "; ".join(reasons))
         return numbers
 
     def _fetch(self, api: UnraidApi) -> dict:

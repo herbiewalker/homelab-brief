@@ -5,7 +5,7 @@ from brief.settingsui import Field, Rows, Section
 
 INTERVALS = ("hourly", "2h", "6h", "12h", "daily", "weekly")
 ID = r"^[a-z0-9][a-z0-9-]{0,30}$"
-ID_HELP = "Lowercase letters, digits, and hyphens, for example server-1."
+ID_HELP = "Use letters, digits, and hyphens."
 URL = r"^https?://\S+$"
 URL_HELP = "An address starting with https:// (or http://)."
 
@@ -33,9 +33,10 @@ UNRAID = Section(
                     "id",
                     "Name",
                     "text",
-                    "Names this server's sensors.",
+                    "Any name you like. It is saved as a lowercase id (Storage Server 2 becomes storage-server-2) and names this server's sensors.",
                     required=True,
                     pattern=ID,
+                    slug=True,
                     pattern_help=ID_HELP,
                     placeholder="server-1",
                 ),  # fmt: skip
@@ -195,6 +196,7 @@ SNMP = Section(
                     "",
                     required=True,
                     pattern=ID,
+                    slug=True,
                     pattern_help=ID_HELP,
                     placeholder="switch-1",
                 ),

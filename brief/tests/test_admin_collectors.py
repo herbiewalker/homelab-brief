@@ -136,7 +136,7 @@ def test_saving_again_with_no_change_says_so_and_writes_nothing(page):
         ({"r.servers.0.url": "https://<server-1-ip>/graphql"}, "placeholder"),
         ({"r.servers.0.key_var": "my key"}, "capital letters"),
         ({"r.servers.0.key_var": ""}, "Needed"),
-        ({"r.servers.0.id": "Bad Name"}, "Lowercase letters"),
+        ({"r.servers.0.id": "!!!"}, "letters, digits, and hyphens"),
         ({"f.interval": "every minute"}, "Choose one of"),
         ({"f.timeout_s": "abc"}, "whole number"),
         ({"f.timeout_s": "5000"}, "at most"),
@@ -318,3 +318,9 @@ def test_a_key_typed_into_the_variable_field_is_refused_and_never_echoed(page):
     assert r.status_code == 422 and "looks like a key" in r.text
     assert secret not in r.text  # not in the field, not in the badge
     assert not (page.cfg / "collectors.yaml").exists()
+
+
+def test_a_name_with_capitals_and_spaces_is_saved_as_a_lowercase_id(page):
+    r = save(page, **unraid_form(**{"r.servers.0.id": "Storage Server 2"}))
+    assert r.status_code == 200
+    assert [s["id"] for s in page.data()["collectors"]["unraid"]["servers"]] == ["storage-server-2"]

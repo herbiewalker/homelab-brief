@@ -229,7 +229,9 @@ def test_every_server_down_is_a_failed_run_and_a_missing_key_only_skips_that_ser
         unraid, "API_FACTORY", fx.factory({u: ApiError("unreachable", "x") for u in URL.values()})
     )
     outcome = framework.run_due(store, env, NOW)
-    assert outcome["unraid"] == {"ran": True, "ok": False, "error": "no Unraid server could be read"}
+    assert outcome["unraid"]["ok"] is False and outcome["unraid"]["error"].startswith(
+        "no Unraid server could be read"
+    )
     monkeypatch.setattr(unraid, "API_FACTORY", fx.factory(servers))
     only_one = {k: v for k, v in env.items() if k != "KEY_TWO"}
     assert framework.run_due(store, only_one, NOW + timedelta(hours=1))["unraid"]["ok"] is True
@@ -412,6 +414,6 @@ def test_smartctl_reports_are_parsed_and_junk_is_refused():
 
 def test_the_run_error_for_a_collector_without_servers_is_clear(tmp_path):
     env, user, store = lab(tmp_path, "  unraid:\n    enabled: true\n    servers: []\n")
-    assert framework.run_due(store, env, NOW)["unraid"]["error"] == "no Unraid server could be read"
+    assert framework.run_due(store, env, NOW)["unraid"]["error"].startswith("no Unraid server could be read")
     with pytest.raises(CollectorError):
         unraid.UnraidCollector().test(framework.Context("unraid", {"servers": []}, {}, store, NOW))
