@@ -1,0 +1,39 @@
+{% from "_ui.html" import icon, chip, alert %}
+{% from "_settings.html" import settings_body, control %}
+<section class="card card--flush settings-card" id="card-{{ cname }}">
+  <div class="card-head">
+    <div class="row">
+      {% if section %}{{ icon(section.icon, 'icon--lg') }}{% endif %}
+      <div>
+        <h2>{{ section.title if section else cname }}</h2>
+      </div>
+      {{ chip(status_chip.kind, status_chip.text) }}
+    </div>
+    <div class="row">
+      <button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/test" hx-target="#result-{{ cname }}" hx-swap="innerHTML" hx-disabled-elt="this">{{ icon('play') }}<span>Test connection</span><span class="spinner htmx-indicator" aria-hidden="true"></span></button>
+      {% if state and state.enabled %}<button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/run" hx-target="#result-{{ cname }}" hx-swap="innerHTML" hx-disabled-elt="this">{{ icon('refresh') }}<span>Run now</span><span class="spinner htmx-indicator" aria-hidden="true"></span></button>{% endif %}
+    </div>
+  </div>
+  {% if section %}
+  <form method="post" action="{{ action }}/save" hx-post="{{ action }}/save" hx-target="#card-{{ cname }}" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="base" value="{{ base }}">
+    <div class="card-body">
+      <p class="muted">{{ section.blurb }}</p>
+      {% if general %}{% call alert('bad') %}{{ general }}{% endcall %}{% endif %}
+      <div class="field">
+        <label class="switch" for="{{ section.id }}-enabled"><input id="{{ section.id }}-enabled" type="checkbox" name="f.enabled" value="on"{% if state.enabled %} checked{% endif %}><span class="track"></span><span>Collect from this source</span></label>
+        <div class="hint">Switching it on checks that everything it needs is filled in.</div>
+      </div>
+      {{ settings_body(section, state, errors, vars_set, action) }}
+    </div>
+    <div class="card-foot">
+      <a class="btn btn--ghost btn--sm" href="/admin/config/collectors.yaml">Edit as text</a>
+      <button type="submit" class="btn">Save {{ section.title }}<span class="spinner htmx-indicator" aria-hidden="true"></span></button>
+    </div>
+  </form>
+  {% else %}
+  <div class="card-body"><p class="muted">This collector has no form yet. <a href="/admin/config/collectors.yaml">Edit it as text</a>.</p></div>
+  {% endif %}
+  <div id="result-{{ cname }}" class="card-body result"></div>
+</section>

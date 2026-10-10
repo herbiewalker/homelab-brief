@@ -1,0 +1,65 @@
+{#- Form controls for a settings Section (see settingsui.py). Import with: {% from "_settings.html" import settings_body with context %} -#}
+
+{% macro control(f, value, name, uid, errors, vars_set) -%}
+{% set err = errors.get(name) %}
+<div class="field{% if err %} invalid{% endif %}">
+  {% if f.kind == 'switch' %}
+  <label class="switch" for="{{ uid }}"><input id="{{ uid }}" type="checkbox" name="{{ name }}" value="on"{% if value in (True, 'on') %} checked{% endif %}><span class="track"></span><span>{{ f.label }}</span></label>
+  {% else %}
+  <label for="{{ uid }}">{{ f.label }}{% if f.required %} <span class="subtle">(needed to switch on)</span>{% endif %}</label>
+  {% if f.kind == 'choice' %}
+  <select id="{{ uid }}" name="{{ name }}"{% if err %} aria-invalid="true" aria-describedby="{{ uid }}-err"{% endif %}>
+    {% if value not in f.choices %}<option value="{{ value }}" selected>{{ value if value else 'Choose...' }}</option>{% endif %}
+    {% for c in f.choices %}<option value="{{ c }}"{% if c == value %} selected{% endif %}>{{ c }}</option>{% endfor %}
+  </select>
+  {% elif f.kind == 'number' %}
+  <div class="input-unit"><input id="{{ uid }}" type="number" name="{{ name }}" value="{{ value }}" inputmode="decimal" step="{{ '1' if f.integer else 'any' }}"{% if f.minimum is not none %} min="{{ f.minimum }}"{% endif %}{% if f.maximum is not none %} max="{{ f.maximum }}"{% endif %}{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}{% if err %} aria-invalid="true" aria-describedby="{{ uid }}-err"{% endif %}>{% if f.unit %}<span class="unit">{{ f.unit }}</span>{% endif %}</div>
+  {% else %}
+  <input id="{{ uid }}" type="text" name="{{ name }}" value="{{ value }}" autocomplete="off" spellcheck="false"{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}{% if err %} aria-invalid="true" aria-describedby="{{ uid }}-err"{% endif %}>
+  {% endif %}
+  {% endif %}
+  {% if f.kind == 'var' and value %}
+  <div class="hint">{% if vars_set.get(value) %}<span class="chip chip--ok"><span class="dot"></span>{{ value }} is set</span>{% else %}<span class="chip chip--warn"><span class="dot"></span>{{ value }} is not set</span> Add it to the container's environment (Compose Manager: the stack's variables; Unraid template: Add another Variable), then re-apply the container.{% endif %}</div>
+  {% endif %}
+  {% if f.help %}<div class="hint">{{ f.help }}</div>{% endif %}
+  <div class="err" id="{{ uid }}-err">{{ err or '' }}</div>
+</div>
+{%- endmacro %}
+
+{# The row lists first (they are usually the point of the page), then the single settings. `action` is the card's base URL. #}
+{% macro settings_body(section, state, errors, vars_set, action) -%}
+{% set sid = section.id %}
+{% set card = '#card-' ~ section.root[-1] %}
+{% for item in section.items %}{% if item.columns is defined %}
+<div class="rows" id="{{ sid }}-{{ item.key }}">
+  <h3>{{ item.label }}</h3>
+  {% if item.help %}<p class="muted">{{ item.help }}</p>{% endif %}
+  {% if errors.get("r." ~ item.key) %}<div class="alert alert--bad" role="alert">{{ errors.get("r." ~ item.key) }}</div>{% endif %}
+  {% set rows = state.rows.get(item.key, []) %}
+  <input type="hidden" name="r.{{ item.key }}.count" value="{{ rows|length }}">
+  {% if rows %}
+  <div class="rows-list">
+  {% for row in rows %}{% set i = loop.index0 %}
+    <div class="rows-item">
+      <input type="hidden" name="r.{{ item.key }}.{{ i }}.orig" value="{{ row._orig if row._orig is not none else '' }}">
+      <div class="form-grid">
+        {% for c in item.columns %}
+        {{ control(c, row.get(c.key, ''), 'r.' ~ item.key ~ '.' ~ i ~ '.' ~ c.key, sid ~ '-' ~ item.key ~ '-' ~ i ~ '-' ~ c.key, errors, vars_set) }}
+        {% endfor %}
+      </div>
+      <button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/rows" hx-include="closest form" hx-vals='{"row_action": "remove:{{ item.key }}:{{ i }}"}' hx-target="{{ card }}" hx-swap="outerHTML">Remove this {{ item.noun }}</button>
+    </div>
+  {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">No {{ item.noun }}s yet.</p>
+  {% endif %}
+  <button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/rows" hx-include="closest form" hx-vals='{"row_action": "add:{{ item.key }}"}' hx-target="{{ card }}" hx-swap="outerHTML">Add a {{ item.noun }}</button>
+</div>
+{% endif %}{% endfor %}
+<div class="form-grid">
+{% for item in section.items %}{% if item.columns is not defined %}
+  {{ control(item, state['values'].get(item.key, ''), 'f.' ~ item.key, sid ~ '-' ~ item.key, errors, vars_set) }}
+{% endif %}{% endfor %}
+</div>
+{%- endmacro %}

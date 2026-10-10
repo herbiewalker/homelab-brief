@@ -218,6 +218,48 @@ Spec: `docs/guide/10-agents.md`. Starts after Tasks 19, 20, 24, and 26, because 
 - [x] Changing an agent's model or prompt runs the fixtures first and flags a lower score before the change takes effect.
 - Accept: a deliberately worse prompt is flagged; scores are visible on the AI page.
 
+# Phase 4: Admin interface rebuild
+
+Spec: `docs/guide/11-admin-ui.md`. Started 2026-10-10 after the first real setup attempt: the Unraid collector could not be configured from the GUI (the shipped file has a placeholder address and there was no field for it), and the pages are not pleasant or responsive. Everything configurable in the GUI, with the text editors kept as an option.
+
+## Task 31: Design system and application shell
+- [ ] Design tokens (colour, type, spacing, radius, elevation, motion) for light, dark, and system themes; contrast checked.
+- [ ] Application shell: grouped side menu (drawer on small screens), top bar with instance status, theme switch, and account menu; breadcrumbs and a page header with one primary action.
+- [ ] Components: cards, stat tiles, status chips with icons, buttons, form controls with hints and inline errors, switches, tables (sticky header, stacked on phones), tabs, dialogs, toasts, empty states, loading skeletons, a copy button, diff view. Inline SVG icon sprite.
+- [ ] htmx patterns: in-place save with toast and Undo, progress indicators, confirm dialogs, optimistic row actions; no inline script, CSP-safe.
+- [ ] Both the admin pages and the public pages (status, brief, map) use the shell and tokens.
+- Accept: a style guide page (admin only) shows every component in both themes; checked in a real browser at 360, 768, and 1280 px.
+
+## Task 32: Overview
+- [ ] The Overview described in the guide: headline strip, health cards, system tiles, top findings with inline ack and snooze, what changed, setup checklist, live refresh, empty states.
+- Accept: a new install shows a useful checklist; an install with a failed run says why and shows the one action that fixes it.
+
+## Task 33: Settings framework and the setup pages
+- [ ] Field specs, scalar and row-list writers, save path with digest check, validation, history, audit, toast with Undo, "Edit as text" link on every page, reset-to-default per field.
+- [ ] Collectors: a card per collector with its settings, the server list as a row editor (id, address, key variable with set or not-set badge, certificate check), Test connection, Run now, and the switch enabled only when the form is valid.
+- [ ] Systems, Network and access, Schedule and retention, Notifications (channels with a test button), converted to the framework.
+- Accept: a fresh install configures the Unraid collector end to end with no text editor; the text editor shows the same file afterwards.
+
+## Task 34: Detection and device settings
+- [ ] Ignore rules: row editor with a pattern tester against recent lines and the match count.
+- [ ] Priorities: kinds table (rank, route, urgent), lifecycle settings, quiet hours with a time zone display, grouping.
+- [ ] Playbook thresholds: a control per threshold with units and help; the advice rules viewable and editable as rows.
+- [ ] Devices (profile per device, with the privacy explanation), topology and map settings, registry and views.
+- Accept: every value in these files has a control; a change shows what it would have done to last week (replay) before it is saved.
+
+## Task 35: Operations pages
+- [ ] Findings and alerts, Sources, Signatures, Log search, Replay and tuning, Audit log, Backups and exports rebuilt on the shell: filters, sort, search, pagination, bulk actions where they make sense, saved views.
+- Accept: each page is usable at 360 px and by keyboard.
+
+## Task 36: Intelligence pages
+- [ ] AI (providers, chains, guardrails, prompts), Agents, Proposals (diff review), Evaluation, MCP clients, and the Network map rebuilt on the shell, every setting a control.
+- Accept: the AI page no longer needs the text editor for anything.
+
+## Task 37: Polish and verification
+- [ ] A responsive, accessibility, and contrast audit of every page in a real browser at three widths in both themes; screenshots kept; fixes applied.
+- [ ] Error and empty states reviewed; keyboard shortcuts and a command palette for jumping between pages; documentation and the deploy guide updated.
+- Accept: the "Done when" list in the guide passes.
+
 ## Later (not in the first build)
 - PDF/EPUB e-reader edition (Pandoc) once the e-reader model is known.
 - Network novelty extractors: DHCP leases, MACs, firewall destinations.

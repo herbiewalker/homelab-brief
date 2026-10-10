@@ -801,3 +801,83 @@ def test_tool_arguments_tolerate_the_spellings_small_models_use(lab):  # noqa: F
         call_tool(ctx, "list_findings", {"limit": "0"})["isError"]
         and call_tool(ctx, "list_findings", {"limit": "99999"})["isError"]
     )
+
+
+# ---------------------------------------------------------------- yamlscalar: the form helpers (Task 33)
+
+COLLECTORS = """# header
+schema: 1
+collectors:
+  unraid:
+    enabled: false
+    interval: hourly
+    # One entry per server.
+    servers:
+      - { id: server-1, url: "https://<server-1-ip>/graphql", key_var: UNRAID_SERVER_1_API_KEY, verify_tls: false }
+      - { id: server-2, url: "https://<server-2-ip>/graphql", key_var: UNRAID_SERVER_2_API_KEY, verify_tls: false }
+    # api: a comment that belongs to the next key
+    smart_source: api
+  unifi:
+    enabled: false
+    url_var: UNIFI_URL
+    # site: Default
+    targets: []
+    #  - { id: example }
+"""
+
+
+def test_set_text_writes_any_scalar_adds_missing_keys_and_keeps_comments():
+    from brief.yamlscalar import set_text
+
+    out = set_text(COLLECTORS, ["collectors", "unraid", "enabled"], True)
+    assert "    enabled: true\n" in out and out.count("enabled: true") == 1
+    out = set_text(out, ["collectors", "unraid", "smart_source"], "smartctl_files")
+    assert "smart_source: smartctl_files" in out and "# api: a comment that belongs to the next key" in out
+    out = set_text(out, ["collectors", "unifi", "site"], "Default site")  # absent as a real key: added
+    assert '    site: "Default site"' in out and "    # site: Default" in out
+    out = set_text(out, ["collectors", "unifi", "url_var"], "MY_URL")
+    assert "url_var: MY_URL" in out and out.startswith("# header")
+    assert __import__("yaml").safe_load(out)["collectors"]["unifi"]["site"] == "Default site"
+
+
+def test_replace_list_rewrites_rows_and_keeps_what_surrounds_them():
+    from brief.yamlscalar import replace_list
+
+    rows = [{"id": "one", "url": "https://198.51.100.5/graphql", "key_var": "KEY_ONE", "verify_tls": False}]
+    out = replace_list(COLLECTORS, ["collectors", "unraid", "servers"], rows)
+    data = __import__("yaml").safe_load(out)
+    assert data["collectors"]["unraid"]["servers"] == rows
+    assert "    # One entry per server." in out and "    # api: a comment that belongs to the next key" in out
+    assert "<server-1-ip>" not in out and "smart_source: api" in out
+    none = replace_list(out, ["collectors", "unraid", "servers"], [])
+    assert (
+        "    servers: []" in none
+        and __import__("yaml").safe_load(none)["collectors"]["unraid"]["servers"] == []
+    )
+    again = replace_list(none, ["collectors", "unraid", "servers"], rows)
+    assert __import__("yaml").safe_load(again)["collectors"]["unraid"]["servers"] == rows
+    filled = replace_list(
+        COLLECTORS, ["collectors", "unifi", "targets"], [{"id": "a", "oids": [{"name": "x", "oid": "1.2"}]}]
+    )
+    assert __import__("yaml").safe_load(filled)["collectors"]["unifi"]["targets"][0]["oids"] == [
+        {"name": "x", "oid": "1.2"}
+    ]
+    assert "#  - { id: example }" in filled
+
+
+def test_a_list_key_that_is_missing_is_added():
+    from brief.yamlscalar import replace_list
+
+    out = replace_list(COLLECTORS, ["collectors", "unifi", "sites"], [{"id": "a"}])
+    assert __import__("yaml").safe_load(out)["collectors"]["unifi"]["sites"] == [{"id": "a"}]
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["plain", "with space", 'a "quote"', "https://x/y?z=1#frag", "ünï", "", "null", "true", "5", "-x"],
+)
+def test_text_values_survive_a_round_trip_through_the_file(value):
+    from brief.yamlscalar import set_text
+
+    out = set_text(COLLECTORS, ["collectors", "unifi", "url_var"], value)
+    assert __import__("yaml").safe_load(out)["collectors"]["unifi"]["url_var"] == value

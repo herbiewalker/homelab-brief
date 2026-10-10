@@ -14,6 +14,7 @@ Index, scope, and layout. The overall plan (outputs, tiers, dashboards, phases) 
 | Admin GUI, API, and command-line access | `docs/guide/08-admin-and-access.md` |
 | AI integration (any model, the GPU server GPU, Home Assistant AI, MCP) | `docs/guide/09-ai-integration.md` |
 | Phase 3: agents | `docs/guide/10-agents.md` |
+| Phase 4: admin interface | `docs/guide/11-admin-ui.md` |
 
 **One home per fact.** Code and config blocks in this guide are illustrative. The files in the repo (`vector/`, `brief/*.yaml`, `mosquitto/`, `deploy/`) are authoritative for values such as thresholds, routes, and schedules. If the guide and a file disagree, the file wins and the guide gets fixed.
 

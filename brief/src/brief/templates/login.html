@@ -1,16 +1,15 @@
-{% extends "base.html" %}
+{% extends "auth.html" %}
+{% from "_ui.html" import icon %}
 {% block title %}Sign in{% endblock %}
 {% block body %}
-<h1>Sign in</h1>
-{% if error %}<div class="card error">{{ error }}</div>{% endif %}
-{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
 <form class="card" method="post" action="/admin/login">
+  <h1>Sign in</h1>
+  {% if error %}<div class="alert alert--bad" role="alert">{{ icon('alert-circle') }}<div>{{ error }}</div></div>{% endif %}
+  {% if notice %}<div class="alert alert--ok" role="status">{{ icon('check-circle') }}<div>{{ notice }}</div></div>{% endif %}
   <input type="hidden" name="csrf_token" value="{{ csrf }}">
   <input type="hidden" name="next" value="{{ next }}">
-  <label for="username">Username</label>
-  <input id="username" name="username" type="text" autocomplete="username" autofocus required>
-  <label for="password">Password</label>
-  <input id="password" name="password" type="password" autocomplete="current-password" required>
-  <button type="submit">Sign in</button>
+  <div class="field"><label for="username">Username</label><input id="username" name="username" type="text" autocomplete="username" autofocus required></div>
+  <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+  <button type="submit" class="btn btn--block">Sign in</button>
 </form>
 {% endblock %}

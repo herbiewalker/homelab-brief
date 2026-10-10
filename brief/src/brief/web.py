@@ -31,6 +31,7 @@ from brief import (
     admin_ai,
     admin_collectors,
     admin_config,
+    admin_data,
     admin_manage,
     admin_map,
     admin_network,
@@ -189,6 +190,9 @@ def create_app(
     def render(request: Request, name: str, status: int = 200, **ctx) -> HTMLResponse:
         session = getattr(request.state, "session", None)
         ctx.setdefault("nav", admin_pages.NAV)
+        ctx.setdefault("nav_groups", admin_pages.NAV_GROUPS)
+        if session is not None:
+            ctx["topbar"], ctx["topbar_counts"] = admin_data.shell_status(store, settings.out_dir)
         ctx.setdefault("active", "")
         html = templates.get_template(name).render(session=session, csrf=ctx.pop("csrf", None), **ctx)
         return HTMLResponse(html, status_code=status)

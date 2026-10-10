@@ -50,7 +50,7 @@
 
 {% if customised %}
 <h2>Start over</h2>
-<form class="card" method="post" action="/admin/config/{{ file }}/reset" x-data="confirmForm" @submit="ask" data-confirm="Go back to the shipped default for {{ file }}? Your version is kept in the history.">
+<form class="card" method="post" action="/admin/config/{{ file }}/reset" data-confirm="Go back to the shipped default for {{ file }}? Your version is kept in the history.">
   <input type="hidden" name="csrf_token" value="{{ csrf }}">
   <button class="danger" type="submit">Use the shipped default</button>
   <p class="muted">Removes your copy, so the default that ships with the product applies again (and follows product updates). Your version stays in the history.</p>

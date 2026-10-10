@@ -174,3 +174,59 @@ def audit(
     more = len(rows) > limit
     rows = rows[:limit]
     return {"rows": rows, "next": rows[-1]["id"] if more else None, "users": users}
+
+
+# ---------------------------------------------------------------- the strip at the top of every admin page
+
+
+def shell_status(store: Store, out_dir: Path) -> tuple[list[dict], dict]:
+    """(status chips, counts) for the top bar and the side menu. Cheap (one small file and a few counts), and it
+    never raises: a page must render even if the status is unreadable."""
+    from brief.outputs import read_json
+
+    chips: list[dict] = []
+    counts = {"alerts": 0, "proposals": 0, "collectors_failing": 0}
+    try:
+        status = read_json(out_dir / "latest" / "status.json") or {}
+        if status:
+            ok = bool(status.get("run_ok"))
+            chips.append(
+                {"kind": "ok" if ok else "bad", "text": "Run ok" if ok else "No data today", "href": "/admin"}
+            )
+            silent = int((status.get("pipeline") or {}).get("hosts_silent") or 0)
+            if silent:
+                chips.append(
+                    {
+                        "kind": "warn",
+                        "text": f"{silent} silent host{'s' if silent != 1 else ''}",
+                        "href": "/admin/sources",
+                    }
+                )
+            failing = [c for c in (status.get("collectors") or {}).values() if not c.get("ok")]
+            counts["collectors_failing"] = len(failing)
+            if failing:
+                chips.append(
+                    {
+                        "kind": "bad",
+                        "text": f"{len(failing)} collector{'s' if len(failing) != 1 else ''} failing",
+                        "href": "/admin/collectors",
+                    }
+                )
+        with store.read() as db:
+            counts["alerts"] = db.execute(
+                "SELECT COUNT(*) FROM alert WHERE state IN ('open', 'snoozed', 'acked')"
+            ).fetchone()[0]
+            counts["proposals"] = db.execute(
+                "SELECT COUNT(*) FROM proposal WHERE status = 'pending'"
+            ).fetchone()[0]
+        if counts["proposals"]:
+            chips.append(
+                {
+                    "kind": "info",
+                    "text": f"{counts['proposals']} proposal{'s' if counts['proposals'] != 1 else ''} waiting",
+                    "href": "/admin/ai#proposals",
+                }
+            )
+    except Exception:  # noqa: BLE001 (a status strip is never worth an error page)
+        pass
+    return chips, counts

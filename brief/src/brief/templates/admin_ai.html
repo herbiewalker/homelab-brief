@@ -197,7 +197,7 @@
       <td>{{ t.locality }}</td>
       <td>{{ t.created }}</td>
       <td>{{ t.last_used or 'never' }}</td>
-      <td><form class="inline" method="post" action="/admin/ai/mcp/revoke" x-data="confirmForm" @submit="ask" data-confirm="Revoke {{ t.name }}? It stops working at once.">
+      <td><form class="inline" method="post" action="/admin/ai/mcp/revoke" data-confirm="Revoke {{ t.name }}? It stops working at once.">
         <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="token_id" value="{{ t.token_id }}">
         <button type="submit" class="quiet">Revoke</button></form></td>
     </tr>{% endfor %}

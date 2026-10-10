@@ -1,19 +1,16 @@
-{% extends "base.html" %}
+{% extends "auth.html" %}
+{% from "_ui.html" import icon %}
 {% block title %}First-time setup{% endblock %}
 {% block body %}
-<h1>First-time setup</h1>
-<p class="muted">Create the admin account. The setup token is printed in the container log (<code>docker logs homelab-brief</code>) and works once.</p>
-{% if error %}<div class="card error">{{ error }}</div>{% endif %}
 <form class="card" method="post" action="/admin/setup">
+  <h1>First-time setup</h1>
+  <p class="muted">Create the admin account. The one-time setup token is printed in the container log (<code>docker logs homelab-brief</code>).</p>
+  {% if error %}<div class="alert alert--bad" role="alert">{{ icon('alert-circle') }}<div>{{ error }}</div></div>{% endif %}
   <input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <label for="token">Setup token</label>
-  <input id="token" name="token" type="password" autocomplete="off" required>
-  <label for="username">Username</label>
-  <input id="username" name="username" type="text" value="admin" autocomplete="username" required>
-  <label for="password">Password (at least 12 characters)</label>
-  <input id="password" name="password" type="password" autocomplete="new-password" required>
-  <label for="confirm">Repeat the password</label>
-  <input id="confirm" name="confirm" type="password" autocomplete="new-password" required>
-  <button type="submit">Create the admin account</button>
+  <div class="field"><label for="token">Setup token</label><input id="token" name="token" type="password" autocomplete="off" required></div>
+  <div class="field"><label for="username">Username</label><input id="username" name="username" type="text" value="admin" autocomplete="username" required></div>
+  <div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="new-password" required><div class="hint">At least 12 characters.</div></div>
+  <div class="field"><label for="confirm">Repeat the password</label><input id="confirm" name="confirm" type="password" autocomplete="new-password" required></div>
+  <button type="submit" class="btn btn--block">Create the admin account</button>
 </form>
 {% endblock %}

@@ -18,24 +18,35 @@ from brief import __version__, admin_data, agentnotes, alerts, health
 from brief.settings import Settings
 from brief.store import Store
 
-NAV = [
-    ("overview", "/admin", "Overview"),
-    ("wizard", "/admin/wizard", "Setup wizard"),
-    ("sources", "/admin/sources", "Sources"),
-    ("findings", "/admin/findings", "Findings and alerts"),
-    ("network", "/admin/network", "Network"),
-    ("map", "/admin/map", "Network map"),
-    ("collectors", "/admin/collectors", "Collectors"),
-    ("systems", "/admin/systems", "Systems"),
-    ("config", "/admin/config", "Config"),
-    ("backups", "/admin/backups", "Backups and exports"),
-    ("signatures", "/admin/signatures", "Signatures"),
-    ("logs", "/admin/logs", "Log search"),
-    ("replay", "/admin/replay", "Replay and tuning"),
-    ("ai", "/admin/ai", "AI"),
-    ("audit", "/admin/audit", "Audit log"),
-    ("account", "/admin/account", "Account"),
-]
+# The side menu: (group, [(page key, address, label, icon)]). A page names its own key as `active`.
+NAV_GROUPS = [
+    ("Monitor", [
+        ("overview", "/admin", "Overview", "activity"),
+        ("findings", "/admin/findings", "Findings and alerts", "alert"),
+        ("sources", "/admin/sources", "Sources", "radio"),
+        ("map", "/admin/map", "Network map", "map"),
+    ]),
+    ("Configure", [
+        ("wizard", "/admin/wizard", "Setup wizard", "wand"),
+        ("systems", "/admin/systems", "Systems", "server"),
+        ("collectors", "/admin/collectors", "Collectors", "plug"),
+        ("network", "/admin/network", "Network and access", "network"),
+        ("config", "/admin/config", "Config files", "file-text"),
+    ]),
+    ("Intelligence", [
+        ("ai", "/admin/ai", "AI and agents", "sparkles"),
+    ]),
+    ("System", [
+        ("backups", "/admin/backups", "Backups and exports", "archive"),
+        ("signatures", "/admin/signatures", "Signatures", "list"),
+        ("logs", "/admin/logs", "Log search", "search"),
+        ("replay", "/admin/replay", "Replay and tuning", "history"),
+        ("audit", "/admin/audit", "Audit log", "clock"),
+        ("account", "/admin/account", "Account", "user"),
+    ]),
+]  # fmt: skip
+NAV = [(key, href, label) for _, links in NAV_GROUPS for key, href, label, _ in links]
+
 ALERT_ACTIONS = ("ack", "snooze_24h", "snooze_7d")
 FINDING_ID = re.compile(r"^[A-Za-z0-9_.:@/ -]{1,300}$")
 

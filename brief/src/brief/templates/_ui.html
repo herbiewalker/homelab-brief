@@ -1,0 +1,57 @@
+{#- Shared building blocks. Import with: {% from "_ui.html" import icon, chip, tile, alert, empty, page_head with context %} -#}
+
+{% macro icon(name, cls='') -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="#i-{{ name }}"/></svg>
+{%- endmacro %}
+
+{# A status pill. kind: ok | warn | bad | info | (empty for neutral) #}
+{% macro chip(kind, text, dot=True) -%}
+<span class="chip{% if kind %} chip--{{ kind }}{% endif %}">{% if dot %}<span class="dot"></span>{% endif %}{{ text }}</span>
+{%- endmacro %}
+
+{# A number with a label. kind sets the left edge colour; href makes the whole tile a link. #}
+{% macro tile(label, value, sub='', kind='', href='', glyph='') -%}
+<{{ 'a' if href else 'div' }} class="tile{% if kind %} tile--{{ kind }}{% endif %}"{% if href %} href="{{ href }}"{% endif %}>
+  <span class="label">{% if glyph %}{{ icon(glyph) }}{% endif %}{{ label }}</span>
+  <span class="value">{{ value }}</span>
+  {% if sub %}<span class="sub">{{ sub }}</span>{% endif %}
+</{{ 'a' if href else 'div' }}>
+{%- endmacro %}
+
+{# A message inside a page. kind: ok | warn | bad | info #}
+{% macro alert(kind, text='') -%}
+<div class="alert alert--{{ kind }}" role="{{ 'alert' if kind in ('bad', 'warn') else 'status' }}">
+  {{ icon({'ok': 'check-circle', 'warn': 'alert', 'bad': 'alert-circle', 'info': 'info'}[kind]) }}
+  <div class="grow">{% if text %}{{ text }}{% endif %}{{ caller() if caller else '' }}</div>
+</div>
+{%- endmacro %}
+
+{% macro empty(glyph, title, text='') -%}
+<div class="empty">{{ icon(glyph) }}<h3>{{ title }}</h3>{% if text %}<p>{{ text }}</p>{% endif %}{{ caller() if caller else '' }}</div>
+{%- endmacro %}
+
+{# The heading of a page: title, one line saying what the page is for, and the primary actions (the caller block). #}
+{% macro page_head(title, lead='', crumbs=None) -%}
+<div class="page-head">
+  <div>
+    {% if crumbs %}<div class="crumbs">{% for href, label in crumbs %}<a href="{{ href }}">{{ label }}</a> / {% endfor %}</div>{% endif %}
+    <h1>{{ title }}</h1>
+    {% if lead %}<p class="lead">{{ lead }}</p>{% endif %}
+  </div>
+  {% if caller %}<div class="row">{{ caller() }}</div>{% endif %}
+</div>
+{%- endmacro %}
+
+{# A form field: label, control (the caller block), hint, and a place for an error. #}
+{% macro field(label, id, hint='', error='') -%}
+<div class="field{% if error %} invalid{% endif %}">
+  <label for="{{ id }}">{{ label }}</label>
+  {{ caller() }}
+  {% if hint %}<div class="hint">{{ hint }}</div>{% endif %}
+  <div class="err" id="{{ id }}-err">{{ error }}</div>
+</div>
+{%- endmacro %}
+
+{% macro switch(name, label, checked=False, disabled=False, value='on') -%}
+<label class="switch"><input type="checkbox" name="{{ name }}" value="{{ value }}"{% if checked %} checked{% endif %}{% if disabled %} disabled{% endif %}><span class="track"></span><span>{{ label }}</span></label>
+{%- endmacro %}

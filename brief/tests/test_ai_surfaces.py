@@ -227,7 +227,7 @@ def test_the_page_needs_a_login_and_shows_everything_off(lab):  # noqa: F811
     ):
         assert text in page.text, text
     assert "AI_LOCAL_API_KEY" in page.text and "super-secret" not in page.text
-    assert '<a href="/admin/ai"' in lab.client.get("/admin").text  # in the navigation
+    assert 'href="/admin/ai"' in lab.client.get("/admin").text  # in the navigation
 
 
 def test_every_change_needs_the_csrf_token(lab):  # noqa: F811

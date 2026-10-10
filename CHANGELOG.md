@@ -5,6 +5,14 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.43
+
+The interface rebuild begins (Tasks 31 to 37 in `docs/TASKS.md`, design in `docs/guide/11-admin-ui.md`), prompted by the first real setup attempt: the Unraid collector could not be configured because the server address was only a placeholder in a YAML file and no control let you type it.
+
+- **New design system and shell.** One stylesheet with light, dark, and system themes; a grouped side menu that becomes a drawer on a phone; a status strip (run ok, silent hosts, collectors failing, proposals waiting); toasts, confirm dialogs, status chips, stat tiles, and form controls with inline errors. Used by the admin pages, the sign-in and setup pages, and the public status page. No external fonts, icons, or scripts, and the same strict Content-Security-Policy.
+- **Collectors is now a set of forms.** Every collector (Unraid, UniFi, SNMP, iDRAC, Home Assistant power, DNS filter) has a card with its settings as controls: the server list as add and remove rows, key variables with a "set or not set" badge (a key is never typed or shown), choices, numbers with units, and switches. Switching one on checks that everything it needs is filled in. Saving writes `collectors.yaml` through the config editor (checked, versioned, audited), shows a toast with **Undo**, keeps your comments, and the text editor shows the same file. Test connection and Run now stay on each card.
+- The settings framework behind it (`settingsui.py`, `yamlscalar.py`) is what the other settings pages will use.
+
 ## 0.0.42
 
 Found by running the agent test cases against a real model (an 8B model on a local Ollama), and fixed:

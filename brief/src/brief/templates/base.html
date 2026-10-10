@@ -4,23 +4,24 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}homelab-brief{% endblock %}</title>
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/ui.css">
+{% block scripts %}{% endblock %}
 </head>
 <body>
-<header class="top">
+{% from "_ui.html" import icon %}
+{% include "_icons.html" %}
+{% block outer %}
+<header class="public-head">
+  <a class="brandmark" href="/"><span class="logo">{{ icon('activity') }}</span><span>homelab-brief</span></a>
   <nav>
     <a href="/">Status</a>
-    {% if session %}<a href="/admin">Admin</a><a href="/admin/account">Account</a>{% endif %}
+    {% if session %}<a href="/admin">Admin</a>{% endif %}
   </nav>
-  {% if session %}
-  <form class="inline" method="post" action="/admin/logout">
-    <input type="hidden" name="csrf_token" value="{{ csrf }}">
-    <span class="muted">{{ session.username }}</span> <button class="link" type="submit">Sign out</button>
-  </form>
-  {% endif %}
 </header>
-<main>
+<main class="public">
 {% block body %}{% endblock %}
 </main>
+{% endblock %}
+<div class="toasts" id="toasts" aria-live="polite"></div>
 </body>
 </html>
