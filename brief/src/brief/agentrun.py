@@ -449,7 +449,7 @@ def _converse(
                 {
                     "role": "tool",
                     "tool_call_id": str(call.get("id") or number),
-                    "content": f"[{number}] {text}",
+                    "content": f"[ref:{number}] {text}",
                 }
             )
     if final is None:

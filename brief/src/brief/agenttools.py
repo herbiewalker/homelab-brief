@@ -56,8 +56,22 @@ class Context:
 
 def _int(args: Mapping, key: str, default: int, low: int, high: int) -> int:
     value = args.get(key, default)
+    if isinstance(value, str) and value.strip().lstrip("-").isdigit():  # small models send "5" for 5
+        value = int(value)
     if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
         raise ToolError(f"{key} must be a whole number from {low} to {high}")
+    return value
+
+
+def _bool(args: Mapping, key: str, default: bool = False) -> bool:
+    value = args.get(key, default)
+    if isinstance(value, str) and value.strip().lower() in (
+        "true",
+        "false",
+    ):  # small models send "true" for true
+        value = value.strip().lower() == "true"
+    if not isinstance(value, bool):
+        raise ToolError(f"{key} must be true or false")
     return value
 
 
@@ -395,9 +409,7 @@ def get_signature(ctx: Context, args: Mapping) -> dict:
 
 
 def get_inventory(ctx: Context, args: Mapping) -> dict:
-    only_pending = args.get("pending_only", False)
-    if not isinstance(only_pending, bool):
-        raise ToolError("pending_only must be true or false")
+    only_pending = _bool(args, "pending_only")
     with ctx.store.read() as db:
         rows = db.execute(
             "SELECT item_id, kind, name, model, current_version, available_version, available_since, checked_at "

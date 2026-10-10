@@ -15,18 +15,20 @@ new file text itself from a small, typed change, which keeps a small model from 
 import json
 import re
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import datetime
 
 import yaml
 
 from brief import ai, proposals, yamlscalar
-from brief.jsonlog import log
 from brief.store import Store, iso
 
 OUTPUTS = ("text", "investigation_note", "chat_answer", "verdicts", "proposals")
 JSON_OUTPUTS = ("verdicts", "proposals")
 VERDICTS = ("noise", "watch", "concern", "unsure")
-CITATION = re.compile(r"\[ref:(r\d+)\]")
+_IDS = r"r\d+(?:\s*[,;]\s*r\d+)*"
+# The citation the prompts ask for is [ref:r1]. Models also write [r1], [ref: r1], [refs: r1, r2], and (ref:r1);
+# all of them mean the same thing and are accepted, and are written back in the one canonical form.
+CITATION = re.compile(rf"\[\s*(?:refs?\s*:?\s*)?({_IDS})\s*\]|\(\s*refs?\s*:?\s*({_IDS})\s*\)", re.IGNORECASE)
 SENTENCE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\[])")
 MAX_SIGNATURES = 5
 MAX_REASON = 300
@@ -61,10 +63,13 @@ def check_citations(text: str, evidence: set[str]) -> tuple[str, int, int]:
         lead = prefix.group(0).strip() + " " if prefix else ""
         body = line[prefix.end() :].strip() if prefix else stripped
         first = True
-        for sentence in SENTENCE.split(body):
-            cited = CITATION.findall(sentence)
+        for sentence in _sentences(body):
+            if BARE_CITATION.match(sentence):  # a citation with nothing before it asserts nothing
+                dropped += 1
+                continue
+            cited = cited_ids(sentence)
             if cited and all(c in evidence for c in cited):
-                blocks[-1][1].append((lead if first else "") + sentence)
+                blocks[-1][1].append((lead if first else "") + canonical(sentence))
                 first = False
                 kept += 1
             else:
@@ -278,4 +283,30 @@ def finish(
     return check_citations(text, set(evidence))
 
 
-_ = (UTC, log)
+BARE_CITATION = re.compile(rf"^(?:\s*(?:{CITATION.pattern})[\s.,;:]*)+$", re.IGNORECASE)
+
+
+def _sentences(body: str) -> list[str]:
+    """The sentences of one line. A citation written after the full stop ("... slower. [ref:r1]") is not a
+    sentence of its own: it belongs to the one before it, which is what the writer meant."""
+    out: list[str] = []
+    for piece in SENTENCE.split(body):
+        if out and BARE_CITATION.match(piece):
+            out[-1] = f"{out[-1]} {piece.strip()}"
+        else:
+            out.append(piece)
+    return out
+
+
+def cited_ids(text: str) -> list[str]:
+    """Every result id cited in `text`, in any accepted spelling, lowercased."""
+    return [
+        i.lower() for m in CITATION.finditer(text) for i in re.split(r"[\s,;]+", m.group(1) or m.group(2))
+    ]
+
+
+def canonical(text: str) -> str:
+    """`text` with every citation spelled [ref:rN]."""
+    return CITATION.sub(
+        lambda m: " ".join(f"[ref:{i.lower()}]" for i in re.split(r"[\s,;]+", m.group(1) or m.group(2))), text
+    )

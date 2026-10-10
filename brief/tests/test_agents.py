@@ -185,7 +185,9 @@ def test_a_run_calls_tools_then_keeps_only_cited_statements(lab):  # noqa: F811
         "messages"
     ]  # what the model saw the second time: its own calls and tagged results
     tool_msgs = [m for m in second if m["role"] == "tool"]
-    assert [m["content"][:5] for m in tool_msgs] == ["[r1] ", "[r2] "] and second[-3]["role"] == "assistant"
+    assert [m["content"][:9] for m in tool_msgs] == ["[ref:r1] ", "[ref:r2] "] and second[-3][
+        "role"
+    ] == "assistant"
     assert "tools" in model.bodies[0] and model.bodies[0]["tool_choice"] == "auto"
     run = rows(lab, "agent_run")[0]
     assert (
@@ -509,7 +511,9 @@ def test_cli_lists_queues_runs_and_shows(box, capsys, monkeypatch):  # noqa: F81
 
 def test_the_ai_page_lists_agents_and_their_runs(lab):  # noqa: F811
     setup(lab)
-    go(lab, Model(calls(("get_status", {})), final("ok [ref:r1]")))
+    go(
+        lab, Model(calls(("get_status", {})), final("ok [ref:r1]")), now=datetime.now(UTC)
+    )  # the page counts the real last 24 hours
     page = lab.client.get("/admin/ai").text
     assert "<h2>Agents</h2>" in page and "investigator" in page and "off_one" in page and "1 of 3" in page
 

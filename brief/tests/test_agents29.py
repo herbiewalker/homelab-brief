@@ -51,7 +51,7 @@ agents:
   ask_the_lab:
     enabled: true
     trigger: {on_demand: true}
-    tools: [get_status, list_findings, list_systems]
+    tools: [get_status, list_findings, list_systems, get_inventory]
     output: chat_answer
     prompt: prompts/agent_investigator.md
 """
@@ -730,3 +730,74 @@ def test_the_worker_queues_agent_work_after_the_daily_and_weekly_runs_and_attach
 def rows_of(store, table):
     with store.read() as db:
         return [dict(r) for r in db.execute(f"SELECT * FROM {table}")]  # noqa: S608 (a fixed name)
+
+
+def test_a_citation_after_the_full_stop_belongs_to_the_sentence_before_it():
+    """Found by running the investigator on a real model: it wrote `... slower. [ref:r1]`."""
+    from brief.agentout import check_citations
+
+    text = (
+        "The check took 2 days. [ref:r1]\n"
+        "Speed fell to 41. Then it recovered. [ref:r1] [ref:r2].\n"
+        "- A bare one. [ref:r1]\n"
+        "[ref:r1]\n"
+        "No cite here."
+    )
+    kept, n, dropped = check_citations(text, {"r1", "r2"})
+    assert kept.splitlines() == [
+        "The check took 2 days. [ref:r1]",
+        "Then it recovered. [ref:r1] [ref:r2].",
+        "- A bare one. [ref:r1]",
+    ]
+    assert (n, dropped) == (3, 3)  # dropped: the uncited "Speed fell", the lone citation line, "No cite here"
+
+
+@pytest.mark.parametrize(
+    "written",
+    ["[ref:r1]", "[r1]", "[ref: r1]", "[Ref:R1]", "(ref:r1)", "[refs: r1]", "[ref:r1, r2]", "[r1;r2]"],
+)
+def test_the_citation_spellings_models_use_are_accepted_and_written_back_one_way(written):
+    from brief.agentout import canonical, check_citations, cited_ids
+
+    ok = {"r1", "r2"}
+    kept, n, _ = check_citations(f"The speed fell. {written}\n", ok)
+    assert n == 1 and "[ref:r1]" in kept and "(ref" not in kept and "[r1" not in kept
+    assert cited_ids(f"x {written}")[0] == "r1" and canonical(f"x {written}").startswith("x [ref:r1]")
+
+
+@pytest.mark.parametrize("written", ["[r9]", "[ref:r1, r9]", "(ref:r9)", "(r1)", "[1]", "[ref:]"])
+def test_a_citation_of_something_that_is_not_a_result_still_drops_the_sentence(written):
+    from brief.agentout import check_citations
+
+    kept, n, dropped = check_citations(f"The speed fell {written}.", {"r1", "r2"})
+    assert (kept, n, dropped) == ("", 0, 1)
+
+
+def test_tool_arguments_tolerate_the_spellings_small_models_use(lab):  # noqa: F811
+    """Found with a real 8B model: it sent pending_only as the string "true" and limit as "5"."""
+    from brief.agenttools import Context, call_tool
+    from brief.mcptokens import Client
+
+    now = datetime.now(UTC)
+    with lab.store.write() as tx:
+        for i, avail in enumerate([None, "2.0"]):
+            tx.db.execute(
+                "INSERT INTO inventory (item_id, kind, name, model, current_version, available_version, checked_at) "
+                "VALUES (?, 'switch', ?, 'm', '1', ?, ?)", (f"d{i}", f"Switch {i}", avail, iso(now)),
+            )  # fmt: skip
+    ctx = Context(
+        lab.store, lab.settings, Client("t", "t", frozenset({"systems", "findings"})), status, source="agent"
+    )
+
+    def items(args):
+        out = call_tool(ctx, "get_inventory", args)
+        assert not out["isError"], out
+        return len(json.loads(out["content"][0]["text"])["items"])
+
+    assert items({}) == 2 and items({"pending_only": True}) == 1 and items({"pending_only": "true"}) == 1
+    assert items({"pending_only": " False "}) == 2 and items({"pending_only": "false"}) == 2
+    assert not call_tool(ctx, "list_findings", {"limit": "5"})["isError"]
+    assert (
+        call_tool(ctx, "list_findings", {"limit": "0"})["isError"]
+        and call_tool(ctx, "list_findings", {"limit": "99999"})["isError"]
+    )

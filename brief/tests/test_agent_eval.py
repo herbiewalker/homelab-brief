@@ -22,6 +22,9 @@ FINDING_SUBJECTS = {
 }
 
 
+ASK_WORDS = {"Is any of my network equipment waiting for a firmware update?": "firmware switch update"}
+
+
 class Brain:
     """A scripted model that behaves well, or sloppily when the prompt says BE SLOPPY or the model is bad-model."""
 
@@ -63,7 +66,7 @@ class Brain:
             return final("[]")
         if sloppy:
             return final("Everything is probably fine, no need to look closer.")
-        words = (FINDING_SUBJECTS.get(subject) or "parity yellow slow").split()
+        words = (FINDING_SUBJECTS.get(subject) or ASK_WORDS.get(subject) or "parity yellow slow").split()
         return final(f"The {words[0]} is the main point [ref:r1]. The {words[1]} showed it too [ref:r1].")
 
 
@@ -121,7 +124,7 @@ def test_your_own_fixture_replaces_a_shipped_one_with_the_same_id_and_a_broken_f
     (mine / "broken.yaml").write_text("id: [unclosed")
     (mine / "empty.yaml").write_text("title: no id\n")
     found = agenteval.load_fixtures(None)
-    assert found["slow_parity"].title == "mine" and "noisy_signature" in found and len(found) == 6
+    assert found["slow_parity"].title == "mine" and "noisy_signature" in found and len(found) == 7
 
 
 # ---------------------------------------------------------------- scoring

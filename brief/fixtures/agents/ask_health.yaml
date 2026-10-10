@@ -17,4 +17,5 @@ expect:
   outcome_any: [ok]
   tools_any: [get_status, list_findings, list_systems]
   mention_any: [parity, yellow, slow]
+  forbid: [list_config, list_logs, list_servers]   # tools that do not exist
   min_kept: 1

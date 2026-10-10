@@ -277,7 +277,9 @@ def test_findings_systems_map_and_history_over_http(lab):  # noqa: F811
     "tool,args",
     [
         ("list_findings", {"limit": 0}),
-        ("list_findings", {"limit": "5"}),
+        ("list_findings", {"limit": "five"}),
+        ("get_inventory", {"pending_only": "maybe"}),
+        ("get_inventory", {"pending_only": 1}),
         ("list_findings", {"nope": 1}),
         ("get_history", {"kind": "other", "id": 1}),
         ("get_history", {"kind": "signature", "id": -5}),

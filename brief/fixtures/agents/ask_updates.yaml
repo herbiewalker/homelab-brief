@@ -1,0 +1,21 @@
+id: ask_updates
+agent: ask_the_lab
+subject: Is any of my network equipment waiting for a firmware update?
+title: A question answered from the inventory
+status:
+  run_ok: true
+  headline: "1 thing needs a look; first: a switch has a firmware update waiting"
+  systems: [{id: gw, name: Network, state: yellow, summary: "1 firmware_pending"}]
+  stories:
+    - {id: fw-sw1, rank: 1, system: gw, kind: firmware_pending, title: "Core switch has a firmware update available", route: digest_only, count: 1, detail: null}
+systems:
+  - {id: gw, label: Network, kind: gateway, hosts: [198.51.100.1]}
+inventory:
+  - {item_id: "dev:sw1", kind: switch, name: Core switch, model: USW-24, current_version: "7.0.1", available_version: "7.1.0"}
+  - {item_id: "dev:ap1", kind: ap, name: Upstairs access point, model: AP-Pro, current_version: "6.6.0"}
+expect:
+  outcome_any: [ok]
+  tools_any: [get_inventory, list_findings, get_status]
+  mention_any: [firmware, switch, update]
+  forbid: [list_config, list_logs, list_servers]
+  min_kept: 1

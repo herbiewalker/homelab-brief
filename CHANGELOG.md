@@ -5,6 +5,15 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.42
+
+Found by running the agent test cases against a real model (an 8B model on a local Ollama), and fixed:
+
+- **Citations written in the other common spellings were being thrown away.** `[r1]`, `[ref: r1]`, `[refs: r1, r2]`, and `(ref:r1)` are now accepted and written back as `[ref:r1]`; a citation after the full stop (`... slower. [ref:r1]`) now belongs to the sentence before it; a citation with nothing before it asserts nothing and is dropped. Tool results are now labelled `[ref:r1]` (they were `[r1]`), so the model copies the right form. A citation to a result that does not exist or failed still drops the sentence.
+- **Tool arguments are tolerant of small-model spellings**: `"true"` for true and `"5"` for 5 are accepted. The model had sent `pending_only: "true"`, been refused three times, and never saw the inventory.
+- **Two shipped prompts rewritten and measured.** Investigator: every sentence must end with a citation and nothing may be added that a result does not say (score 79 to 95 over three runs each; citation rate 31% to 85%). Ask the lab: same rule plus never name a tool that is not in the list (the old prompt scored 10 in four runs out of four, with nothing cited; the new one averages 96).
+- A second ask-the-lab test case (the inventory) and a check that the answer does not name tools that do not exist; the triage case now allows both an ignore and a playbook proposal.
+
 ## 0.0.41
 
 The **Collectors page** in the admin GUI (the page `collectors.yaml` has always promised): every collector with its state, last run, and the template variables it needs (shown as set or not set, never the value); Switch on/off (edits only the `enabled` line of `collectors.yaml` through the config editor, so it is checked, versioned, and audited); **Test** (asks the source whether the connection works, stores nothing); **Run now**. `brief collector list|test|run` already did the same from a shell.

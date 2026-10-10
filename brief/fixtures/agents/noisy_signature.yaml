@@ -11,5 +11,5 @@ expect:
   outcome_any: [ok]
   tools_any: [get_signature]
   verdicts: {"1": [noise, watch, unsure], "2": [concern, watch, unsure], "3": [concern, watch, unsure]}
-  proposals: {max: 1, files: [ignore.yaml, playbook.yaml]}
+  proposals: {max: 2, files: [ignore.yaml, playbook.yaml]}
   min_kept: 2
