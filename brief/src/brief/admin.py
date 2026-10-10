@@ -25,6 +25,7 @@ NAV = [
     ("findings", "/admin/findings", "Findings and alerts"),
     ("network", "/admin/network", "Network"),
     ("map", "/admin/map", "Network map"),
+    ("collectors", "/admin/collectors", "Collectors"),
     ("systems", "/admin/systems", "Systems"),
     ("config", "/admin/config", "Config"),
     ("backups", "/admin/backups", "Backups and exports"),

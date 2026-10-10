@@ -5,6 +5,10 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.41
+
+The **Collectors page** in the admin GUI (the page `collectors.yaml` has always promised): every collector with its state, last run, and the template variables it needs (shown as set or not set, never the value); Switch on/off (edits only the `enabled` line of `collectors.yaml` through the config editor, so it is checked, versioned, and audited); **Test** (asks the source whether the connection works, stores nothing); **Run now**. `brief collector list|test|run` already did the same from a shell.
+
 ## 0.0.40
 
 Task 30: agent evaluation (needs AI and the agents feature on to gate changes; `brief agent eval` works as soon as a model is configured).

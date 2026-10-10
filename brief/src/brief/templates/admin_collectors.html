@@ -1,0 +1,24 @@
+{% extends "admin_layout.html" %}
+{% block title %}Collectors{% endblock %}
+{% block body %}
+<h1>Collectors</h1>
+<p class="muted">Optional data sources that poll standard APIs (Unraid, UniFi, SNMP, iDRAC, Home Assistant power). Each starts off. Keys come from template variables on the container, never from a file; this page shows only whether each variable is set. Switching one on edits <a href="/admin/config/collectors.yaml">collectors.yaml</a> through the config editor, so it is checked, versioned, and audited. Set a server's address and key variable there first. <strong>Test</strong> asks the source if the connection works and stores nothing.</p>
+{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="card error"><strong>Not saved.</strong> {{ error }}</div>{% endif %}
+{% if problem %}<div class="card error">collectors.yaml cannot be used: {{ problem }}</div>{% endif %}
+<div class="card scroll"><table class="wide">
+  <tr><th>Collector</th><th>State</th><th>Last run</th><th>Variables</th><th></th></tr>
+  {% for c in collectors %}<tr>
+    <td>{{ c.name }}{% if not c.available %} <span class="muted">(not in this version)</span>{% endif %}</td>
+    <td><span class="badge {{ 'ok' if c.enabled else '' }}">{{ 'on' if c.enabled else 'off' }}</span></td>
+    <td>{% if not c.enabled %}<span class="muted">-</span>{% elif not c.last_run %}has not run yet{% else %}{{ c.last_run }}: {% if c.ok %}ok{% else %}<span class="error">failed: {{ c.error }}</span>{% endif %}{% endif %}</td>
+    <td>{% for v in c.variables %}<code>{{ v.name }}</code> {% if v.set %}<span class="badge ok">set</span>{% else %}<span class="badge bad">not set</span>{% endif %}<br>{% else %}<span class="muted">none</span>{% endfor %}</td>
+    <td>
+      <form class="inline" method="post" action="/admin/collectors/{{ c.name }}/switch"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="state" value="{{ 'off' if c.enabled else 'on' }}"><button type="submit" class="quiet">{{ 'Switch off' if c.enabled else 'Switch on' }}</button></form>
+      <button type="button" hx-post="/admin/collectors/{{ c.name }}/test" hx-target="#result-{{ c.name }}" hx-swap="innerHTML">Test</button>
+      {% if c.enabled %}<button type="button" class="quiet" hx-post="/admin/collectors/{{ c.name }}/run" hx-target="#result-{{ c.name }}" hx-swap="innerHTML">Run now</button>{% endif %}
+      <div id="result-{{ c.name }}"></div>
+    </td>
+  </tr>{% else %}<tr><td colspan="5" class="muted">No collectors found.</td></tr>{% endfor %}
+</table></div>
+{% endblock %}

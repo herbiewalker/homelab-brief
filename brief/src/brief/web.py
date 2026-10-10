@@ -29,6 +29,7 @@ from fastapi.staticfiles import StaticFiles
 from brief import (
     __version__,
     admin_ai,
+    admin_collectors,
     admin_config,
     admin_manage,
     admin_map,
@@ -555,6 +556,7 @@ def create_app(
     admin_ai.register(admin, deps)
     admin_network.register(admin, deps)
     admin_map.register(admin, deps)
+    admin_collectors.register(admin, deps)
     admin_tools.register(admin, deps)
     admin_manage.register(admin, deps)
     admin_setup.register(admin, deps)

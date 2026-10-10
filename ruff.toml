@@ -21,6 +21,7 @@ select = ["E", "F", "I", "UP", "B"]
 "brief/src/brief/agenttools.py" = ["E501"]  # tool descriptions and schema literals
 "brief/src/brief/agentrun.py" = ["E501"]  # one-line log, tool, and prompt strings
 "brief/src/brief/proposals.py" = ["E501"]  # one-line messages
+"brief/src/brief/admin_collectors.py" = ["E501"]  # docstring and audit lines
 "brief/src/brief/agenteval.py" = ["E501"]  # long messages and SQL
 "brief/src/brief/yamlscalar.py" = ["E501"]  # long messages and docstrings
 "brief/src/brief/agenttriggers.py" = ["E501"]  # long messages and docstrings

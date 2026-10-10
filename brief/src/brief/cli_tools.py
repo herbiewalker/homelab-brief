@@ -1032,9 +1032,7 @@ def _init(args, state, store, out, err) -> int:
     out("  brief network show           mode, address, warnings")
     out("  brief notify test            if you turned on notifications")
     out("  brief status                 is everything healthy")
-    out(
-        "Collectors for the Unraid and UniFi APIs arrive in Phase 2; the senders above are the source for now."
-    )
+    out("Optional collectors for the Unraid and UniFi APIs: `brief collector list`, or the Collectors page.")
     return 0
 
 
