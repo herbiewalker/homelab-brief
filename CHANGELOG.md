@@ -5,6 +5,10 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.47
+
+- **A slow server is no longer reported as "could not connect".** A collector request that gets no reply in time now says "no answer within N s (the server is slow, or the network drops the connection; try a longer request time limit)".
+
 ## 0.0.46
 
 - **Names can be typed the way you like.** A server or device name such as `Storage Server 2` is accepted and saved as the lowercase id `storage-server-2` (the id is what sensors and files use); only a name with no letters or digits is refused.

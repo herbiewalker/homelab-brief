@@ -65,6 +65,12 @@ def request_json(
         raise ApiError("unreachable", f"the server answered HTTP {exc.code}") from None
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         reason = getattr(exc, "reason", exc)
+        if isinstance(reason, TimeoutError):
+            raise ApiError(
+                "unreachable",
+                f"no answer within {timeout:g} s (the server is slow, or the network drops the connection; "
+                "try a longer request time limit)",
+            ) from None
         raise ApiError("unreachable", f"could not connect ({type(reason).__name__})") from None
     if len(payload) > MAX_RESPONSE:
         raise ApiError("bad_response", "the reply was larger than expected")
