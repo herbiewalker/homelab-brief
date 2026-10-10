@@ -181,4 +181,144 @@ PAGES = {
         ),
     )
 }
-SECTIONS = {s.id: s for s in (SCHEDULE, RETENTION, APPRISE, MQTT, NETWORK, PORTS, SYSTEMS)}
+
+
+# ---------------------------------------------------------------- detection and alerting (Task 34)
+
+ROUTES = ("push_now", "daily_headline", "digest_only", "suppress")
+ROUTE_HELP = "push_now: notify now. daily_headline: in the morning summary. digest_only: only in the brief. suppress: never."
+
+
+def _regex_check(text: str):
+    from brief import ignoretest
+
+    return ignoretest.regex_problem(text)
+
+
+IGNORE = Section(
+    "ignore",
+    "Ignore rules",
+    "ignore.yaml",
+    (),
+    (
+        Rows(
+            "ignore",
+            "Rules",
+            (
+                Field("name", "Name", "text", "Names the rule and its count of ignored lines.", required=True, pattern=ID, pattern_help=ID_HELP, slug=True, placeholder="port-flaps"),
+                Field("host", "Only for this host", "text", "Optional: a sender address, a host name, or a system id. Empty means every host.", pattern=HOST, pattern_help=HOST_HELP, placeholder="any host"),
+                Field("match", "Pattern", "text", "A regular expression searched in \"app: message\". Start it with (?i) to ignore capital letters.", required=True, check=_regex_check, placeholder="(?i)link (up|down)"),
+                Field("note", "Why it is safe to ignore", "text", "A reminder for later."),
+            ),
+            noun="rule",
+            help="Ignored lines are still counted per rule, so a sudden change in how often they happen stays visible. The first matching rule wins.",
+            test_label="Test against recent lines",
+        ),
+    ),
+    blurb="Known noise that is filtered out before the detectors look at it.",
+    icon="list",
+    switch="",
+)  # fmt: skip
+
+RANKING = Section(
+    "priorities-ranking",
+    "Ranking and grouping",
+    "priorities.yaml",
+    (),
+    (
+        Field("default.rank", "Rank", "number", "How high a finding of a kind that is not listed below ranks (higher is first).", minimum=0, maximum=1000, group="Findings of an unlisted kind"),
+        Field("default.route", "Route", "choice", ROUTE_HELP, ROUTES),
+        Field("grouping.min_members", "Merge at", "number", "Findings of one kind on one host become one story once there are this many.", unit="findings", minimum=2, maximum=100, group="Grouping"),
+        Field("grouping.show", "Names shown", "number", "How many of the biggest are named in the story.", unit="names", minimum=1, maximum=20),
+        Field("severity_boost.emerg", "Emergency", "number", "Added to a story's rank when its worst log level is this one, so a brand-new error outranks a routine swing in volume.", minimum=0, maximum=200, group="Rank boost by log level"),
+        Field("severity_boost.alert", "Alert", "number", minimum=0, maximum=200),
+        Field("severity_boost.crit", "Critical", "number", minimum=0, maximum=200),
+        Field("severity_boost.err", "Error", "number", minimum=0, maximum=200),
+    ),
+    blurb="How findings are ordered in the brief. Change a number and use the preview to see what it would have done to last week.",
+    icon="sliders",
+    switch="",
+    preview=True,
+)  # fmt: skip
+
+ALERTING = Section(
+    "priorities-alerts",
+    "Alert behaviour",
+    "priorities.yaml",
+    (),
+    (
+        Field("quiet_hours.start", "Quiet from", "text", "Pushes that are not urgent wait until quiet hours end.", pattern=TIME, pattern_help=TIME_HELP, utc_time=True, group="Quiet hours (UTC)"),
+        Field("quiet_hours.end", "Quiet until", "text", pattern=TIME, pattern_help=TIME_HELP, utc_time=True),
+        Field("lifecycle.renotify_hours", "Repeat a pushed finding at most every", "number", unit="hours", minimum=1, maximum=720, group="Repeats and escalation"),
+        Field("lifecycle.escalate_on_worse", "Push again early when it gets worse", "switch"),
+        Field("lifecycle.escalate_factor", "Worse means this many times bigger", "number", integer=False, minimum=1.1, maximum=100),
+        Field("lifecycle.escalate_min_minutes", "Never escalate the same finding more often than", "number", unit="minutes", minimum=1, maximum=10080),
+        Field("lifecycle.send_resolved", "Say when a pushed finding clears", "switch", group="Resolving and budget"),
+        Field("lifecycle.resolve_after_quiet_runs", "Resolved after this many quiet runs", "number", unit="runs", minimum=1, maximum=30),
+        Field("lifecycle.daily_push_budget", "Extra pushes per day", "number", "Beyond this, non-urgent pushes fold into the next daily headline.", unit="pushes", minimum=0, maximum=100),
+        Field("lifecycle.snooze_options_h", "Snooze choices", "list", "The buttons on an alert, in hours, separated by commas.", item_type="int", pattern=r"^[0-9]{1,4}$", pattern_help="a whole number of hours."),
+    ),
+    blurb="When a finding becomes a push, how often it repeats, and what waits for the morning.",
+    icon="bell",
+    switch="",
+    preview=True,
+)  # fmt: skip
+
+KIND_NAMES = (
+    "absence", "pipeline_error", "config_error", "novelty", "deviation", "off_hours", "smart_failing", "smart_trend",
+    "disk_temp", "crc_rising", "firmware_pending", "version_behind", "new_infrastructure", "new_device", "traffic_spike",
+    "odd_hours", "metric_drift", "power_drift", "parity_slow", "unraid_warning", "clock_skew", "unknown_sender", "storage_low",
+)  # fmt: skip
+
+
+def _kind_fields() -> tuple[Field, ...]:
+    out = []
+    for kind in KIND_NAMES:
+        group = kind.replace("_", " ")
+        out += [
+            Field(f"kinds.{kind}.rank", "Rank", "number", minimum=0, maximum=1000, group=group),
+            Field(f"kinds.{kind}.route", "Route", "choice", choices=ROUTES, group=group),
+            Field(f"kinds.{kind}.urgent", "Urgent", "switch", group=group),
+        ]
+    return tuple(out)
+
+
+KINDS = Section(
+    "priorities-kinds",
+    "Kinds of finding",
+    "priorities.yaml",
+    (),
+    _kind_fields(),
+    blurb="Rank orders the brief (higher first). Route decides how it is delivered: " + ROUTE_HELP + " Urgent lets a push_now finding skip quiet hours and the daily budget.",
+    icon="alert",
+    switch="",
+    grid=("rank", "route", "urgent"),
+    grid_title="Kind of finding",
+    preview=True,
+)  # fmt: skip
+
+PAGES.update(
+    {
+        p.key: p
+        for p in (
+            Page(
+                "ignore",
+                "Ignore rules",
+                "Log noise you have decided is safe, filtered out before detection but still counted.",
+                (IGNORE,),
+                "ignore",
+                "ignore.yaml",
+            ),
+            Page(
+                "priorities",
+                "Priorities and alerts",
+                "How findings are ranked and routed, and when an alert is sent.",
+                (RANKING, ALERTING, KINDS),
+                "priorities",
+                "priorities.yaml",
+            ),
+        )
+    }
+)
+SECTIONS = {s.id: s for p in PAGES.values() for s in p.sections}
+SECTIONS.update({s.id: s for s in (NETWORK, PORTS, SYSTEMS)})

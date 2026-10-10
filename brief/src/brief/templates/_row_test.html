@@ -1,0 +1,11 @@
+{% from "_ui.html" import alert %}
+{% if result.error %}{% call alert('bad') %}{{ result.error }}{% endcall %}
+{% elif not any_events %}{% call alert('info') %}No log lines have been received yet to test against.{% endcall %}
+{% elif not result.checked %}{% call alert('info') %}No recent line came from that host, so there is nothing to test against.{% endcall %}
+{% else %}
+{% call alert('ok' if result.matched else 'info') %}
+<strong>{{ result.matched }} of {{ result.checked }}</strong> recent lines{% if result.matched %} ({{ (100 * result.matched / result.checked)|round(1) }}%){% endif %} would be ignored by this pattern.{% if result.stopped %} The test stopped early to stay quick.{% endif %}
+{% if result.examples %}<pre class="rowtest-examples">{% for e in result.examples %}{{ e }}
+{% endfor %}</pre>{% endif %}
+{% endcall %}
+{% endif %}

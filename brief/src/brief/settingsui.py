@@ -51,6 +51,12 @@ class Field:
     lines: int = (
         0  # kind "list": 0 = one line separated by commas or spaces, n = a box of n lines, one item each
     )
+    group: str = ""  # a heading shown above this field (and the ones after it, until the next group)
+    item_type: str = ""  # kind "list": "int" or "float" turns each item into a number
+    utc_time: bool = False  # a time of day in UTC: the page shows it in the viewer's own time zone too
+    check: object = (
+        None  # an optional function(text) -> a problem message or None, for rules a pattern cannot say
+    )
 
     def relaxed(self) -> "Field":
         """The same control without the 'needed before it can be switched on' rule."""
@@ -65,6 +71,7 @@ class Rows:
     noun: str = "row"
     help: str = ""
     required: bool = False  # at least one row is needed before the thing can be switched on
+    test_label: str = ""  # a "test" button on each row (posts the row to <card>/rowtest)
 
 
 @dataclass(frozen=True)
@@ -78,7 +85,12 @@ class Section:
     icon: str = "sliders"
     switch: str = "enabled"  # the on/off key at the root, or "" for none
     switch_label: str = "Switched on"
+    grid_title: str = ""
     test_label: str = ""  # a "test" button on the card when set
+    grid: tuple[
+        str, ...
+    ] = ()  # column names: fields keyed "<row>.<column>" are shown as a table, one row each
+    preview: bool = False  # a "what would this have changed last week" button (replays the last week)
 
     @property
     def scalar_fields(self) -> list[Field]:
@@ -148,8 +160,25 @@ def _shown(value):
     return "" if value is None else value
 
 
+def _dig(mapping, key: str, fallback, default):
+    """The value at a dotted key ("kinds.absence.rank") in `mapping`, else the same in `fallback`, else `default`."""
+    for source in (mapping, fallback):
+        node = source
+        for part in key.split("."):
+            node = node.get(part, MISSING) if isinstance(node, Mapping) else MISSING
+        if node is not MISSING:
+            return node
+    return default
+
+
 def _shown_value(f: Field, value):
     """A setting as its control holds it: a list of ticked choices, a box of lines, or a one-line list."""
+    if f.kind == "hours":  # {start: "22:00", end: "06:30"} as "22:00-06:30"
+        if isinstance(value, Mapping) and value.get("start") and value.get("end"):
+            return f"{value['start']}-{value['end']}"
+        return ""
+    if f.kind == "paragraph":
+        return " ".join(str(value).split()) if isinstance(value, str) else ""
     if f.kind == "multi":
         return [str(v) for v in value] if isinstance(value, list) else []
     if f.kind == "list":
@@ -164,8 +193,8 @@ def load(section: Section, text: str, default_text: str = "") -> dict:
     shipped = _node(yaml.safe_load(default_text) or {}, section.root) if default_text else {}
     values, defaults, rows = {}, {}, {}
     for f in section.scalar_fields:
-        values[f.key] = _shown_value(f, base.get(f.key, shipped.get(f.key, "")))
-        defaults[f.key] = _shown_value(f, shipped.get(f.key, ""))
+        values[f.key] = _shown_value(f, _dig(base, f.key, shipped, ""))
+        defaults[f.key] = _shown_value(f, _dig(shipped, f.key, None, ""))
     for r in section.row_lists:
         listed = [row for row in (base.get(r.key) or []) if isinstance(row, Mapping)]
         cols = {c.key: c for c in r.columns}
@@ -214,7 +243,21 @@ def _one(f: Field, raw, errors: dict, where: str):
             if f.pattern and not re.match(f.pattern, item):
                 errors[where] = f"{item[:40]}: " + (f.pattern_help or "that does not look right.")
                 return MISSING
+        if f.item_type in ("int", "float"):
+            try:
+                return [int(i) if f.item_type == "int" else float(i) for i in items]
+            except ValueError:
+                errors[where] = "Use numbers separated by commas."
+                return MISSING
         return items
+    if f.kind == "paragraph":  # advice text holds {placeholders}; line breaks fold into spaces
+        return " ".join(text.split())
+    if f.kind == "hours":
+        m = re.match(r"^\s*([01]\d|2[0-3]):([0-5]\d)\s*-\s*([01]\d|2[0-3]):([0-5]\d)\s*$", text)
+        if not m:
+            errors[where] = "Use two times in UTC like 22:00-06:30."
+            return MISSING
+        return {"start": f"{m[1]}:{m[2]}", "end": f"{m[3]}:{m[4]}"}
     if "\n" in text or "\r" in text or "\x00" in text:
         errors[where] = "Use one line of text."
         return MISSING
@@ -252,6 +295,9 @@ def _one(f: Field, raw, errors: dict, where: str):
         text = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:31].strip("-")
     if f.pattern and not re.match(f.pattern, text):
         errors[where] = f.pattern_help or "That does not look right."
+        return MISSING
+    if f.check and (problem := f.check(text)):
+        errors[where] = problem
         return MISSING
     return text
 
@@ -326,7 +372,7 @@ def apply(section: Section, text: str, values: Mapping, enabled: bool | None = N
         text = yamlscalar.set_text(text, [*path, section.switch], enabled)
     for f in section.scalar_fields:
         value = values.get(f.key, MISSING)
-        current = base.get(f.key, MISSING)
+        current = _dig(base, f.key, None, MISSING)
         if f.kind == "switch":
             value = bool(value) if value is not MISSING else False
             if current is MISSING and value is False:
@@ -336,13 +382,16 @@ def apply(section: Section, text: str, values: Mapping, enabled: bool | None = N
                 continue
             if current is not MISSING and list(current or []) == list(value):
                 continue
-            text = yamlscalar.set_flow_list(text, [*path, f.key], list(value))
+            text = yamlscalar.set_flow_list(text, [*path, *f.key.split(".")], list(value))
             continue
         elif value is MISSING:
             continue  # nothing typed: leave the file's own setting (or its absence) alone
         if (current is not MISSING and _same(current, value)) or (current is MISSING and value == ""):
             continue
-        text = yamlscalar.set_text(text, [*path, f.key], value)
+        if f.kind == "paragraph":
+            text = yamlscalar.set_folded(text, [*path, *f.key.split(".")], str(value))
+        else:
+            text = yamlscalar.set_text(text, [*path, *f.key.split(".")], value)
     for r in section.row_lists:
         original = [dict(x) for x in (base.get(r.key) or []) if isinstance(x, Mapping)]
         rows = []

@@ -144,3 +144,174 @@ def test_a_save_tells_the_page_the_new_version_stamp_so_sibling_cards_stay_curre
     assert toast["file"] == "schedule.yaml" and toast["digest"] == configedit.digest(
         (lab.cfg / "schedule.yaml").read_text()
     )
+
+
+# ---------------------------------------------------------------- Task 34: ignore rules and priorities
+
+
+def form_of(section, state):
+    """The form a browser would post for the values the page shows, untouched."""
+    form = {}
+    for f in section.scalar_fields:
+        value = state["values"][f.key]
+        if f.kind == "switch":
+            if value:
+                form[f"f.{f.key}"] = "on"
+        else:
+            form[f"f.{f.key}"] = value
+    return form
+
+
+def test_an_untouched_priorities_form_changes_nothing_in_the_shipped_file():
+    from brief import settingsui
+
+    text = (_brief() / "priorities.yaml").read_text()
+    for section in (settingspages.RANKING, settingspages.ALERTING, settingspages.KINDS):
+        state = settingsui.load(section, text)
+        values, errors, on = settingsui.parse(section, form_of(section, state))
+        assert not errors, errors
+        assert settingsui.apply(section, text, values, on) == text, section.id
+
+
+def test_every_kind_in_the_shipped_file_has_a_row_in_the_table():
+    shipped = set(yaml.safe_load((_brief() / "priorities.yaml").read_text())["kinds"])
+    assert shipped == set(settingspages.KIND_NAMES)
+
+
+def test_changing_a_kind_edits_its_one_line_and_adds_urgent(lab):  # noqa: F811
+    ship(lab, "priorities.yaml")
+    form = {}
+    from brief import settingsui
+
+    state = settingsui.load(settingspages.KINDS, (_brief() / "priorities.yaml").read_text())
+    form = form_of(settingspages.KINDS, state)
+    form["f.kinds.novelty.rank"] = "47"
+    form["f.kinds.novelty.route"] = "daily_headline"
+    form["f.kinds.novelty.urgent"] = "on"
+    r = save(lab, "/admin/priorities", "priorities-kinds", **form)
+    assert r.status_code == 200, r.text[-500:]
+    text = (lab.cfg / "priorities.yaml").read_text()
+    kinds = yaml.safe_load(text)["kinds"]
+    assert kinds["novelty"] == {"rank": 47, "route": "daily_headline", "urgent": True}
+    assert kinds["absence"] == {"rank": 80, "route": "push_now"}  # the others are untouched
+    assert "# Ranking, routing" in text
+
+
+def test_alert_behaviour_saves_times_numbers_switches_and_the_snooze_list(lab):  # noqa: F811
+    ship(lab, "priorities.yaml")
+    from brief import settingsui
+
+    state = settingsui.load(settingspages.ALERTING, (_brief() / "priorities.yaml").read_text())
+    form = form_of(settingspages.ALERTING, state)
+    form.update(
+        {
+            "f.quiet_hours.start": "21:30",
+            "f.lifecycle.daily_push_budget": "3",
+            "f.lifecycle.snooze_options_h": "12, 48, 168",
+        }
+    )
+    form.pop("f.lifecycle.send_resolved")  # untick
+    r = save(lab, "/admin/priorities", "priorities-alerts", **form)
+    assert r.status_code == 200, r.text[-500:]
+    data = yaml.safe_load((lab.cfg / "priorities.yaml").read_text())
+    assert data["quiet_hours"] == {"start": "21:30", "end": "06:30"}
+    assert data["lifecycle"]["daily_push_budget"] == 3 and data["lifecycle"]["send_resolved"] is False
+    assert data["lifecycle"]["snooze_options_h"] == [12, 48, 168]
+
+
+def test_a_bad_priority_value_is_refused_where_it_is(lab):  # noqa: F811
+    ship(lab, "priorities.yaml")
+    r = save(
+        lab, "/admin/priorities", "priorities-ranking", **{"f.default.route": "shout", "f.default.rank": "x"}
+    )
+    assert r.status_code == 422 and "Choose one of" in r.text and "whole number" in r.text
+    assert not (lab.cfg / "priorities.yaml").exists()
+
+
+def test_the_priorities_page_shows_a_table_a_preview_and_a_local_time_hint(lab):  # noqa: F811
+    ship(lab, "priorities.yaml")
+    html = lab.client.get("/admin/priorities").text
+    assert (
+        'class="grid-table"' in html
+        and "smart failing" in html
+        and "What would this have changed last week?" in html
+    )
+    assert 'data-local-time="priorities-alerts-quiet_hours.start"' in html
+
+
+def test_the_preview_replays_the_week_with_and_without_the_change(lab):  # noqa: F811
+    ship(lab, "priorities.yaml")
+    from brief import settingsui
+
+    state = settingsui.load(settingspages.RANKING, (_brief() / "priorities.yaml").read_text())
+    form = form_of(settingspages.RANKING, state)
+    token = csrf(lab, "/admin/priorities")
+    same = lab.client.post("/admin/settings/priorities-ranking/preview", data={"csrf_token": token, **form})
+    assert same.status_code == 200 and "Nothing is changed" in same.text
+    form["f.default.rank"] = "99"
+    r = lab.client.post("/admin/settings/priorities-ranking/preview", data={"csrf_token": token, **form})
+    assert r.status_code == 200 and "Replay of the last" in r.text
+    assert not (lab.cfg / "priorities.yaml").exists()  # a preview never saves
+
+
+def test_ignore_rules_hide_the_shipped_examples_and_save_clean_rules(lab):  # noqa: F811
+    ship(lab, "ignore.yaml")
+    html = lab.client.get("/admin/ignore").text
+    assert "No rules yet" in html and "&lt;" not in html.split("Rules", 1)[1][:600]
+    data = {
+        "r.ignore.count": "1", "r.ignore.0.name": "Port Flaps", "r.ignore.0.host": "198.51.100.2",
+        "r.ignore.0.match": "(?i)link (up|down)", "r.ignore.0.note": "sleeping devices",
+    }  # fmt: skip
+    r = save(lab, "/admin/ignore", "ignore", **data)
+    assert r.status_code == 200, r.text[-400:]
+    rule = yaml.safe_load((lab.cfg / "ignore.yaml").read_text())["ignore"][0]
+    assert (
+        rule["name"] == "port-flaps"
+        and rule["match"] == "(?i)link (up|down)"
+        and rule["host"] == "198.51.100.2"
+    )
+
+
+def test_a_bad_pattern_is_refused_with_the_reason(lab):  # noqa: F811
+    ship(lab, "ignore.yaml")
+    r = save(
+        lab,
+        "/admin/ignore",
+        "ignore",
+        **{"r.ignore.count": "1", "r.ignore.0.name": "x", "r.ignore.0.match": "(unclosed"},
+    )
+    assert r.status_code == 422 and "Not a valid pattern" in r.text
+
+
+def test_a_rule_is_tried_against_recent_lines_before_saving(lab):  # noqa: F811
+    import json
+
+    ship(lab, "ignore.yaml")
+    folder = lab.settings.state_dir / "events"
+    folder.mkdir()
+    lines = [
+        {"source_ip": "198.51.100.2", "header_host": "sw1", "app": "kernel", "msg": "eth0 link down"},
+        {"source_ip": "198.51.100.2", "header_host": "sw1", "app": "kernel", "msg": "eth0 link up"},
+        {"source_ip": "198.51.100.3", "header_host": "cam", "app": "app", "msg": "link down on cam"},
+        {"source_ip": "198.51.100.2", "header_host": "sw1", "app": "sshd", "msg": "accepted"},
+    ]
+    (folder / "2026-10-10.ndjson").write_text("\n".join(json.dumps(x) for x in lines) + "\n")
+    token = csrf(lab, "/admin/ignore")
+
+    def test(match, host=""):
+        data = {
+            "csrf_token": token,
+            "row": "0",
+            "row_key": "ignore",
+            "r.ignore.0.match": match,
+            "r.ignore.0.host": host,
+        }
+        return lab.client.post("/admin/settings/ignore/rowtest", data=data).text
+
+    assert "2 of 4" in test("(?i)link (up|down)", "198.51.100.2") or "2 of 3" in test(
+        "(?i)link (up|down)", "198.51.100.2"
+    )
+    assert "3 of 4" in test("(?i)link (up|down)")
+    assert "Not a valid pattern" in test("(bad")
+    assert "nothing to test against" in test("x", "no-such-host")
+    assert "link down" in test("link down")  # an example line is shown

@@ -5,6 +5,15 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.49
+
+Task 34, first part: ignore rules and priorities are forms.
+
+- **Ignore rules** (new page): a row per rule (name, host, pattern, note). **Test against recent lines** on each row says how many of the last ~20,000 received lines it would have ignored, with examples, before you save; a pattern that is not valid is refused with the reason. The example rows the file ships with are not shown.
+- **Priorities and alerts** (new page): ranking and grouping, rank boost by log level, quiet hours (with the time in your own time zone shown next to each UTC time), repeat and escalation rules, the daily push budget, snooze choices, and a table with rank, route, and urgent for every kind of finding.
+- **What would this have changed last week?** on each priorities card replays the last seven days with and without your unsaved change and reports pushes and any acknowledged, snoozed, or urgent finding that would be hidden. A preview never saves anything.
+- The settings framework gained dotted keys, grouped fields, table layouts, paragraph text, number lists, a custom check per field, and per-row test buttons. A one-line `{ rank: 80, route: push_now }` mapping can be edited and can gain a key.
+
 ## 0.0.48
 
 Task 33: the setup pages are forms. None of them needs the text editor any more (it stays one click away on every card).

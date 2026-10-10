@@ -14,6 +14,8 @@
   </select>
   {% elif f.kind == 'number' %}
   <div class="input-unit"><input id="{{ uid }}" type="number" name="{{ name }}" value="{{ value }}" inputmode="decimal" step="{{ '1' if f.integer else 'any' }}"{% if f.minimum is not none %} min="{{ f.minimum }}"{% endif %}{% if f.maximum is not none %} max="{{ f.maximum }}"{% endif %}{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}{% if err %} aria-invalid="true" aria-describedby="{{ uid }}-err"{% endif %}>{% if f.unit %}<span class="unit">{{ f.unit }}</span>{% endif %}</div>
+  {% elif f.kind == 'paragraph' %}
+  <textarea id="{{ uid }}" name="{{ name }}" rows="{{ f.lines or 4 }}" spellcheck="true"{% if err %} aria-invalid="true" aria-describedby="{{ uid }}-err"{% endif %}>{{ value }}</textarea>
   {% elif f.kind == 'list' and f.lines %}
   <textarea id="{{ uid }}" name="{{ name }}" rows="{{ f.lines }}" autocomplete="off" spellcheck="false"{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}{% if err %} aria-invalid="true" aria-describedby="{{ uid }}-err"{% endif %}>{{ value }}</textarea>
   {% elif f.kind == 'multi' %}
@@ -27,6 +29,7 @@
   {% if f.kind == 'var' and value and not err %}
   <div class="hint">{% if vars_set.get(value) %}<span class="chip chip--ok"><span class="dot"></span>{{ value }} is set</span>{% else %}<span class="chip chip--warn"><span class="dot"></span>{{ value }} is not set</span> Add it to the container's environment (Compose Manager: the stack's variables; Unraid template: Add another Variable), then re-apply the container.{% endif %}</div>
   {% endif %}
+  {% if f.utc_time %}<div class="hint" data-local-time="{{ uid }}"></div>{% endif %}
   {% if f.help %}<div class="hint">{{ f.help }}</div>{% endif %}
   <div class="err" id="{{ uid }}-err">{{ err or '' }}</div>
 </div>
@@ -54,6 +57,8 @@
         {% endfor %}
       </div>
       <button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/rows" hx-include="closest form" hx-vals='{"row_action": "remove:{{ item.key }}:{{ i }}"}' hx-target="{{ card }}" hx-swap="outerHTML">Remove this {{ item.noun }}</button>
+      {% if item.test_label %}<button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/rowtest" hx-include="closest form" hx-vals='{"row_key": "{{ item.key }}", "row": "{{ i }}"}' hx-target="#rowtest-{{ sid }}-{{ item.key }}-{{ i }}" hx-swap="innerHTML">{{ item.test_label }}</button>
+      <div class="rowtest" id="rowtest-{{ sid }}-{{ item.key }}-{{ i }}" aria-live="polite"></div>{% endif %}
     </div>
   {% endfor %}
   </div>
@@ -63,9 +68,36 @@
   <button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/rows" hx-include="closest form" hx-vals='{"row_action": "add:{{ item.key }}"}' hx-target="{{ card }}" hx-swap="outerHTML">Add a {{ item.noun }}</button>
 </div>
 {% endif %}{% endfor %}
-<div class="form-grid">
-{% for item in section.items %}{% if item.columns is not defined %}
+{% set ns = namespace(group=none, open=false) %}
+{% for item in section.items %}{% if item.columns is not defined and not (section.grid and '.' in item.key and item.key.rsplit('.', 1)[1] in section.grid) %}
+  {% if item.group != ns.group or not ns.open %}{% if ns.open %}</div>{% endif %}{% if item.group %}<h3 class="group">{{ item.group }}</h3>{% endif %}<div class="form-grid">{% set ns.open = true %}{% set ns.group = item.group %}{% endif %}
   {{ control(item, state['values'].get(item.key, ''), 'f.' ~ item.key, sid ~ '-' ~ item.key, errors, vars_set) }}
 {% endif %}{% endfor %}
-</div>
+{% if ns.open %}</div>{% endif %}
+{% if section.grid %}
+{% set g = namespace(last=none) %}
+<div class="scroll"><table class="grid-table">
+  <thead><tr><th scope="col">{{ section.grid_title or 'Name' }}</th>{% for col in section.grid %}<th scope="col">{{ col|replace('_', ' ')|capitalize }}</th>{% endfor %}</tr></thead>
+  <tbody>
+  {% for item in section.items %}{% if item.columns is not defined and '.' in item.key and item.key.rsplit('.', 1)[1] in section.grid %}
+    {% if item.group != g.last %}{% if g.last is not none %}</tr>{% endif %}<tr><th scope="row">{{ item.group }}</th>{% set g.last = item.group %}{% endif %}
+    <td>{{ cell(item, state['values'].get(item.key, ''), 'f.' ~ item.key, sid ~ '-' ~ item.key, errors) }}</td>
+  {% endif %}{% endfor %}
+  {% if g.last is not none %}</tr>{% endif %}
+  </tbody>
+</table></div>
+{% endif %}
+{%- endmacro %}
+
+{# One control without its label, for a table cell. #}
+{% macro cell(f, value, name, uid, errors) -%}
+{% set err = errors.get(name) %}
+{% if f.kind == 'switch' %}
+<label class="switch" for="{{ uid }}"><input id="{{ uid }}" type="checkbox" name="{{ name }}" value="on"{% if value in (True, 'on') %} checked{% endif %}><span class="track"></span><span class="sr-only">{{ f.label }}</span></label>
+{% elif f.kind == 'choice' %}
+<select id="{{ uid }}" name="{{ name }}" aria-label="{{ f.label }}">{% for c in f.choices %}<option value="{{ c }}"{% if c == value %} selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+{% else %}
+<input id="{{ uid }}" type="{{ 'number' if f.kind == 'number' else 'text' }}" name="{{ name }}" value="{{ value }}" aria-label="{{ f.label }}"{% if f.kind == 'number' %} inputmode="decimal" step="{{ '1' if f.integer else 'any' }}"{% if f.minimum is not none %} min="{{ f.minimum }}"{% endif %}{% if f.maximum is not none %} max="{{ f.maximum }}"{% endif %}{% endif %}{% if err %} aria-invalid="true"{% endif %}>
+{% endif %}
+{% if err %}<div class="err cell-err" role="alert">{{ err }}</div>{% endif %}
 {%- endmacro %}

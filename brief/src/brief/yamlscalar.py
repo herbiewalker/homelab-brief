@@ -67,7 +67,7 @@ def set_path(text: str, path: list[str], value) -> str:
     return "\n".join(lines)
 
 
-def _inline(lines: list[str], i: int, rest: list[str], new: str) -> str:
+def _inline(lines: list[str], i: int, rest: list[str], new: str, add: bool = False) -> str:
     """The value sits inside a one-line mapping on line i, possibly several levels deep: { a: { b: 1 } }."""
     line = lines[i]
     start = line.index("{")
@@ -80,6 +80,13 @@ def _inline(lines: list[str], i: int, rest: list[str], new: str) -> str:
         segment = line[start:]
     key = rest[-1]
     m = re.search(rf"(?P<head>[{{,]\s*{re.escape(key)}:\s*)(?P<val>[^,}}\s]+)", segment)
+    if not m and add:  # the key is not in the one-line mapping yet: add it before the closing brace
+        close = segment.find("}")
+        if close < 0 or "{" in segment[1:close]:
+            raise EditError(f"{'.'.join(rest)} is not in that line")
+        a = start + close
+        lines[i] = line[:a].rstrip() + f", {key}: {new} " + line[a:]
+        return "\n".join(lines)
     if not m:
         raise EditError(f"{'.'.join(rest)} is not in that line")
     a, b = start + m.start("val"), start + m.end("val")
@@ -182,12 +189,12 @@ def set_text(text: str, path: list[str], value) -> str:
 
 def _set_any(text: str, path: list[str], value) -> str:
     lines = text.split("\n")
+    inline = _parent_is_inline(lines, path, add=True) if len(path) > 1 else None
+    if inline is not None:  # the value sits in a one-line { a: 1 } mapping: change just that value
+        return inline(render_text(value))
     at, base = _find(lines, path)
     line = lines[at]
     m = re.match(rf"^(?P<head> *{re.escape(path[-1])}:[ \t]*)(?P<val>[^#\n]*?)(?P<tail>[ \t]*(#.*)?)$", line)
-    inline = _parent_is_inline(lines, path) if len(path) > 1 else None
-    if inline is not None:
-        return inline(render_text(value))
     if (
         not m
         or m.group("val").strip().startswith(("[", ">", "|"))
@@ -198,7 +205,7 @@ def _set_any(text: str, path: list[str], value) -> str:
     return "\n".join(lines)
 
 
-def _parent_is_inline(lines: list[str], path: list[str]):
+def _parent_is_inline(lines: list[str], path: list[str], add: bool = False):
     """When the key lives inside a one-line `{ a: 1 }` mapping, a function that replaces just that value."""
     for depth in range(len(path) - 1):
         try:
@@ -208,8 +215,8 @@ def _parent_is_inline(lines: list[str], path: list[str]):
         rest = re.match(rf"^ *{re.escape(path[depth])}:(.*)$", lines[at]).group(1).strip()
         if rest.startswith("{"):
 
-            def go(new, at=at, rest=path[depth + 1 :]):
-                return _inline(lines, at, rest, new)
+            def go(new, at=at, rest=path[depth + 1 :], add=add):
+                return _inline(lines, at, rest, new, add)
 
             return go
     return None
@@ -267,4 +274,27 @@ def set_flow_list(text: str, path: list[str], items: list) -> str:
         while end > at + 1 and lines[end - 1].lstrip().startswith("#"):
             end -= 1
     lines[at:end] = [m.group("head").rstrip() + " " + new + m.group("tail")]
+    return "\n".join(lines)
+
+
+def set_folded(text: str, path: list[str], value: str, width: int = 100) -> str:
+    """Write a paragraph of text at `path` as a folded block (`key: >` and indented lines), keeping what is above
+    and below. Line breaks in `value` collapse to spaces, as a folded block reads them back."""
+    import textwrap
+
+    lines = text.split("\n")
+    at, base = _find(lines, path)
+    m = re.match(
+        rf"^(?P<head> *{re.escape(path[-1])}:)[ \t]*(?P<style>[>|][-+]?)?[ \t]*(?P<rest>[^#\n]*?)[ \t]*(?P<tail>#.*)?$",
+        lines[at],
+    )
+    if not m:
+        raise EditError(f"{'.'.join(path)} is not text")
+    end = _block_end(lines, at, base)
+    while end > at + 1 and lines[end - 1].lstrip().startswith("#"):
+        end -= 1
+    body = textwrap.wrap(" ".join(value.split()), width=max(30, width - base - 2)) or [""]
+    pad = " " * (base + 2)
+    head = m.group("head") + " >" + (f" {m.group('tail')}" if m.group("tail") else "")
+    lines[at:end] = [head, *[pad + line for line in body]]
     return "\n".join(lines)

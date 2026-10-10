@@ -169,3 +169,62 @@ def register(admin: APIRouter, d: Deps) -> None:
             )
         d.store.audit(f"admin:{d.session(request).username}", "notify.test", "ok" if ok else "failed")
         return d.render(request, "_collector_result.html", ok=ok, message=message)
+
+    @admin.post("/settings/{sid}/rowtest", response_class=HTMLResponse)
+    async def rowtest(request: Request, sid: str):
+        """Try one row of the ignore rules against recent log lines (read-only; nothing is saved)."""
+        if sid != "ignore":
+            return Response("This card has no row test.", status_code=404)
+        from brief import ignoretest, livestatus
+
+        form = await request.form()
+        row = str(form.get("row", ""))
+        if not row.isdigit():
+            return Response("Not a row.", status_code=400)
+        pattern = str(form.get(f"r.ignore.{row}.match", "")).strip()
+        host = str(form.get(f"r.ignore.{row}.host", "")).strip()
+        events = ignoretest.recent_events(d.settings.state_dir)
+        try:
+            systems = livestatus.load_systems()
+        except Exception:  # without systems.yaml the host still matches by address or header name
+            systems = None
+        result = ignoretest.test_rule(events, pattern, host, systems)
+        return d.render(request, "_row_test.html", result=result, any_events=bool(events))
+
+    @admin.post("/settings/{sid}/preview", response_class=HTMLResponse)
+    async def preview(request: Request, sid: str):
+        """What the posted values would have done to the last week, by replaying it with and without them."""
+        section = section_or_none(sid)
+        if section is None or not section.preview:
+            return Response("This card has no preview.", status_code=404)
+        from datetime import UTC, datetime
+
+        from brief import agentguards
+
+        form = await request.form()
+        values, errors, on = settingsui.parse(section, form)
+        if errors:
+            return d.render(
+                request,
+                "_collector_result.html",
+                ok=False,
+                message="Fix the marked settings first, then preview.",
+            )
+        old, _ = configedit.current(section.file)
+        try:
+            new = settingsui.apply(section, old, values, on)
+        except yamlscalar.EditError as exc:
+            return d.render(request, "_collector_result.html", ok=False, message=str(exc))
+        if new == old:
+            return d.render(
+                request,
+                "_collector_result.html",
+                ok=True,
+                message="Nothing is changed, so there is nothing to preview.",
+            )
+        problem = configedit.validate_text(section.file, new)
+        if problem:
+            return d.render(request, "_collector_result.html", ok=False, message=problem)
+        result = agentguards.replay_evidence(d.store, None, section.file, old, new, None, datetime.now(UTC))
+        d.store.audit(f"admin:{d.session(request).username}", "settings.preview", section.file)
+        return d.render(request, "_collector_result.html", ok=not result.hidden, message=result.text)

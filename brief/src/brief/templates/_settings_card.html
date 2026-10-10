@@ -7,6 +7,7 @@
       <h2>{{ section.title }}</h2>
       {% if section.switch %}{% if state.enabled %}{{ chip('ok', 'On') }}{% else %}{{ chip('', 'Off') }}{% endif %}{% endif %}
     </div>
+    {% if section.preview %}<div class="row"><button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/preview" hx-include="#card-{{ section.id }} form" hx-target="#result-{{ section.id }}" hx-swap="innerHTML" hx-disabled-elt="this">{{ icon('history') }}<span>What would this have changed last week?</span><span class="spinner htmx-indicator" aria-hidden="true"></span></button></div>{% endif %}
     {% if section.test_label and state.enabled %}
     <div class="row"><button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/test" hx-target="#result-{{ section.id }}" hx-swap="innerHTML" hx-disabled-elt="this">{{ icon('play') }}<span>{{ section.test_label }}</span><span class="spinner htmx-indicator" aria-hidden="true"></span></button></div>
     {% endif %}

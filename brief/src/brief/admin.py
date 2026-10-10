@@ -35,6 +35,10 @@ NAV_GROUPS = [
         ("notifications", "/admin/notifications", "Notifications", "bell"),
         ("config", "/admin/config", "Config files", "file-text"),
     ]),
+    ("Detection", [
+        ("ignore", "/admin/ignore", "Ignore rules", "list"),
+        ("priorities", "/admin/priorities", "Priorities and alerts", "sliders"),
+    ]),
     ("Intelligence", [
         ("ai", "/admin/ai", "AI and agents", "sparkles"),
     ]),

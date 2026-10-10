@@ -153,3 +153,16 @@ document.body.addEventListener("htmx:beforeRequest", function (ev) {
   var active = document.activeElement;
   if (document.hidden || (active && active !== document.body && el.contains(active) && /^(BUTTON|INPUT|SELECT|TEXTAREA|A)$/.test(active.tagName))) ev.preventDefault();
 });
+// A time of day typed in UTC (data-local-time points at the input) is also shown in the viewer's own time zone.
+(function () {
+  function show(el) {
+    var input = document.getElementById(el.getAttribute("data-local-time")), m = input && /^(\d\d):(\d\d)$/.exec(input.value.trim());
+    if (!m) { el.textContent = ""; return; }
+    var d = new Date(Date.UTC(2000, 0, 1, +m[1], +m[2]));
+    el.textContent = "UTC. In your time zone: " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ".";
+  }
+  function all() { document.querySelectorAll("[data-local-time]").forEach(show); }
+  document.addEventListener("input", all);
+  document.body.addEventListener("htmx:afterSwap", all);
+  all();
+})();
