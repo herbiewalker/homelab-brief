@@ -5,6 +5,16 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.48
+
+Task 33: the setup pages are forms. None of them needs the text editor any more (it stays one click away on every card).
+
+- **Schedule and retention** (new page): the daily and weekly run times and the weekly day, and how long each kind of data is kept, with units and limits.
+- **Notifications** (new page): Apprise on or off, which routes it carries, the container variable that holds the destination URLs (never the URLs themselves), and a **Send a test** button; Home Assistant over MQTT on or off.
+- **Network and access**: the mode, the advertised address, the allowed senders (one per line, checked as addresses or ranges), extra certificate names, and the four ports are forms; a card says when a restart is needed.
+- **Systems**: a row per system (id, tile name, kind, time zone, hosts, expected), add and remove rows, a banner that turns an unknown sender into a new row. Names are saved as lowercase ids, and comments and any extra keys in the file are kept (the old form rewrote the file).
+- The framework gained lists, tick groups, clearable boxes, and sections with no on/off switch. After a save, every card of the same file takes the new version stamp, so saving two cards in a row no longer reports "changed while you were editing". Stylesheet and script URLs carry the version, so an upgrade never leaves a browser on old scripts.
+
 ## 0.0.47
 
 - **A slow server is no longer reported as "could not connect".** A collector request that gets no reply in time now says "no answer within N s (the server is slow, or the network drops the connection; try a longer request time limit)".

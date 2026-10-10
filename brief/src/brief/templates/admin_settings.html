@@ -1,0 +1,11 @@
+{% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, alert, page_head %}
+{% block title %}{{ page.title }}{% endblock %}
+{% block body %}
+{% call page_head(page.title, page.lead) %}
+<a class="btn btn--secondary" href="/admin/config/{{ page.config_file }}">{{ icon('file-text') }}<span>Edit as text</span></a>
+{% endcall %}
+<div class="stack">
+{% for html in cards %}{{ html|safe }}{% endfor %}
+</div>
+{% endblock %}

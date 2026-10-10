@@ -15,7 +15,7 @@
     </div>
   </div>
   {% if section %}
-  <form method="post" action="{{ action }}/save" hx-post="{{ action }}/save" hx-target="#card-{{ cname }}" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+  <form data-file="{{ section.file }}" method="post" action="{{ action }}/save" hx-post="{{ action }}/save" hx-target="#card-{{ cname }}" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
     <input type="hidden" name="csrf_token" value="{{ csrf }}">
     <input type="hidden" name="base" value="{{ base }}">
     <div class="card-body">

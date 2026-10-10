@@ -31,21 +31,9 @@
 {% if pending %}<div class="card banner"><h2>Restart needed</h2>{% for p in pending %}<div>{{ p }}</div>{% endfor %}<p class="muted">Ports and the address are read when the container starts. Restart it from the Unraid Docker page to apply them; the certificate names follow the advertised address.</p></div>{% endif %}
 
 <h2>Settings</h2>
-<form class="card" method="post" action="/admin/network">
-  <input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <input type="hidden" name="base" value="{{ base }}">
-  <label for="mode">Mode (auto detects it)</label>
-  <select id="mode" name="mode">{% for m in modes %}<option value="{{ m }}"{% if m == want.mode %} selected{% endif %}>{{ m }}</option>{% endfor %}</select>
-  <label for="advertised_address">Advertised address (an IP or host name devices and links use; empty uses the detected one)</label>
-  <input type="text" id="advertised_address" name="advertised_address" value="{{ want.advertised }}" autocomplete="off">
-  <div class="grid spaced">
-    {% for key in ('syslog', 'http', 'https', 'ssh') %}<div><label for="p-{{ key }}">{{ key|capitalize }} port</label><input type="text" id="p-{{ key }}" name="{{ key }}" value="{{ want.ports[key] if key in want.ports else '' }}" inputmode="numeric"></div>{% endfor %}
-  </div>
-  <label for="unknown_senders">Senders outside the allowed list</label>
-  <select id="unknown_senders" name="unknown_senders">{% for p in ('flag', 'drop') %}<option value="{{ p }}"{% if p == want.unknown_senders %} selected{% endif %}>{{ p }}</option>{% endfor %}</select>
-  <button type="submit">Save</button>
-  <p class="muted">Checked before it is saved, kept in the history, and written to the audit log, like every config edit. For the lists in this file (allowed senders, certificate names), use the <a href="/admin/config/network.yaml">config editor</a>.</p>
-</form>
+<div class="stack">
+{% for html in cards %}{{ html|safe }}{% endfor %}
+</div>
 
 <h2>Syslog test</h2>
 <div class="card">

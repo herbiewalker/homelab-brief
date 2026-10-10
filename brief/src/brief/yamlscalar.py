@@ -175,6 +175,8 @@ def set_text(text: str, path: list[str], value) -> str:
     except EditError as exc:
         if str(exc).endswith("is not in the file") and len(path) > 1:
             return insert_key(text, path[:-1], path[-1], value)
+        if str(exc).endswith("is not in the file"):  # a top-level setting the file does not mention yet
+            return text.rstrip("\n") + f"\n{path[0]}: {render_text(value)}\n"
         raise
 
 
@@ -222,7 +224,10 @@ def replace_list(text: str, path: list[str], rows: list[dict]) -> str:
     except EditError:
         if not rows:
             return text
-        text = insert_key(text, path[:-1], path[-1], [])
+        if len(path) == 1:  # a top-level list the file does not mention yet
+            text = text.rstrip("\n") + f"\n{path[0]}: []\n"
+        else:
+            text = insert_key(text, path[:-1], path[-1], [])
         lines = text.split("\n")
         at, base = _find(lines, path)
     end = (
@@ -234,4 +239,32 @@ def replace_list(text: str, path: list[str], rows: list[dict]) -> str:
     head = " " * base + f"{path[-1]}:"
     new = [head + " []"] if not rows else [head, *[" " * (base + 2) + f"- {render_row(r)}" for r in rows]]
     lines[at:end] = new
+    return "\n".join(lines)
+
+
+def set_flow_list(text: str, path: list[str], items: list) -> str:
+    """Write a list of scalars at `path` as a one-line flow list (`key: [a, "b/24"]`), keeping the trailing comment.
+    A block list under the key is replaced; an absent key is added to its parent."""
+    new = "[" + ", ".join(render_text(i) for i in items) + "]"
+    lines = text.split("\n")
+    try:
+        at, base = _find(lines, path)
+    except EditError:
+        return (
+            insert_key(text, path[:-1], path[-1], items) if len(path) > 1 else text + f"{path[-1]}: {new}\n"
+        )
+    m = re.match(
+        rf"^(?P<head> *{re.escape(path[-1])}:[ \t]*)(?P<val>[^#\n]*?)(?P<tail>[ \t]*(#.*)?)$", lines[at]
+    )
+    if not m:
+        raise EditError(f"{'.'.join(path)} is not a list")
+    val = m.group("val").strip()
+    if val and not val.startswith("["):
+        raise EditError(f"{'.'.join(path)} is not a list")
+    end = at + 1
+    if not val:  # a block list (or an empty value): the dash lines under the key are replaced
+        end = _block_end(lines, at, base)
+        while end > at + 1 and lines[end - 1].lstrip().startswith("#"):
+            end -= 1
+    lines[at:end] = [m.group("head").rstrip() + " " + new + m.group("tail")]
     return "\n".join(lines)

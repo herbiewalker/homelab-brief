@@ -1,0 +1,34 @@
+{% from "_ui.html" import icon, chip, alert %}
+{% from "_settings.html" import settings_body %}
+<section class="card card--flush settings-card" id="card-{{ section.id }}">
+  <div class="card-head">
+    <div class="row">
+      {{ icon(section.icon, 'icon--lg') }}
+      <h2>{{ section.title }}</h2>
+      {% if section.switch %}{% if state.enabled %}{{ chip('ok', 'On') }}{% else %}{{ chip('', 'Off') }}{% endif %}{% endif %}
+    </div>
+    {% if section.test_label and state.enabled %}
+    <div class="row"><button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/test" hx-target="#result-{{ section.id }}" hx-swap="innerHTML" hx-disabled-elt="this">{{ icon('play') }}<span>{{ section.test_label }}</span><span class="spinner htmx-indicator" aria-hidden="true"></span></button></div>
+    {% endif %}
+  </div>
+  <form data-file="{{ section.file }}" method="post" action="{{ action }}/save" hx-post="{{ action }}/save" hx-target="#card-{{ section.id }}" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="base" value="{{ base }}">
+    {% for k, v in extra_hidden.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <div class="card-body">
+      {% if section.blurb %}<p class="muted">{{ section.blurb }}</p>{% endif %}
+      {% if general %}{% call alert('bad') %}{{ general }}{% endcall %}{% endif %}
+      {% if section.switch %}
+      <div class="field">
+        <label class="switch" for="{{ section.id }}-enabled"><input id="{{ section.id }}-enabled" type="checkbox" name="f.{{ section.switch }}" value="on"{% if state.enabled %} checked{% endif %}><span class="track"></span><span>{{ section.switch_label }}</span></label>
+      </div>
+      {% endif %}
+      {{ settings_body(section, state, errors, vars_set, action, section.id) }}
+    </div>
+    <div class="card-foot">
+      <a class="btn btn--ghost btn--sm" href="/admin/config/{{ section.file }}">Edit as text</a>
+      <button type="submit" class="btn">Save {{ section.title }}<span class="spinner htmx-indicator" aria-hidden="true"></span></button>
+    </div>
+  </form>
+  <div id="result-{{ section.id }}" class="card-body result"></div>
+</section>

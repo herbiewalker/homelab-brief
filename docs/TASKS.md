@@ -234,10 +234,10 @@ Spec: `docs/guide/11-admin-ui.md`. Started 2026-10-10 after the first real setup
 - [x] The Overview described in the guide: headline strip, health cards, system tiles, top findings with inline ack and snooze, what changed, setup checklist, live refresh, empty states.
 - Accept: a new install shows a useful checklist; an install with a failed run says why and shows the one action that fixes it.
 
-## Task 33: Settings framework and the setup pages
-- [ ] Field specs, scalar and row-list writers, save path with digest check, validation, history, audit, toast with Undo, "Edit as text" link on every page, reset-to-default per field.
-- [ ] Collectors: a card per collector with its settings, the server list as a row editor (id, address, key variable with set or not-set badge, certificate check), Test connection, Run now, and the switch enabled only when the form is valid.
-- [ ] Systems, Network and access, Schedule and retention, Notifications (channels with a test button), converted to the framework.
+## Task 33: Settings framework and the setup pages (built 2026-10-10, versions 0.0.41 to 0.0.48)
+- [x] Field specs, scalar, list and row-list writers, save path with digest check, validation, history, audit, toast with Undo, "Edit as text" link on every page. (Reset-to-default per field is not built yet.)
+- [x] Collectors: a card per collector with its settings, the server list as a row editor (id, address, key variable with set or not-set badge, certificate check), Test connection, Run now, and the switch enabled only when the form is valid.
+- [x] Systems, Network and access, Schedule and retention, Notifications (an Apprise channel with a test button), converted to the framework.
 - Accept: a fresh install configures the Unraid collector end to end with no text editor; the text editor shows the same file afterwards.
 
 ## Task 34: Detection and device settings

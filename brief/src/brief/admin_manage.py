@@ -9,12 +9,11 @@ import re
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from starlette.background import BackgroundTask
 
-from brief import admin_data, backup, configedit, sysedit
+from brief import admin_data, admin_settings, backup, configedit, settingspages, settingsui
 from brief.admin import Deps
-from brief.config import ConfigError
 from brief.jsonlog import log
 
 HOST = re.compile(r"^[A-Za-z0-9.:_-]{1,80}$")
@@ -25,59 +24,32 @@ def register(admin: APIRouter, d: Deps) -> None:
     def state():
         return d.settings.state_dir
 
-    # ------------------------------------------------------------------ systems form
+    # ---------------------------------------------------------------- systems (a settings card)
 
-    def systems_page(
-        request: Request, status: int = 200, rows=None, default_system=None, **extra
-    ) -> HTMLResponse:
-        text, customised = configedit.current("systems.yaml")
-        saved_rows, saved_default = sysedit.rows_from_text(text) if customised else ([], "other")
-        rows = saved_rows if rows is None else rows
-        add = extra.pop("add", "")
-        if add and HOST.match(add):
-            rows = [*rows, sysedit.blank_row(add)]
-        rows = [*rows, *(sysedit.blank_row() for _ in range(sysedit.EXTRA_BLANK_ROWS))]
-        now = datetime.now(UTC)
+    @admin.get("/systems", response_class=HTMLResponse)
+    def systems(request: Request, add: str = ""):
+        section = settingspages.SYSTEMS
+        states = {}
+        if add and HOST.match(add):  # "Name them" from a banner: a new row with that sender already in it
+            text, _ = configedit.current(section.file)
+            state = settingsui.load(section, text, configedit.starting_text(section.file))
+            state["rows"]["systems"].append(
+                {**settingsui.blank_row(section.row_lists[0]), "hosts": add, "_orig": None}
+            )
+            states[section.id] = state
         unknown = [
-            r["host"] for r in admin_data.sources(d.store, d.current_status()[0], now) if not r["known"]
+            r["host"]
+            for r in admin_data.sources(d.store, d.current_status()[0], datetime.now(UTC))
+            if not r["known"]
         ][:20]
         return d.render(
             request,
             "admin_systems.html",
-            status,
             csrf=d.session(request).csrf,
             active="systems",
-            rows=rows,
-            default_system=saved_default if default_system is None else default_system,
-            base=configedit.digest(text),
+            cards=admin_settings.cards_html(d, request, (section.id,), states),
             unknown=unknown,
-            customised=customised,
-            **extra,
         )
-
-    @admin.get("/systems", response_class=HTMLResponse)
-    def systems(request: Request, add: str = "", done: str = ""):
-        return systems_page(request, add=add, notice=DONE.get(done))
-
-    @admin.post("/systems")
-    async def systems_save(request: Request):
-        session = d.session(request)
-        form = await request.form()
-        base = str(form.get("base", ""))
-        text, customised = configedit.current("systems.yaml")
-        existing, _ = sysedit.rows_from_text(text) if customised else ([], "other")
-        try:
-            rows = sysedit.rows_from_form(form, existing)
-        except ValueError:
-            return Response("Not a valid form.", status_code=400)
-        default_system = str(form.get("default_system", "other")).strip() or "other"
-        try:
-            new_text = sysedit.build_text(rows, default_system)
-            configedit.save(d.store, "systems.yaml", new_text, session.username, base, state())
-        except (configedit.EditError, ConfigError) as exc:
-            status = getattr(exc, "status", 422)
-            return systems_page(request, status, rows=rows, default_system=default_system, error=str(exc))
-        return RedirectResponse("/admin/systems?done=saved", status_code=303)
 
     # ------------------------------------------------------------------ backups and downloads
 

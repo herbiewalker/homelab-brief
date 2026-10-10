@@ -31,6 +31,8 @@ NAV_GROUPS = [
         ("systems", "/admin/systems", "Systems", "server"),
         ("collectors", "/admin/collectors", "Collectors", "plug"),
         ("network", "/admin/network", "Network and access", "network"),
+        ("schedule", "/admin/schedule", "Schedule and retention", "clock"),
+        ("notifications", "/admin/notifications", "Notifications", "bell"),
         ("config", "/admin/config", "Config files", "file-text"),
     ]),
     ("Intelligence", [

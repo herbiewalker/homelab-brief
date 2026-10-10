@@ -6,12 +6,12 @@
 <meta name="htmx-config" content='{"allowEval": false, "includeIndicatorStyles": false}'>
 <meta name="csrf" content="{{ csrf }}">
 <title>{% block title %}Admin{% endblock %} - homelab-brief</title>
-<link rel="stylesheet" href="/static/ui.css">
-<script src="/static/theme.js"></script>
-<script defer src="/static/admin.js"></script>
+<link rel="stylesheet" href="/static/ui.css?v={{ asset_v }}">
+<script src="/static/theme.js?v={{ asset_v }}"></script>
+<script defer src="/static/admin.js?v={{ asset_v }}"></script>
 <script defer src="/static/vendor/htmx-2.0.11.min.js"></script>
 <script defer src="/static/vendor/alpine-csp-3.17.4.min.js"></script>
-<script defer src="/static/ui.js"></script>
+<script defer src="/static/ui.js?v={{ asset_v }}"></script>
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{ csrf }}"}'>
 {% from "_ui.html" import icon, chip %}

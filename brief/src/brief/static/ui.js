@@ -63,6 +63,11 @@
   // The server asks for a toast with the HX-Trigger header: {"toast": {"kind": "ok", "text": "Saved"}}.
   document.body.addEventListener("toast", function (ev) {
     var d = ev.detail || {}; if (d.text) toast(d.kind || "info", d.text, d);
+    // Several cards can edit one file: after a save, every card of that file takes the new version stamp, so the
+    // next save from another card is not refused as "changed while you were editing".
+    if (d.file && d.digest) document.querySelectorAll("form[data-file]").forEach(function (f) {
+      if (f.getAttribute("data-file") === d.file) { var b = f.querySelector('input[name="base"]'); if (b) b.value = d.digest; }
+    });
   });
   document.body.addEventListener("htmx:responseError", function (ev) {
     var x = ev.detail.xhr, msg = (x && x.responseText || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 220);

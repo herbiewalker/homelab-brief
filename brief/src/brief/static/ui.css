@@ -304,3 +304,6 @@ dialog .dialog-foot { display: flex; justify-content: flex-end; gap: 0.6rem; pad
 .card-head.card-body { border-bottom: 1px solid var(--line); }
 .hero .btn { align-self: center; }
 @media (max-width: 560px) { .hero { flex-wrap: wrap; } .hero .btn { width: 100%; } }
+.checks { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; padding: 0.2rem 0; }
+.check { display: inline-flex; align-items: center; gap: 0.45rem; font-weight: 500; margin: 0; }
+.check input { width: auto; margin: 0; }

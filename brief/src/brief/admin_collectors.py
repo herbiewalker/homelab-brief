@@ -156,7 +156,9 @@ def register(admin: APIRouter, d: Deps) -> None:
                 "fields": {"stamp": versions[0].stamp, "base": configedit.digest(new)},
             }
         what = "switched on and saved" if on and not was_on else "saved"
-        return card(request, name, toast={"kind": "ok", "text": f"{section.title}: {what}.", **(undo or {})})
+        toast = {"kind": "ok", "text": f"{section.title}: {what}.", **(undo or {})}
+        toast.update(file=FILE, digest=configedit.digest(new))
+        return card(request, name, toast=toast)
 
     @admin.post("/collectors/{name}/test", response_class=HTMLResponse)
     def test(request: Request, name: str):

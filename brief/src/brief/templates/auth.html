@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_ui.html" import icon %}
-{% block scripts %}<script src="/static/theme.js"></script><script defer src="/static/ui.js"></script>{% endblock %}
+{% block scripts %}<script src="/static/theme.js?v={{ asset_v }}"></script><script defer src="/static/ui.js?v={{ asset_v }}"></script>{% endblock %}
 {% block outer %}
 <div class="auth">
   <div class="auth-box">

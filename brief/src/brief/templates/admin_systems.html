@@ -1,35 +1,13 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, alert, page_head %}
 {% block title %}Systems{% endblock %}
 {% block body %}
-<h1>Systems</h1>
-<p class="muted">A system is one tile on the board and one sensor in Home Assistant. List every name or address a system sends syslog under. Hosts that match nothing roll up into <code>{{ default_system }}</code> and are flagged. This form is checked before it is saved, and the previous file stays in the <a href="/admin/config/systems.yaml">history</a>. Saving rewrites the file from the form, so comments written by hand are not kept.</p>
-{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
-{% if error %}<div class="card error"><strong>Not saved.</strong> {{ error }}</div>{% endif %}
-{% if unknown %}<div class="card banner">Senders not in any system yet: {% for h in unknown %}<a href="/admin/systems?add={{ h|urlencode }}"><code>{{ h }}</code></a>{% if not loop.last %}, {% endif %}{% endfor %}. Click one to add it.</div>{% endif %}
-<form method="post" action="/admin/systems">
-  <input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <input type="hidden" name="base" value="{{ base }}">
-  <input type="hidden" name="count" value="{{ rows|length }}">
-  {% for r in rows %}
-  <div class="card">
-    <div class="grid">
-      <div><label for="id-{{ loop.index0 }}">Id</label><input type="text" id="id-{{ loop.index0 }}" name="id-{{ loop.index0 }}" value="{{ r.id }}" placeholder="gateway" autocomplete="off"></div>
-      <div><label for="label-{{ loop.index0 }}">Name on the tile</label><input type="text" id="label-{{ loop.index0 }}" name="label-{{ loop.index0 }}" value="{{ r.label }}" autocomplete="off"></div>
-      <div><label for="kind-{{ loop.index0 }}">Kind</label><input type="text" id="kind-{{ loop.index0 }}" name="kind-{{ loop.index0 }}" value="{{ r.kind }}" placeholder="gateway, server, switch" autocomplete="off"></div>
-      <div><label for="source_tz-{{ loop.index0 }}">Timezone of its log lines</label><input type="text" id="source_tz-{{ loop.index0 }}" name="source_tz-{{ loop.index0 }}" value="{{ r.source_tz }}" autocomplete="off"></div>
-    </div>
-    <label for="hosts-{{ loop.index0 }}">Hosts (addresses or names, separated by commas)</label>
-    <input type="text" id="hosts-{{ loop.index0 }}" name="hosts-{{ loop.index0 }}" value="{{ r.hosts }}" autocomplete="off">
-    <div class="row">
-      <label class="row"><input type="checkbox" name="expected-{{ loop.index0 }}"{% if r.expected %} checked{% endif %}> Expected to keep sending (alert if it goes quiet)</label>
-      {% if r.id and loop.index0 < rows|length - 3 %}<label class="row"><input type="checkbox" name="remove-{{ loop.index0 }}"> Remove this system</label>{% endif %}
-    </div>
-  </div>
-  {% endfor %}
-  <div class="card">
-    <label for="default_system">Where unlisted hosts go (an id)</label>
-    <input type="text" id="default_system" name="default_system" value="{{ default_system }}" autocomplete="off">
-  </div>
-  <button type="submit">Save systems</button>
-</form>
+{% call page_head('Systems', 'A system is one tile on the board and one sensor in Home Assistant. List every name or address a system sends syslog as.') %}
+<a class="btn btn--secondary" href="/admin/config/systems.yaml">{{ icon('file-text') }}<span>Edit as text</span></a>
+{% endcall %}
+<div class="stack">
+{% if unknown %}{% call alert('info') %}<strong>Senders not in any system yet:</strong>
+{% for h in unknown %}<a href="/admin/systems?add={{ h|urlencode }}"><code>{{ h }}</code></a>{% if not loop.last %}, {% endif %}{% endfor %}. Click one to add it as a new system.{% endcall %}{% endif %}
+{% for html in cards %}{{ html|safe }}{% endfor %}
+</div>
 {% endblock %}

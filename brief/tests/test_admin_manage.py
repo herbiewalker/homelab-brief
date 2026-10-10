@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+import yaml
 from test_admin import lab  # noqa: F401  (the fixture: an HTTPS app with a signed-in admin)
 
 from brief import backup, configedit, sysedit
@@ -93,14 +94,23 @@ def test_unreadable_text_gives_no_rows():
     assert sysedit.rows_from_text("- a list\n") == ([], "other")
 
 
-# ---------------------------------------------------------------- the systems page
+# ---------------------------------------------------------------- the systems page (a card of the settings framework)
+
+SAVE = "/admin/settings/systems/save"
 
 
 def systems_form(csrf, base, rows, **extra):
-    data = {"csrf_token": csrf, "base": base, "count": str(len(rows)), "default_system": "other", **extra}
+    data = {
+        "csrf_token": csrf,
+        "base": base,
+        "r.systems.count": str(len(rows)),
+        "f.default_system": "other",
+        **extra,
+    }
     for i, row in enumerate(rows):
+        row = {"source_tz": "UTC", **row}
         for key, value in row.items():
-            data[f"{key}-{i}"] = value
+            data[f"r.systems.{i}.{key}"] = value
     return data
 
 
@@ -108,100 +118,103 @@ def page_base(client):
     return re.search(r'name="base" value="([^"]+)"', client.get("/admin/systems").text).group(1)
 
 
-def test_the_systems_page_starts_empty_with_blank_rows_and_offers_unknown_senders(lab):  # noqa: F811
+def test_the_systems_page_starts_empty_and_offers_unknown_senders(lab):  # noqa: F811
     now = datetime.now(UTC)
     with lab.store.write() as tx:
         tx.touch_host("198.51.100.77", now - timedelta(days=1), now, system_id="other", known=False)
     html = lab.client.get("/admin/systems").text
-    assert (
-        html.count('name="id-') == 3
-        and "198.51.100.77" in html
-        and "/admin/systems?add=198.51.100.77" in html
-    )
+    assert 'name="r.systems.0.id"' not in html and "No systems yet" in html
+    assert "198.51.100.77" in html and "/admin/systems?add=198.51.100.77" in html
     prefilled = lab.client.get("/admin/systems?add=198.51.100.77").text
-    assert prefilled.count('name="id-') == 4 and 'value="198.51.100.77"' in prefilled
-    assert (
-        'value="&lt;script' not in lab.client.get("/admin/systems?add=%3Cscript%3E").text
-    )  # a hostile name is not offered
-    assert lab.client.get("/admin/systems?add=%3Cscript%3E").text.count('name="id-') == 3
+    assert 'name="r.systems.0.id"' in prefilled and 'value="198.51.100.77"' in prefilled
+    hostile = lab.client.get("/admin/systems?add=%3Cscript%3E").text
+    assert 'value="&lt;script' not in hostile and 'name="r.systems.0.id"' not in hostile
 
 
 def test_saving_a_system_writes_the_file_audits_and_keeps_history(lab, tmp_path):  # noqa: F811
     csrf, base = token(lab.client, "/admin/systems"), page_base(lab.client)
     rows = [
         {
-            "id": "gw",
+            "id": "Gateway Box",
             "label": "Gateway",
             "kind": "gateway",
             "hosts": "198.51.100.1, gw.example",
-            "source_tz": "UTC",
             "expected": "on",
         }
     ]
-    r = lab.client.post("/admin/systems", data=systems_form(csrf, base, rows))
-    assert r.status_code == 303 and r.headers["location"] == "/admin/systems?done=saved"
+    r = lab.client.post(SAVE, data=systems_form(csrf, base, rows), headers={"HX-Request": "true"})
+    assert r.status_code == 200 and "saved" in r.headers["hx-trigger"], re.sub(r"s+", " ", r.text)[:3000]
     saved = loads((tmp_path / "cfg" / "brief" / "systems.yaml").read_text(), tmp_path)
-    assert [(s.id, s.label, s.hosts) for s in saved.systems] == [
-        ("gw", "Gateway", ("198.51.100.1", "gw.example"))
+    assert [(s.id, s.label, s.hosts, s.expected) for s in saved.systems] == [
+        ("gateway-box", "Gateway", ("198.51.100.1", "gw.example"), True)
     ]
-    page = lab.client.get(r.headers["location"]).text
-    assert "Saved. The pipeline picks the new systems up" in page and 'value="gw"' in page
-    assert audit(lab, "config.save")[-1]["user"] == "admin"
+    assert 'value="gateway-box"' in lab.client.get("/admin/systems").text
+    assert audit(lab, "config.save")[-1]["user"] == "admin:admin"
     assert configedit.versions(lab.settings.state_dir, "systems.yaml")
 
 
 @pytest.mark.parametrize(
     "rows, reason",
     [
-        ([{"id": "Bad Id", "label": "x"}], "lowercase letters"),
+        ([{"id": "!!!", "label": "x"}], "letters, digits"),
         ([{"id": "a", "hosts": "198.51.100.1"}, {"id": "b", "hosts": "198.51.100.1"}], "listed under both"),
         ([{"id": "a", "source_tz": "Mars/Base"}], "unknown timezone"),
         ([{"id": "a"}, {"id": "a"}], "duplicate system id"),
-        ([{"label": "no id"}], "needs an id"),
+        ([{"label": "no id"}], "Needed"),
     ],
 )
 def test_a_bad_systems_form_is_refused_and_leaves_the_file_alone(lab, tmp_path, rows, reason):  # noqa: F811
     csrf, base = token(lab.client, "/admin/systems"), page_base(lab.client)
-    r = lab.client.post("/admin/systems", data=systems_form(csrf, base, rows))
-    assert r.status_code == 422 and "Not saved." in r.text and reason in r.text
+    r = lab.client.post(SAVE, data=systems_form(csrf, base, rows), headers={"HX-Request": "true"})
+    assert r.status_code == 422 and reason in r.text
     assert not (tmp_path / "cfg" / "brief" / "systems.yaml").exists()
 
 
 def test_removing_and_editing_systems_through_the_form(lab, tmp_path):  # noqa: F811
     csrf, base = token(lab.client, "/admin/systems"), page_base(lab.client)
     two = [
-        {"id": "a", "label": "A", "hosts": "198.51.100.1"},
-        {"id": "b", "label": "B", "hosts": "198.51.100.2"},
+        {"id": "a", "label": "A", "hosts": "198.51.100.1", "expected": "on"},
+        {"id": "b", "label": "B", "hosts": "198.51.100.2", "expected": "on"},
     ]
-    lab.client.post("/admin/systems", data=systems_form(csrf, base, two))
+    assert lab.client.post(SAVE, data=systems_form(csrf, base, two)).status_code == 200
     base = page_base(lab.client)
     edit = [
-        {"id": "a", "label": "Renamed", "hosts": "198.51.100.1"},
-        {"id": "b", "label": "B", "hosts": "198.51.100.2", "remove": "on"},
+        {"id": "a", "label": "Renamed", "hosts": "198.51.100.1", "expected": "on", "orig": "0"},
+        {"id": "b", "label": "B", "hosts": "198.51.100.2", "gone": "on", "orig": "1"},
     ]
-    assert lab.client.post("/admin/systems", data=systems_form(csrf, base, edit)).status_code == 303
+    assert lab.client.post(SAVE, data=systems_form(csrf, base, edit)).status_code == 200
     saved = loads((tmp_path / "cfg" / "brief" / "systems.yaml").read_text(), tmp_path)
     assert [(s.id, s.label) for s in saved.systems] == [("a", "Renamed")]
 
 
+def test_unknown_keys_on_a_system_survive_a_save_from_the_form(lab, tmp_path):  # noqa: F811
+    cfg = tmp_path / "cfg" / "brief" / "systems.yaml"
+    cfg.write_text(
+        "schema: 1\ndefault_system: other\nsystems:\n"
+        "  - { id: gw, label: Gateway, hosts: [198.51.100.1], source_tz: UTC, expected: true, note: keep me }\n"
+    )
+    csrf, base = token(lab.client, "/admin/systems"), page_base(lab.client)
+    row = {"id": "gw", "label": "Gateway 2", "hosts": "198.51.100.1", "expected": "on", "orig": "0"}
+    assert lab.client.post(SAVE, data=systems_form(csrf, base, [row])).status_code == 200
+    kept = yaml.safe_load(cfg.read_text())["systems"][0]
+    assert kept["note"] == "keep me" and kept["label"] == "Gateway 2"
+
+
 def test_a_stale_systems_form_gets_a_conflict(lab):  # noqa: F811
     csrf, base = token(lab.client, "/admin/systems"), page_base(lab.client)
-    other = lab.client.post(
-        "/admin/systems", data=systems_form(csrf, base, [{"id": "first", "hosts": "198.51.100.1"}])
-    )
-    assert other.status_code == 303
-    r = lab.client.post(
-        "/admin/systems", data=systems_form(csrf, base, [{"id": "second", "hosts": "198.51.100.2"}])
-    )  # old base
+    first = lab.client.post(SAVE, data=systems_form(csrf, base, [{"id": "first", "hosts": "198.51.100.1"}]))
+    assert first.status_code == 200
+    r = lab.client.post(SAVE, data=systems_form(csrf, base, [{"id": "second", "hosts": "198.51.100.2"}]))
     assert r.status_code == 409 and "changed while you were editing" in r.text
 
 
-def test_a_form_without_a_valid_count_is_refused(lab):  # noqa: F811
-    csrf = token(lab.client, "/admin/systems")
-    assert (
-        lab.client.post("/admin/systems", data={"csrf_token": csrf, "count": "lots", "base": "x"}).status_code
-        == 400
+def test_adding_a_row_keeps_what_was_typed(lab):  # noqa: F811
+    csrf, base = token(lab.client, "/admin/systems"), page_base(lab.client)
+    data = systems_form(
+        csrf, base, [{"id": "typed", "label": "Typed", "hosts": "198.51.100.9"}], row_action="add:systems"
     )
+    html = lab.client.post("/admin/settings/systems/rows", data=data).text
+    assert 'value="typed"' in html and 'name="r.systems.1.id"' in html
 
 
 # ---------------------------------------------------------------- backups
@@ -403,7 +416,7 @@ def test_the_new_pages_need_a_login_and_writes_need_a_token(lab):  # noqa: F811
     for path in ("/admin/systems", "/admin/backups", "/admin/backups/download", "/admin/files/weekly/x.md"):
         r = lab.https().get(path)
         assert r.status_code == 303 and r.headers["location"].startswith("/admin/login"), path
-    for path in ("/admin/systems", "/admin/backups/restore"):
+    for path in ("/admin/settings/systems/save", "/admin/backups/restore"):
         assert lab.https().post(path, data={}).status_code == 401, path
         assert lab.client.post(path, data={}).status_code == 403, path
 

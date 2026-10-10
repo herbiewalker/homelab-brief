@@ -11,6 +11,7 @@ select = ["E", "F", "I", "UP", "B"]
 "**/tests/**" = ["E501", "F811"]  # F811: fixtures imported from another test module are redefined as arguments
 "scripts/e2e_*.py" = ["E501"]
 "brief/src/brief/cli_tools.py" = ["E501"]  # one-line command output formats and help text
+"brief/src/brief/settingspages.py" = ["E501"]  # one field spec per line
 "brief/src/brief/cli_ai.py" = ["E501"]  # the same, for `brief ai`
 "brief/src/brief/aiconfig.py" = ["E501"]  # the locked-guardrail sentences the AI page shows
 "brief/src/brief/supportbundle.py" = ["E501"]  # one-line summary text

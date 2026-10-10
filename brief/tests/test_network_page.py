@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+import yaml
 from test_admin import lab  # noqa: F401  (the fixture: an HTTPS app with a signed-in admin)
 
 from brief import netconfig, netinfo, netpage
@@ -325,20 +326,32 @@ def test_a_bad_test_token_is_refused(lab, token):  # noqa: F811
     assert lab.client.get(f"/admin/network/test/{token}").status_code in (404, 422)
 
 
+def card_base(lab, sid):
+    """The digest hidden in a settings card (every card of one file shares it)."""
+    page = lab.client.get("/admin/network").text
+    card = page.split(f'id="card-{sid}"', 1)[1]
+    return re.search(r'name="base" value="([^"]+)"', card).group(1)
+
+
+def save_card(lab, sid, **fields):
+    data = {"csrf_token": csrf(lab.client), "base": card_base(lab, sid), **fields}
+    return lab.client.post(f"/admin/settings/{sid}/save", data=data, headers={"HX-Request": "true"})
+
+
 def test_saving_settings_writes_network_yaml_through_the_config_editor(lab, monkeypatch, tmp_path):  # noqa: F811
     ship_network(tmp_path)
     in_mode(monkeypatch, "host")
-    page = lab.client.get("/admin/network").text
-    base = re.search(r'name="base" value="([^"]+)"', page).group(1)
-    data = {
-        "csrf_token": csrf(lab.client), "base": base, "mode": "host", "advertised_address": "lab.example",
-        "syslog": "5514", "http": "8480", "https": "8443", "ssh": "22", "unknown_senders": "flag",
-    }  # fmt: skip
-    r = lab.client.post("/admin/network", data=data)
-    detail = re.search(r"Not saved.</strong> ([^<]+)", r.text)
-    assert r.status_code == 303 and r.headers["location"] == "/admin/network?done=saved", (
-        detail and detail.group(1)
+    r = save_card(lab, "network", **{"f.mode": "host", "f.advertised_address": "lab.example", "f.unknown_senders": "flag",
+                                     "f.allowed_senders": "198.51.100.0/24\n203.0.113.5"})  # fmt: skip
+    assert (
+        r.status_code == 200
+        and "saved" in r.headers["hx-trigger"]
+        and "Restart the container" in r.headers["hx-trigger"]
     )
+    r = save_card(
+        lab, "network-ports", **{"f.syslog": "5514", "f.http": "8480", "f.https": "8443", "f.ssh": "22"}
+    )
+    assert r.status_code == 200, r.text
     saved = (tmp_path / "cfg" / "brief" / "network.yaml").read_text()
     assert (
         "mode: host" in saved
@@ -346,46 +359,39 @@ def test_saving_settings_writes_network_yaml_through_the_config_editor(lab, monk
         and "https: 8443" in saved
         and "# auto detects" in saved
     )
-    after = lab.client.get(r.headers["location"]).text
-    assert "Saved. Ports and the advertised address apply after the container restarts." in after
-    assert "Restart needed" in after and "HTTPS port" in after  # the running process still uses 443
+    data = yaml.safe_load(saved)
+    assert data["allowed_senders"] == ["198.51.100.0/24", "203.0.113.5"] and data["ports"]["syslog"] == 5514
+    after = lab.client.get("/admin/network").text
+    assert "Restart needed" in after  # the running process still uses 443
     with lab.store.read() as db:
         assert db.execute("SELECT action FROM audit_log WHERE action = 'config.save'").fetchone()
 
 
 @pytest.mark.parametrize(
-    "form",
+    "sid, form, why",
     [
-        {"https": "99999"},
-        {"https": "abc"},
-        {"mode": "overlay"},
-        {"advertised_address": "http://x"},
-        {"http": "443"},
+        ("network-ports", {"f.https": "99999"}, "at most"),
+        ("network-ports", {"f.https": "abc"}, "whole number"),
+        ("network", {"f.mode": "overlay"}, "Choose one of"),
+        ("network", {"f.advertised_address": "http://x"}, "address or name"),
+        ("network", {"f.allowed_senders": "not an ip!"}, "IP address or a range"),
+        ("network-ports", {"f.http": "443"}, "clash"),
     ],
 )
-def test_bad_network_settings_cannot_be_saved(lab, monkeypatch, tmp_path, form):  # noqa: F811
+def test_bad_network_settings_cannot_be_saved(lab, monkeypatch, tmp_path, sid, form, why):  # noqa: F811
     ship_network(tmp_path)
     in_mode(monkeypatch, "own_ip")
-    page = lab.client.get("/admin/network").text
-    base = re.search(r'name="base" value="([^"]+)"', page).group(1)
-    data = {
-        "csrf_token": csrf(lab.client),
-        "base": base,
-        "mode": "auto",
-        "advertised_address": "",
-        "unknown_senders": "flag",
-        **form,
-    }
-    r = lab.client.post("/admin/network", data=data)
-    assert r.status_code == 422 and "Not saved." in r.text
+    base = {"f.mode": "auto", "f.unknown_senders": "flag"} if sid == "network" else {}
+    r = save_card(lab, sid, **{**base, **form})
+    assert r.status_code == 422 and why.lower() in r.text.lower(), r.text[-600:]
     assert not (tmp_path / "cfg" / "brief" / "network.yaml").exists()
 
 
 def test_the_network_page_needs_a_login_and_a_csrf_token(lab):  # noqa: F811
     assert lab.https().get("/admin/network").status_code == 303
     assert lab.https().get("/admin/network/test/abc123").status_code == 303
-    assert lab.client.post("/admin/network", data={"mode": "host"}).status_code == 403
-    assert lab.https().post("/admin/network", data={"mode": "host"}).status_code == 401
+    assert lab.client.post("/admin/settings/network/save", data={"f.mode": "host"}).status_code == 403
+    assert lab.https().post("/admin/settings/network/save", data={"f.mode": "host"}).status_code == 401
 
 
 def test_the_network_page_has_no_inline_script_or_style(lab, monkeypatch):  # noqa: F811

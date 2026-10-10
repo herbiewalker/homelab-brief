@@ -35,6 +35,7 @@ from brief import (
     admin_manage,
     admin_map,
     admin_network,
+    admin_settings,
     admin_setup,
     admin_tools,
     ai,
@@ -164,6 +165,7 @@ def create_app(
     store = store or Store(settings.state_dir / "baseline.db")
     auth = auth or Auth(store)
     templates = jinja2.Environment(loader=jinja2.FileSystemLoader(HERE / "templates"), autoescape=True)
+    templates.globals["asset_v"] = __version__  # a new version is a new URL for the stylesheet and scripts
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -561,6 +563,7 @@ def create_app(
     admin_network.register(admin, deps)
     admin_map.register(admin, deps)
     admin_collectors.register(admin, deps)
+    admin_settings.register(admin, deps)
     admin_tools.register(admin, deps)
     admin_manage.register(admin, deps)
     admin_setup.register(admin, deps)

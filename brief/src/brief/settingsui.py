@@ -32,7 +32,7 @@ MAX_ROWS = 100
 class Field:
     key: str
     label: str
-    kind: str  # text | number | switch | choice | var
+    kind: str  # text | number | switch | choice | var | list (text items) | multi (tick any of `choices`)
     help: str = ""
     choices: tuple[str, ...] = ()
     unit: str = ""
@@ -46,6 +46,11 @@ class Field:
     pattern: str = ""  # a regular expression the text must match, with the message in `pattern_help`
     pattern_help: str = ""
     slug: bool = False  # any name is accepted and saved as a lowercase id (letters, digits, hyphens)
+    clearable: bool = False  # an empty box means "empty" (written as ""), not "leave the file alone"
+    initial: object = ""  # what a newly added row starts with (a switch defaults to off unless this is True)
+    lines: int = (
+        0  # kind "list": 0 = one line separated by commas or spaces, n = a box of n lines, one item each
+    )
 
     def relaxed(self) -> "Field":
         """The same control without the 'needed before it can be switched on' rule."""
@@ -72,6 +77,8 @@ class Section:
     blurb: str = ""
     icon: str = "sliders"
     switch: str = "enabled"  # the on/off key at the root, or "" for none
+    switch_label: str = "Switched on"
+    test_label: str = ""  # a "test" button on the card when set
 
     @property
     def scalar_fields(self) -> list[Field]:
@@ -89,6 +96,30 @@ class _Missing:
 
 MISSING = _Missing()
 
+SPLIT_ITEMS = re.compile(r"[,\s]+")
+SPLIT_LINES = re.compile(r"[,\r\n]+")
+TICKED = ("on", "true", "1")
+
+
+def _raw(form: Mapping, name: str, kind: str):
+    """A posted value: a list for a group of ticks, otherwise the last value sent under that name."""
+    if kind == "multi":
+        getter = getattr(form, "getlist", None)
+        got = getter(name) if getter else form.get(name, [])
+        return [got] if isinstance(got, str) else list(got or [])
+    return form.get(name)
+
+
+def split_items(text: str, lines: int = 0) -> list[str]:
+    """Typed items as a list: one per line in a box, otherwise separated by commas or spaces. No duplicates."""
+    parts = (SPLIT_LINES if lines else SPLIT_ITEMS).split(text)
+    seen, out = set(), []
+    for part in (p.strip() for p in parts):
+        if part and part not in seen:
+            seen.add(part)
+            out.append(part)
+    return out
+
 
 # ---------------------------------------------------------------- reading
 
@@ -103,7 +134,11 @@ PLACEHOLDER = re.compile(r"<[^<>\n]{1,60}>")
 
 
 def _has_placeholder(row: Mapping) -> bool:
-    return any(isinstance(v, str) and PLACEHOLDER.search(v) for v in row.values())
+    for value in row.values():
+        items = value if isinstance(value, list) else [value]
+        if any(isinstance(v, str) and PLACEHOLDER.search(v) for v in items):
+            return True
+    return False
 
 
 def _shown(value):
@@ -113,19 +148,33 @@ def _shown(value):
     return "" if value is None else value
 
 
+def _shown_value(f: Field, value):
+    """A setting as its control holds it: a list of ticked choices, a box of lines, or a one-line list."""
+    if f.kind == "multi":
+        return [str(v) for v in value] if isinstance(value, list) else []
+    if f.kind == "list":
+        items = [str(v) for v in value] if isinstance(value, list) else []
+        return ("\n" if f.lines else ", ").join(items)
+    return _shown(value)
+
+
 def load(section: Section, text: str, default_text: str = "") -> dict:
     """{"values": {key: value}, "defaults": {key: value}, "rows": {key: [row dicts]}, "enabled": bool}."""
     base = _node(yaml.safe_load(text) or {}, section.root)
     shipped = _node(yaml.safe_load(default_text) or {}, section.root) if default_text else {}
     values, defaults, rows = {}, {}, {}
     for f in section.scalar_fields:
-        values[f.key] = _shown(base.get(f.key, shipped.get(f.key, "")))
-        defaults[f.key] = _shown(shipped.get(f.key, ""))
+        values[f.key] = _shown_value(f, base.get(f.key, shipped.get(f.key, "")))
+        defaults[f.key] = _shown_value(f, shipped.get(f.key, ""))
     for r in section.row_lists:
         listed = [row for row in (base.get(r.key) or []) if isinstance(row, Mapping)]
+        cols = {c.key: c for c in r.columns}
         # a row that still holds a <placeholder> is the example the file ships with, not something to show
         rows[r.key] = [
-            {**{k: _shown(v) for k, v in row.items()}, "_orig": i}
+            {
+                **{k: _shown_value(cols.get(k), v) if cols.get(k) else _shown(v) for k, v in row.items()},
+                "_orig": i,
+            }
             for i, row in enumerate(listed)
             if not _has_placeholder(row)
         ]
@@ -140,11 +189,32 @@ def _one(f: Field, raw, errors: dict, where: str):
     """One control's posted value as a typed value, or MISSING when it is empty or wrong (recording the error)."""
     if f.kind == "switch":
         return raw in ("on", "true", "1", True)
+    if f.kind == "multi":
+        chosen = [str(x) for x in (raw or [])]
+        bad = [x for x in chosen if x not in f.choices]
+        if bad:
+            errors[where] = "Choose from: " + ", ".join(f.choices) + "."
+            return MISSING
+        return [c for c in f.choices if c in chosen]
     text = ("" if raw is None else str(raw)).strip()
     if not text:
+        if f.kind == "list":
+            return []
+        if f.clearable:
+            return ""
         if f.required:
             errors[where] = "This is needed before it can be switched on."
         return MISSING
+    if f.kind == "list":
+        items = split_items(text, f.lines)
+        for item in items:
+            if "<" in item or ">" in item or "#" in item or "\x00" in item:
+                errors[where] = "Replace the placeholder with a real value."
+                return MISSING
+            if f.pattern and not re.match(f.pattern, item):
+                errors[where] = f"{item[:40]}: " + (f.pattern_help or "that does not look right.")
+                return MISSING
+        return items
     if "\n" in text or "\r" in text or "\x00" in text:
         errors[where] = "Use one line of text."
         return MISSING
@@ -196,7 +266,11 @@ def _parse_rows(r: Rows, form: Mapping, errors: dict) -> list[dict]:
         if form.get(f"r.{r.key}.{i}.gone"):
             continue
         posted = {c.key: form.get(f"r.{r.key}.{i}.{c.key}") for c in r.columns}
-        if not any(str(posted[c.key] or "").strip() for c in r.columns if c.kind != "switch"):
+        if not any(
+            str(posted[c.key] or "").strip() not in ("", str(c.initial or ""))
+            for c in r.columns
+            if c.kind != "switch"
+        ):
             continue  # an empty row (an untouched "add") is simply dropped
         row: dict = {}
         for c in r.columns:
@@ -225,7 +299,7 @@ def parse(section: Section, form: Mapping) -> tuple[dict, dict, bool]:
     )
     values: dict = {}
     for f in section.scalar_fields:
-        values[f.key] = _one(f if on else f.relaxed(), form.get(f"f.{f.key}"), errors, f"f.{f.key}")
+        values[f.key] = _one(f if on else f.relaxed(), _raw(form, f"f.{f.key}", f.kind), errors, f"f.{f.key}")
     for r in section.row_lists:
         values[r.key] = _parse_rows(r, form, errors)
         if on and r.required and not values[r.key]:
@@ -257,9 +331,16 @@ def apply(section: Section, text: str, values: Mapping, enabled: bool | None = N
             value = bool(value) if value is not MISSING else False
             if current is MISSING and value is False:
                 continue
+        elif f.kind in ("list", "multi"):
+            if value is MISSING or (current is MISSING and not value):
+                continue
+            if current is not MISSING and list(current or []) == list(value):
+                continue
+            text = yamlscalar.set_flow_list(text, [*path, f.key], list(value))
+            continue
         elif value is MISSING:
             continue  # nothing typed: leave the file's own setting (or its absence) alone
-        if current is not MISSING and _same(current, value):
+        if (current is not MISSING and _same(current, value)) or (current is MISSING and value == ""):
             continue
         text = yamlscalar.set_text(text, [*path, f.key], value)
     for r in section.row_lists:
@@ -279,7 +360,10 @@ def apply(section: Section, text: str, values: Mapping, enabled: bool | None = N
 
 
 def blank_row(r: Rows) -> dict:
-    return {c.key: (False if c.kind == "switch" else "") for c in r.columns}
+    return {
+        c.key: (c.initial if c.initial not in ("", None) else (False if c.kind == "switch" else ""))
+        for c in r.columns
+    }
 
 
 # ---------------------------------------------------------------- re-rendering a form that is not saved yet
@@ -298,8 +382,11 @@ def posted(section: Section, form: Mapping) -> dict:
     ticked = ("on", "true", "1")
     values = {}
     for f in section.scalar_fields:
-        raw = form.get(f"f.{f.key}")
-        values[f.key] = ("on" if raw in ticked else "") if f.kind == "switch" else str(raw or "")
+        raw = _raw(form, f"f.{f.key}", f.kind)
+        if f.kind == "multi":
+            values[f.key] = list(raw or [])
+        else:
+            values[f.key] = ("on" if raw in ticked else "") if f.kind == "switch" else str(raw or "")
     rows: dict[str, list[dict]] = {}
     for r in section.row_lists:
         listed = []
