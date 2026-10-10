@@ -1,0 +1,41 @@
+{#- Pieces shared by the list pages. Import with: {% from "_lists.html" import sort_th, pager, saved_views with context %} -#}
+
+{# A sortable column heading. `view` is a listing.Listing. #}
+{% macro sort_th(view, key, label, natural='desc', cls='') -%}
+<th scope="col" class="sortable {{ cls }}" aria-sort="{{ view.aria_sort(key) }}"><a href="{{ view.sort_url(key, natural) }}">{{ label }}</a></th>
+{%- endmacro %}
+
+{# "Showing 1 to 25 of 80" with Newer and Older links. `p` is the dict from listing.paginate. #}
+{% macro pager(view, p, noun='rows') -%}
+{% if p.total > 0 %}
+<nav class="pager" aria-label="Pages">
+  <p class="muted">Showing {{ p.first }} to {{ p.last }} of {{ '{:,}'.format(p.total) }} {{ noun }}</p>
+  {% if p.pages > 1 %}
+  <div class="row">
+    {% if p.page > 1 %}<a class="btn btn--secondary btn--sm" rel="prev" href="{{ view.url(page=p.page - 1) }}">Newer</a>{% endif %}
+    <span class="muted">Page {{ p.page }} of {{ p.pages }}</span>
+    {% if p.page < p.pages %}<a class="btn btn--secondary btn--sm" rel="next" href="{{ view.url(page=p.page + 1) }}">Older</a>{% endif %}
+  </div>
+  {% endif %}
+</nav>
+{% endif %}
+{%- endmacro %}
+
+{# Saved views of the current filters, kept in this browser. `key` names the page. #}
+{% macro saved_views(key) -%}
+<div class="saved-views" data-saved-views="{{ key }}">
+  <span class="muted">Saved views:</span>
+  <span data-views-list class="saved-views"></span>
+  <span class="muted" data-views-none>none yet</span>
+  <input type="text" data-view-name placeholder="Name this view" aria-label="Name for the current view" maxlength="40">
+  <button type="button" class="btn btn--secondary btn--sm" data-view-save>Save this view</button>
+</div>
+{%- endmacro %}
+
+{# "Sort by" and "Order" controls for a filter form (the column headings are hidden on a phone). `options` is a list of (key, label). #}
+{% macro sort_select(view, options, default='') -%}
+<div class="f"><label for="sort-by">Sort by</label>
+  <select id="sort-by" name="sort">{% for key, label in options %}<option value="{{ key }}"{% if (view.sort or default) == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+<div class="f"><label for="sort-dir">Order</label>
+  <select id="sort-dir" name="dir"><option value="desc"{% if view.direction == 'desc' %} selected{% endif %}>High to low, newest first</option><option value="asc"{% if view.direction == 'asc' %} selected{% endif %}>Low to high, oldest first</option></select></div>
+{%- endmacro %}

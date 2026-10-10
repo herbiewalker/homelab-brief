@@ -1,16 +1,15 @@
 <tr>
-  <td>{{ a.title }}<div class="muted">{{ a.kind }}</div></td>
-  <td><span class="badge {{ 'bad' if a.state == 'open' else 'ok' }}">{{ a.state }}</span>{% if a.snooze_until %}<div class="muted">until {{ a.snooze_until }}</div>{% endif %}</td>
-  <td>{{ a.level }}</td>
-  <td title="{{ a.opened }}">{{ a.opened_text }}</td>
-  <td class="num">{{ a.pushed }}</td>
-  <td>
-    <form class="inline" method="post" action="/admin/alerts/act" hx-post="/admin/alerts/act" hx-target="closest tr" hx-swap="outerHTML">
-      <input type="hidden" name="csrf_token" value="{{ csrf }}">
-      <input type="hidden" name="finding_id" value="{{ a.id }}">
-      <button class="small quiet" name="action" value="ack" type="submit">Acknowledge</button>
-      <button class="small quiet" name="action" value="snooze_24h" type="submit">Snooze 24 h</button>
-      <button class="small quiet" name="action" value="snooze_7d" type="submit">Snooze 7 d</button>
-    </form>
+  <td class="col-check" data-label=""><input type="checkbox" data-bulk-item form="bulk-alerts" name="finding_id" value="{{ a.id }}" aria-label="Select {{ a.title }}"></td>
+  <td data-label="Alert"><div class="cell-clip"><strong>{{ a.title }}</strong><div class="muted">{{ a.kind }}</div></div></td>
+  <td data-label="State"><span class="badge {{ 'bad' if a.state == 'open' else 'ok' }}">{{ a.state }}</span>{% if a.snooze_until %}<div class="muted">until {{ a.snooze_until }}</div>{% endif %}</td>
+  <td data-label="Level">{{ a.level }}</td>
+  <td data-label="Opened" title="{{ a.opened }}">{{ a.opened_text }}</td>
+  <td data-label="Notified" class="num">{{ a.pushed }}</td>
+  <td data-label="">
+    <div class="row-actions">
+      {% for action, label in (('ack', 'Acknowledge'), ('snooze_24h', 'Snooze 24 h'), ('snooze_7d', 'Snooze 7 d')) %}
+      <button type="button" class="btn btn--secondary btn--sm" hx-post="/admin/alerts/act" hx-vals='{"finding_id": "{{ a.id|e }}", "action": "{{ action }}"}' hx-target="closest tr" hx-swap="outerHTML">{{ label }}</button>
+      {% endfor %}
+    </div>
   </td>
 </tr>

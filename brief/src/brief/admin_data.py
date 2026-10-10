@@ -4,6 +4,7 @@ Everything is read from the database and the status document; the only things th
 are alert acknowledgements and snoozes, and those go through brief.alerts (which audits them).
 """
 
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -150,7 +151,12 @@ def alert_row(store: Store, finding_id: str, now: datetime) -> dict | None:
 
 
 def audit(
-    store: Store, user: str = "", text: str = "", before: int | None = None, limit: int = AUDIT_PAGE
+    store: Store,
+    user: str = "",
+    text: str = "",
+    before: int | None = None,
+    limit: int = AUDIT_PAGE,
+    kind: str = "",
 ) -> dict:
     """Newest first. `before` is the rowid of the last row of the previous page."""
     where, args = [], []
@@ -166,14 +172,25 @@ def audit(
     if before:
         where.append("rowid < ?")
         args.append(before)
+    if kind and re.fullmatch(r"[a-z_]{1,30}", kind):
+        where.append("action LIKE ? ESCAPE '\\'")
+        args.append(kind.replace("_", "\\_") + ".%")
     sql = "SELECT rowid AS id, ts, user, action, detail FROM audit_log"
     sql += (" WHERE " + " AND ".join(where)) if where else ""
     with store.read() as db:
         rows = [dict(r) for r in db.execute(sql + " ORDER BY rowid DESC LIMIT ?", (*args, limit + 1))]
         users = [r["user"] for r in db.execute("SELECT DISTINCT user FROM audit_log ORDER BY user LIMIT 50")]
+        kinds = [
+            r["k"]
+            for r in db.execute(
+                "SELECT DISTINCT substr(action, 1, instr(action, '.') - 1) AS k FROM audit_log "
+                "WHERE instr(action, '.') > 1 ORDER BY k LIMIT 40"
+            )
+            if re.fullmatch(r"[a-z_]{1,30}", r["k"] or "")
+        ]
     more = len(rows) > limit
     rows = rows[:limit]
-    return {"rows": rows, "next": rows[-1]["id"] if more else None, "users": users}
+    return {"rows": rows, "next": rows[-1]["id"] if more else None, "users": users, "kinds": kinds}
 
 
 # ---------------------------------------------------------------- the strip at the top of every admin page
@@ -230,3 +247,94 @@ def shell_status(store: Store, out_dir: Path) -> tuple[list[dict], dict]:
     except Exception:  # noqa: BLE001 (a status strip is never worth an error page)
         pass
     return chips, counts
+
+
+# ---------------------------------------------------------------- list pages (Task 35)
+
+LEVEL_RANK = {"critical": 4, "error": 3, "warning": 2, "info": 1}
+ALERT_SORTS = ("opened", "state", "level", "title", "pushed")
+ALERT_STATES = ("open", "acked", "snoozed")
+
+
+def alerts_view(store: Store, now: datetime, params: dict) -> dict:
+    """The alert list for the Findings page: filtered by state, level, and text, sorted, and paged. The
+    parameters come from the address, so each is checked against its allowed values before it is used."""
+    from brief import listing
+
+    state = listing.choice(str(params.get("state", "")), ALERT_STATES, "")
+    q = str(params.get("q", "")).strip()[: listing.MAX_Q]
+    every = alert_rows(store, now)
+    levels = sorted({r["level"] for r in every if r["level"]}, key=lambda x: -LEVEL_RANK.get(x, 0))
+    level = listing.choice(str(params.get("level", "")), levels, "")
+    sort = listing.choice(str(params.get("sort", "")), ALERT_SORTS, "opened")
+    direction = listing.choice(str(params.get("dir", "")), ("asc", "desc"), "desc")
+    view = listing.Listing(
+        "/admin/findings",
+        {"state": state, "level": level, "q": q, "sort": sort, "dir": direction, "page": params.get("page")},
+        {"sort": "opened", "dir": "desc", "page": "1"},
+    )
+    rows = [
+        r
+        for r in every
+        if (not state or r["state"] == state)
+        and (not level or r["level"] == level)
+        and (not q or q.lower() in f"{r['title']} {r['kind']}".lower())
+    ]
+    keys = {
+        "opened": lambda r: r["opened"] or "",
+        "state": lambda r: ALERT_STATES.index(r["state"]) if r["state"] in ALERT_STATES else 9,
+        "level": lambda r: LEVEL_RANK.get(r["level"], 0),
+        "title": lambda r: (r["title"] or "").lower(),
+        "pushed": lambda r: r["pushed"] or 0,
+    }
+    rows.sort(key=keys[sort], reverse=direction == "desc")
+    page = listing.paginate(rows, listing.number(params.get("page")))
+    return {"view": view, "page": page, "levels": levels, "states": ALERT_STATES, "total_open": len(every)}
+
+
+SOURCE_SORTS = ("host", "system", "last_seen", "events_24h", "events_hour")
+SOURCE_FILTERS = ("unknown", "silent", "known")
+
+
+def sources_view(rows: list[dict], params: dict) -> dict:
+    """Senders filtered by kind and text, sorted, and paged. With no sort chosen, senders that need naming come
+    first, then the busiest, which is the order that helps a new install most."""
+    from brief import listing
+
+    flt = listing.choice(str(params.get("show", "")), SOURCE_FILTERS, "")
+    q = str(params.get("q", "")).strip()[: listing.MAX_Q]
+    sort = listing.choice(str(params.get("sort", "")), SOURCE_SORTS, "")
+    direction = listing.choice(str(params.get("dir", "")), ("asc", "desc"), "desc")
+    view = listing.Listing(
+        "/admin/sources",
+        {"show": flt, "q": q, "sort": sort, "dir": direction if sort else "", "page": params.get("page")},
+        {"dir": "desc", "page": "1"},
+    )
+    shown = [
+        r
+        for r in rows
+        if (
+            not flt
+            or (flt == "unknown" and not r["known"])
+            or (flt == "silent" and r["silent"])
+            or (flt == "known" and r["known"])
+        )
+        and (not q or q.lower() in f"{r['host']} {r['system'] or ''}".lower())
+    ]
+    if sort:
+        key = {
+            "host": lambda r: r["host"].lower(),
+            "system": lambda r: (r["system"] or "").lower(),
+            "last_seen": lambda r: r["last_seen"] or "",
+            "events_24h": lambda r: r["events_24h"],
+            "events_hour": lambda r: r["events_hour"],
+        }[sort]
+        shown.sort(key=key, reverse=direction == "desc")
+    return {
+        "view": view,
+        "page": listing.paginate(shown, listing.number(params.get("page")), 50),
+        "total": len(rows),
+        "unknown": sum(1 for r in rows if not r["known"]),
+        "silent": sum(1 for r in rows if r["silent"]),
+        "filters": SOURCE_FILTERS,
+    }

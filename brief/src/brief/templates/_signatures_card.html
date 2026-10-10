@@ -1,0 +1,44 @@
+{% from "_ui.html" import icon, empty %}
+{% from "_lists.html" import sort_th, pager, saved_views, sort_select %}
+<section class="card card--flush" id="signatures-card" aria-labelledby="sig-h">
+  <div class="card-head card-body"><h2 id="sig-h">Signatures</h2><span class="muted">{{ '{:,}'.format(page.total) }} match</span></div>
+  <div class="card-body stack-sm">
+    <form class="filters" method="get" action="/admin/signatures" role="search">
+      <div class="f grow"><label for="sg-q">Search</label><input type="search" id="sg-q" name="q" value="{{ view.get('q') }}" placeholder="App or message text"></div>
+      <div class="f"><label for="sg-show">Show</label>
+        <select id="sg-show" name="show"><option value="">All</option><option value="ignored"{% if view.get('show') == 'ignored' %} selected{% endif %}>Only ignored</option><option value="active"{% if view.get('show') == 'active' %} selected{% endif %}>Not ignored</option></select></div>
+      {{ sort_select(view, [('n24', 'Busiest in 24 h'), ('last_seen', 'Last seen'), ('name', 'Name')], 'n24') }}
+      <button type="submit" class="btn">Filter</button>
+      {% if view.filtered %}<a class="btn btn--ghost" href="/admin/signatures">Clear</a>{% endif %}
+    </form>
+    {{ saved_views('signatures') }}
+  </div>
+  {% if page.rows %}
+  <div data-bulk>
+    <div class="scroll">
+    <table class="table--cards" id="signatures">
+      <caption class="sr-only">Learned log message signatures</caption>
+      <thead><tr>
+        <th scope="col" class="col-check"><input type="checkbox" data-bulk-all aria-label="Select every signature on this page"></th>
+        {{ sort_th(view, 'name', 'Signature', 'asc') }}{{ sort_th(view, 'n24', '24 h', cls='num') }}{{ sort_th(view, 'last_seen', 'Last seen') }}<th scope="col"><span class="sr-only">Actions</span></th>
+      </tr></thead>
+      <tbody>
+      {% for r in page.rows %}{% include "_signature_row.html" %}{% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <form id="bulk-signatures" class="bulkbar" data-bulk-bar hidden method="post" action="/admin/signatures/bulk" hx-post="/admin/signatures/bulk" hx-target="#signatures-card" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input type="hidden" name="view_query" value="{{ view.query }}">
+      <span data-bulk-count aria-live="polite">0 selected</span>
+      <div class="row-actions">
+        <button type="submit" class="btn btn--secondary btn--sm" name="ignored" value="1">Ignore</button>
+        <button type="submit" class="btn btn--secondary btn--sm" name="ignored" value="0">Stop ignoring</button>
+      </div>
+    </form>
+  </div>
+  {{ pager(view, page, 'signatures') }}
+  {% else %}
+  {% call empty('search', 'No signatures match.', 'Change or clear the filters, or wait for more logs to arrive.') %}{% endcall %}
+  {% endif %}
+</section>

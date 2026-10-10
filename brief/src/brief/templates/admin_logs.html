@@ -1,28 +1,42 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, alert, empty, page_head %}
 {% block title %}Log search{% endblock %}
 {% block body %}
-<h1>Log search</h1>
-<p class="muted">Search the raw syslog archive, exactly as it was received. Pick a sender, a few days, or some text (plain text, case-insensitive). Up to {{ max_days }} days and {{ max_lines }} lines per search, newest first.{% if span %} The archive holds {{ span[0] }} to {{ span[1] }}.{% else %} The archive is empty.{% endif %}</p>
-{% if error %}<div class="card error">{{ error }}</div>{% endif %}
-<form class="card" method="post" action="/admin/logs">
-  <input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <div class="grid">
-    <div><label for="host">Sender (IP or name, empty for all)</label><input type="text" id="host" name="host" value="{{ form.host }}" autocomplete="off"></div>
-    <div><label for="start">From day</label><input type="text" id="start" name="start" value="{{ form.start }}" placeholder="2026-10-01"></div>
-    <div><label for="end">To day</label><input type="text" id="end" name="end" value="{{ form.end }}" placeholder="2026-10-07"></div>
-  </div>
-  <label for="q">Text to look for</label>
-  <input type="text" id="q" name="q" value="{{ form.q }}" autocomplete="off">
-  <button type="submit">Search</button>
-  <p class="muted">Searches are sent as a form post, so what you look for is not kept in the address bar or in access logs.</p>
-</form>
+{% call page_head('Log search', 'Search the raw syslog archive exactly as it was received. Up to ' ~ max_days ~ ' days and ' ~ max_lines ~ ' lines per search, newest first.' ~ ((' The archive holds ' ~ span[0] ~ ' to ' ~ span[1] ~ '.') if span else ' The archive is empty.')) %}{% endcall %}
+<div class="stack">
+{% if error %}{% call alert('bad') %}{{ error }}{% endcall %}{% endif %}
+<section class="card" aria-labelledby="ls-h">
+  <h2 id="ls-h">Search</h2>
+  <form method="post" action="/admin/logs" role="search">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="form-grid">
+      <div class="field"><label for="host">Sender</label><input type="text" id="host" name="host" value="{{ form.host }}" autocomplete="off" placeholder="an IP or name; empty for all"></div>
+      <div class="field"><label for="start">From day</label><input type="date" id="start" name="start" value="{{ form.start }}"></div>
+      <div class="field"><label for="end">To day</label><input type="date" id="end" name="end" value="{{ form.end }}"></div>
+    </div>
+    <div class="field"><label for="q">Text to look for</label><input type="search" id="q" name="q" value="{{ form.q }}" autocomplete="off" placeholder="plain text, capital letters ignored">
+      <div class="hint">Searches are sent as a form post, so what you look for is not kept in the address bar or in access logs.</div></div>
+    <button type="submit" class="btn">{{ icon('search') }}<span>Search</span></button>
+  </form>
+</section>
 {% if result %}
-<div class="card scroll">
+<section class="card card--flush" aria-labelledby="lr-h">
+  <div class="card-head card-body"><h2 id="lr-h">Results</h2><span class="muted">{{ result.lines|length }} line{{ '' if result.lines|length == 1 else 's' }}</span></div>
   {% if result.lines %}
-  <table class="wide"><thead><tr><th>Day</th><th>Sender</th><th>Line</th></tr></thead>
-  {% for l in result.lines %}<tr><td>{{ l.day }}</td><td><code>{{ l.host }}</code></td><td><code>{{ l.text }}</code></td></tr>{% endfor %}</table>
-  {% else %}No matching lines.{% endif %}
-  <p class="muted">{{ result.files }} file{{ '' if result.files == 1 else 's' }} read, {{ '{:,}'.format(result.bytes_read) }} bytes.{% if result.stopped %} Stopped at {{ result.stopped }}: narrow the sender, the days, or the text to see more.{% endif %}</p>
-</div>
+  <div class="scroll">
+  <table class="table--cards">
+    <caption class="sr-only">Matching log lines</caption>
+    <thead><tr><th scope="col">Day</th><th scope="col">Sender</th><th scope="col">Line</th></tr></thead>
+    <tbody>
+    {% for l in result.lines %}<tr><td data-label="Day">{{ l.day }}</td><td data-label="Sender"><code>{{ l.host }}</code></td><td data-label="Line"><div class="mono-cell cell-clip">{{ l.text }}</div></td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  {% call empty('search', 'No matching lines.', 'Try fewer words, another sender, or more days.') %}{% endcall %}
+  {% endif %}
+  <div class="pager"><p class="muted">{{ result.files }} file{{ '' if result.files == 1 else 's' }} read, {{ '{:,}'.format(result.bytes_read) }} bytes.{% if result.stopped %} Stopped at {{ result.stopped }}: narrow the sender, the days, or the text to see more.{% endif %}</p></div>
+</section>
 {% endif %}
+</div>
 {% endblock %}

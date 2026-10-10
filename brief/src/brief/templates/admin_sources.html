@@ -1,27 +1,57 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, chip, alert, empty, page_head %}
+{% from "_lists.html" import sort_th, pager, saved_views, sort_select %}
 {% block title %}Sources{% endblock %}
 {% block body %}
-<h1>Sources</h1>
-<p class="muted">Every sender that has reached the receiver. A sender that is not in <code>systems.yaml</code> is listed first, so you can name it. Counts are events in the last 24 hours and in the last hour, including those an ignore rule removed.</p>
-<div class="card scroll">
-<table class="wide">
-  <thead><tr><th>Sender</th><th>System</th><th>Last line</th><th class="num">24 h</th><th class="num">1 h</th><th>Normal gap</th><th></th></tr></thead>
-  <tbody>
-  {% for h in rows %}
-  <tr>
-    <td><code>{{ h.host }}</code></td>
-    <td>{% if h.known %}{{ h.system }}{% else %}<span class="badge warn">unknown</span>{% endif %}</td>
-    <td title="{{ h.last_seen }}">{{ h.last_seen_text }}</td>
-    <td class="num">{{ '{:,}'.format(h.events_24h) }}</td>
-    <td class="num">{{ '{:,}'.format(h.events_hour) }}</td>
-    <td>{% if h.gap_min %}{{ h.gap_min }} min{% else %}<span class="muted">not learned</span>{% endif %}</td>
-    <td>{% if h.silent %}<span class="badge bad">silent</span>{% endif %}</td>
-  </tr>
+{% call page_head('Sources', 'Every sender that has reached the receiver. Counts include lines an ignore rule filtered out.') %}
+<a class="btn btn--secondary" href="/admin/systems">{{ icon('server') }}<span>Systems</span></a>
+{% endcall %}
+<div class="stack">
+{% if unknown %}{% call alert('info') %}<strong>{{ unknown }} sender{{ '' if unknown == 1 else 's' }} not mapped to a system.</strong> Click <em>Name it</em> on a row to add {{ 'it' if unknown == 1 else 'them' }} to <a href="/admin/systems">Systems</a>.{% endcall %}{% endif %}
+<section class="card card--flush" aria-labelledby="src-h">
+  <div class="card-head card-body">
+    <h2 id="src-h">Senders</h2>
+    <span class="muted">{{ total }} in all{% if silent %}, <span class="bad">{{ silent }} silent</span>{% endif %}</span>
+  </div>
+  <div class="card-body stack-sm">
+    <form class="filters" method="get" action="/admin/sources" role="search">
+      <div class="f grow"><label for="sf-q">Search</label><input type="search" id="sf-q" name="q" value="{{ view.get('q') }}" placeholder="Address, name, or system"></div>
+      <div class="f"><label for="sf-show">Show</label>
+        <select id="sf-show" name="show"><option value="">All senders</option>{% for f in filters %}<option value="{{ f }}"{% if view.get('show') == f %} selected{% endif %}>{{ {'unknown': 'Not in a system', 'silent': 'Silent', 'known': 'In a system'}[f] }}</option>{% endfor %}</select></div>
+      {{ sort_select(view, [('', 'Needs naming first, then busiest'), ('host', 'Sender'), ('system', 'System'), ('last_seen', 'Last line'), ('events_24h', 'Events, 24 h'), ('events_hour', 'Events, 1 h')], '') }}
+      <button type="submit" class="btn">Filter</button>
+      {% if view.filtered %}<a class="btn btn--ghost" href="/admin/sources">Clear</a>{% endif %}
+    </form>
+    {{ saved_views('sources') }}
+  </div>
+  {% if page.rows %}
+  <div class="scroll">
+  <table class="table--cards">
+    <caption class="sr-only">Senders</caption>
+    <thead><tr>
+      {{ sort_th(view, 'host', 'Sender', 'asc') }}{{ sort_th(view, 'system', 'System', 'asc') }}{{ sort_th(view, 'last_seen', 'Last line') }}{{ sort_th(view, 'events_24h', '24 h', cls='num') }}{{ sort_th(view, 'events_hour', '1 h', cls='num') }}<th scope="col">Normal gap</th><th scope="col"><span class="sr-only">Status</span></th>
+    </tr></thead>
+    <tbody>
+    {% for h in page.rows %}
+    <tr>
+      <td data-label="Sender"><code>{{ h.host }}</code></td>
+      <td data-label="System">{% if h.known %}{{ h.system }}{% else %}<span class="badge warn">unknown</span> <a href="/admin/systems?add={{ h.host|urlencode }}">Name it</a>{% endif %}</td>
+      <td data-label="Last line" title="{{ h.last_seen }}">{{ h.last_seen_text }}</td>
+      <td data-label="24 h" class="num">{{ '{:,}'.format(h.events_24h) }}</td>
+      <td data-label="1 h" class="num">{{ '{:,}'.format(h.events_hour) }}</td>
+      <td data-label="Normal gap">{% if h.gap_min %}{{ h.gap_min }} min{% else %}<span class="muted">not learned</span>{% endif %}</td>
+      <td data-label="">{% if h.silent %}<span class="badge bad">silent</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {{ pager(view, page, 'senders') }}
+  {% elif total %}
+  {% call empty('search', 'No sender matches', 'Change or clear the filters.') %}{% endcall %}
   {% else %}
-  <tr><td colspan="7" class="muted">Nothing has been received yet.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
+  {% call empty('radio', 'Nothing has been received yet.', 'Point a device at this container (Network and access shows where) and its lines will appear here.') %}{% endcall %}
+  {% endif %}
+</section>
 </div>
-{% if unknown %}<div class="card banner">{{ unknown }} sender{{ '' if unknown == 1 else 's' }} not mapped to a system. Add {{ 'it' if unknown == 1 else 'them' }} to <code>systems.yaml</code>.</div>{% endif %}
 {% endblock %}

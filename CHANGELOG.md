@@ -5,6 +5,18 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.51
+
+Task 35: the operations pages are rebuilt on the new interface. Each is usable on a phone and by keyboard.
+
+- **Findings and alerts**: the alerts list can be searched and filtered by state and level, sorted, and paged (25 at a time). Tick several alerts and **Acknowledge** or **Snooze** them in one go; one-alert buttons still work in place. Stories and the AI investigation notes are listed above it.
+- **Sources**: search, filter (not in a system, silent, in a system), sort, and page (50 at a time); an unknown sender has a **Name it** link that opens a new system with its address filled in.
+- **Signatures**: search, show only ignored or not ignored, sort by activity, last seen, or name, page, and **Ignore** or **Stop ignoring** several at once.
+- **Audit log**: a filter by kind of change (config, alert, signature, and so on) next to the user and text filters.
+- **Log search, Replay and tuning, Backups and exports**: rebuilt with date pickers, summary tiles for a replay, and clear empty states. Searches are still sent as a form post.
+- **Saved views** on the list pages keep a set of filters under a name in your browser. A **Sort by** control sits in each filter bar, so sorting works on a phone where the column headings are hidden. Tables become cards on a narrow screen, every table has a caption for screen readers, and every selection box has a label.
+- Sorting, filtering, and page numbers come from the address, and each is checked against its allowed values before use, so a hand-edited address cannot do anything but choose.
+
 ## 0.0.50
 
 Task 34, second part: thresholds, advice, devices, topology, map, pages, and sensors are forms. Every setting in the detection and device files now has a control.

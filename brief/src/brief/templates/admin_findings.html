@@ -1,31 +1,44 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, chip, alert, empty, page_head %}
 {% block title %}Findings and alerts{% endblock %}
 {% block body %}
-<h1>Findings and alerts</h1>
-<h2>Stories from the last daily brief{% if generated %} <span class="muted">({{ generated }})</span>{% endif %}</h2>
-<div class="card scroll">
-{% if not run_ok %}<div class="error">The last run did not have enough data to say anything: {{ headline }}</div>
-{% elif stories %}
-<table class="wide">
-  <thead><tr><th>#</th><th>Story</th><th>System</th><th>Route</th><th class="num">Findings</th></tr></thead>
-  {% for s in stories %}<tr><td>{{ s.rank }}</td><td>{{ s.title }}</td><td>{{ s.system or '' }}</td><td><span class="badge {{ 'bad' if s.route == 'push_now' else '' }}">{{ s.route }}</span></td><td class="num">{{ s.count }}</td></tr>{% if notes.get(s.id) %}<tr><td></td><td colspan="4"><details><summary>Investigation note <span class="muted">(AI agent; every line cites a tool result)</span></summary><pre>{{ notes[s.id].output }}</pre></details></td></tr>{% endif %}{% endfor %}
-</table>
-{% else %}Nothing needs a look.{% endif %}
-</div>
+{% call page_head('Findings and alerts', 'What the last daily run found, and the alerts that are still open.') %}
+<a class="btn btn--secondary" href="/admin/replay">{{ icon('history') }}<span>Replay and tuning</span></a>
+{% endcall %}
+<div class="stack">
+<section class="card card--flush" aria-labelledby="stories-h">
+  <div class="card-head card-body"><h2 id="stories-h">Stories from the last daily brief</h2>{% if generated %}<span class="muted">{{ generated }}</span>{% endif %}</div>
+  {% if not run_ok %}
+  <div class="card-body">{% call alert('bad') %}The last run did not have enough data to say anything: {{ headline }}{% endcall %}</div>
+  {% elif stories %}
+  <div class="scroll">
+  <table class="table--cards">
+    <caption class="sr-only">Stories from the last daily brief</caption>
+    <thead><tr><th scope="col">#</th><th scope="col">Story</th><th scope="col">System</th><th scope="col">Route</th><th scope="col" class="num">Findings</th></tr></thead>
+    <tbody>
+    {% for s in stories %}
+    <tr>
+      <td data-label="#">{{ s.rank }}</td>
+      <td data-label="Story"><div class="cell-clip">{{ s.title }}{% if notes and notes.get(s.id) %}<details><summary>{{ icon('sparkles') }} Investigation note <span class="muted">(AI agent; every line cites a tool result)</span></summary><pre>{{ notes[s.id].output }}</pre></details>{% endif %}</div></td>
+      <td data-label="System">{{ s.system or '' }}</td>
+      <td data-label="Route"><span class="badge {{ 'bad' if s.route == 'push_now' else '' }}">{{ s.route }}</span></td>
+      <td data-label="Findings" class="num">{{ s.count }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  {% call empty('check-circle', 'Nothing needs a look', 'The last daily run found nothing worth a story.') %}{% endcall %}
+  {% endif %}
+</section>
 {% if developing %}
-<h2>Developing</h2>
-<div class="card"><table class="plain">{% for d in developing %}<tr><td>{{ d.id }}</td><td>day {{ d.days }}, {{ d.trend }}</td></tr>{% endfor %}</table></div>
+<section class="card" aria-labelledby="dev-h">
+  <h2 id="dev-h">Developing</h2>
+  <ul class="list-plain">{% for dv in developing %}<li><span class="grow">{{ dv.id }}</span><span class="muted">day {{ dv.days }}, {{ dv.trend }}</span></li>{% endfor %}</ul>
+</section>
 {% endif %}
-<h2>Alerts</h2>
-<div class="card scroll">
-<table class="wide" id="alerts">
-  <thead><tr><th>Alert</th><th>State</th><th>Level</th><th>Opened</th><th class="num">Notified</th><th></th></tr></thead>
-  <tbody>
-  {% for a in alerts %}{% include "_alert_row.html" %}{% else %}
-  <tr><td colspan="6" class="muted">No open alerts.</td></tr>
-  {% endfor %}
-  </tbody>
-</table>
-</div>
+{% include "_alerts_card.html" %}
 <p class="muted">Acknowledging stops the repeats until a finding gets worse. Snoozing keeps it quiet for the time you choose, or until it gets worse. Both are recorded in the audit log.</p>
+</div>
 {% endblock %}

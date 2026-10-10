@@ -1,20 +1,45 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, empty, page_head %}
+{% from "_lists.html" import saved_views %}
 {% block title %}Audit log{% endblock %}
 {% block body %}
-<h1>Audit log</h1>
-<form class="card row" method="get" action="/admin/audit">
-  <select name="user" aria-label="User"><option value="">All users</option>{% for u in users %}<option value="{{ u }}"{% if u == user %} selected{% endif %}>{{ u }}</option>{% endfor %}</select>
-  <input type="search" name="q" value="{{ q }}" placeholder="Search actions and details" aria-label="Search">
-  <button class="quiet" type="submit">Filter</button>
-</form>
-<div class="card scroll">
-<table class="wide">
-  <thead><tr><th>Time (UTC)</th><th>User</th><th>Action</th><th>Detail</th></tr></thead>
-  <tbody>
-  {% for r in rows %}<tr><td>{{ r.ts }}</td><td>{{ r.user }}</td><td><code>{{ r.action }}</code></td><td>{{ r.detail or '' }}</td></tr>
-  {% else %}<tr><td colspan="4" class="muted">Nothing matches.</td></tr>{% endfor %}
-  </tbody>
-</table>
+{% call page_head('Audit log', 'Every change made here or by the command line: who, when, and what. Newest first.') %}{% endcall %}
+<div class="stack">
+<section class="card card--flush" aria-labelledby="aud-h">
+  <div class="card-head card-body"><h2 id="aud-h">Changes</h2>{% if user or q or kind %}<a class="btn btn--ghost btn--sm" href="/admin/audit">Clear filters</a>{% endif %}</div>
+  <div class="card-body stack-sm">
+    <form class="filters" method="get" action="/admin/audit" role="search">
+      <div class="f grow"><label for="au-q">Search</label><input type="search" id="au-q" name="q" value="{{ q }}" placeholder="Actions and details"></div>
+      <div class="f"><label for="au-user">User</label>
+        <select id="au-user" name="user"><option value="">All users</option>{% for u in users %}<option value="{{ u }}"{% if u == user %} selected{% endif %}>{{ u }}</option>{% endfor %}</select></div>
+      <div class="f"><label for="au-kind">Kind of change</label>
+        <select id="au-kind" name="kind"><option value="">Any</option>{% for k in kinds %}<option value="{{ k }}"{% if k == kind %} selected{% endif %}>{{ k }}</option>{% endfor %}</select></div>
+      <button type="submit" class="btn">Filter</button>
+    </form>
+    {{ saved_views('audit') }}
+  </div>
+  {% if rows %}
+  <div class="scroll">
+  <table class="table--cards">
+    <caption class="sr-only">Audit log, newest first</caption>
+    <thead><tr><th scope="col">Time (UTC)</th><th scope="col">User</th><th scope="col">Action</th><th scope="col">Detail</th></tr></thead>
+    <tbody>
+    {% for r in rows %}<tr>
+      <td data-label="Time (UTC)">{{ r.ts }}</td>
+      <td data-label="User">{{ r.user }}</td>
+      <td data-label="Action"><code>{{ r.action }}</code></td>
+      <td data-label="Detail"><div class="cell-clip">{{ r.detail or '' }}</div></td>
+    </tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if next %}
+  <nav class="pager" aria-label="Pages"><span class="muted">Showing the newest {{ rows|length }}</span>
+    <a class="btn btn--secondary btn--sm" rel="next" href="/admin/audit?before={{ next }}&amp;user={{ user|urlencode }}&amp;q={{ q|urlencode }}&amp;kind={{ kind|urlencode }}">Older</a></nav>
+  {% endif %}
+  {% else %}
+  {% call empty('search', 'Nothing matches.', 'Change or clear the filters.') %}{% endcall %}
+  {% endif %}
+</section>
 </div>
-{% if next %}<a class="button quiet" href="/admin/audit?before={{ next }}&amp;user={{ user|urlencode }}&amp;q={{ q|urlencode }}">Older</a>{% endif %}
 {% endblock %}

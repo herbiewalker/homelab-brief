@@ -4,13 +4,14 @@ Replay and log search only read. The one write here is switching a signature's i
 audited. Every route is on the guarded admin router (a session for all, CSRF for every write).
 """
 
+import json
 import re
 from datetime import UTC, date, datetime, time, timedelta
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from brief import export, logsearch, replay
+from brief import export, listing, logsearch, replay
 from brief.admin import Deps
 from brief.config import ConfigError, config_file
 from brief.jsonlog import log
@@ -20,6 +21,9 @@ from brief.systems import Systems
 MAX_REPLAY_DAYS = 31
 MAX_HOURLY_DAYS = 14
 SIGNATURE_PAGE = 100
+SIGNATURE_LIST = 1000  # the most the list page reads at once; narrow it with a search
+SIGNATURE_SORTS = ("n24", "last_seen", "name")
+BULK_MAX = 200
 Q_MAX = 120
 HOST_TEXT = re.compile(r"^[A-Za-z0-9.:_-]{1,80}$")
 
@@ -118,7 +122,9 @@ def register(admin: APIRouter, d: Deps) -> None:
 
     # ------------------------------------------------------------------ signatures
 
-    def signature_rows(q: str, only_ignored: bool) -> list[dict]:
+    def signature_rows(
+        q: str, only_ignored: bool, limit: int = SIGNATURE_PAGE, only_active: bool = False
+    ) -> list[dict]:
         low = datetime.now(UTC) - timedelta(hours=24)
         key = f"{low:%Y-%m-%d}{low.hour:02d}"
         like = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
@@ -126,6 +132,8 @@ def register(admin: APIRouter, d: Deps) -> None:
         args: list = [key, like, like]
         if only_ignored:
             where.append("s.ignored = 1")
+        if only_active:
+            where.append("s.ignored = 0")
         sql = (
             "SELECT s.sig_id, s.app, s.template, s.first_seen, s.last_seen, s.ignored, "
             "COALESCE(SUM(CASE WHEN h.day || printf('%02d', h.hour) >= ? THEN h.n END), 0) AS n24, "
@@ -135,7 +143,7 @@ def register(admin: APIRouter, d: Deps) -> None:
             f"WHERE {' AND '.join(where)} GROUP BY s.sig_id ORDER BY n24 DESC, s.last_seen DESC LIMIT ?"
         )
         with d.store.read() as db:
-            rows = db.execute(sql, (*args, SIGNATURE_PAGE)).fetchall()
+            rows = db.execute(sql, (*args, limit)).fetchall()
         return [
             {
                 "id": r["sig_id"],
@@ -149,18 +157,74 @@ def register(admin: APIRouter, d: Deps) -> None:
             for r in rows
         ]
 
+    def signatures_context(params: dict) -> dict:
+        """The signature list for a set of (untrusted) address parameters: filtered, sorted, and paged."""
+        q = str(params.get("q", "")).strip()[:Q_MAX]
+        show = listing.choice(str(params.get("show", "")), ("ignored", "active"), "")
+        if params.get("ignored") == "1":  # the older link form
+            show = "ignored"
+        sort = listing.choice(str(params.get("sort", "")), SIGNATURE_SORTS, "n24")
+        direction = listing.choice(str(params.get("dir", "")), ("asc", "desc"), "desc")
+        view = listing.Listing(
+            "/admin/signatures",
+            {"q": q, "show": show, "sort": sort, "dir": direction, "page": params.get("page")},
+            {"sort": "n24", "dir": "desc", "page": "1"},
+        )
+        rows = signature_rows(q, show == "ignored", SIGNATURE_LIST, show == "active")
+        key = {
+            "n24": lambda r: r["n24"],
+            "last_seen": lambda r: r["last_seen"] or "",
+            "name": lambda r: f"{r['app']} {r['template']}".lower(),
+        }[sort]
+        rows.sort(key=key, reverse=direction == "desc")
+        page = listing.paginate(rows, listing.number(params.get("page")), 50)
+        return {"view": view, "page": page, "shows": ("ignored", "active")}
+
     @admin.get("/signatures", response_class=HTMLResponse)
-    def signatures(request: Request, q: str = "", ignored: str = ""):
-        q = q.strip()[:Q_MAX]
+    def signatures(request: Request):
         return d.render(
             request,
             "admin_signatures.html",
             csrf=d.session(request).csrf,
             active="signatures",
-            rows=signature_rows(q, ignored == "1"),
-            q=q,
-            only_ignored=ignored == "1",
+            **signatures_context(dict(request.query_params)),
         )
+
+    @admin.post("/signatures/bulk")
+    async def signatures_bulk(request: Request):
+        """Ignore or stop ignoring every ticked signature, then show the list again with the same filters."""
+        from urllib.parse import parse_qsl
+
+        session = d.session(request)
+        form = await request.form()
+        if str(form.get("ignored")) not in ("0", "1"):
+            return Response("That is not an action on signatures.", status_code=400)
+        want = form.get("ignored") == "1"
+        ids = [int(i) for i in form.getlist("sig_id") if str(i).isdigit()][:BULK_MAX]
+        changed = 0
+        with d.store.write() as tx:
+            for sig_id in ids:
+                row = tx.db.execute(
+                    "SELECT app, template, ignored FROM signature WHERE sig_id = ?", (sig_id,)
+                ).fetchone()
+                if row is None or bool(row["ignored"]) == want:
+                    continue
+                label = f"{row['app'] + ': ' if row['app'] else ''}{row['template'] or ''}"[:120]
+                tx.set_ignored(sig_id, want)
+                tx.audit(
+                    f"admin:{session.username}",
+                    "signature.ignore" if want else "signature.unignore",
+                    f"signature {sig_id}: {label}",
+                )
+                changed += 1
+        params = dict(parse_qsl(str(form.get("view_query", ""))[:600]))
+        response = d.render(request, "_signatures_card.html", csrf=session.csrf, **signatures_context(params))
+        verb = "ignored" if want else "no longer ignored"
+        text = f"{changed} signature{'s' if changed != 1 else ''} {verb}."
+        response.headers["HX-Trigger"] = json.dumps(
+            {"toast": {"kind": "ok" if changed else "info", "text": text}}
+        )
+        return response
 
     @admin.post("/signatures/{sig_id}/ignore")
     async def signature_ignore(request: Request, sig_id: int):

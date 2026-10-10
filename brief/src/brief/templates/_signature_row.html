@@ -1,13 +1,12 @@
 <tr>
-  <td>{% if r.app %}<strong>{{ r.app }}</strong>: {% endif %}{{ r.template }}{% if r.ignored %} <span class="badge warn">ignored</span>{% endif %}</td>
-  <td class="num">{{ '{:,}'.format(r.n24) }}</td>
-  <td>{{ r.last_seen }}</td>
-  <td>
-    <form class="inline" method="post" action="/admin/signatures/{{ r.id }}/ignore" hx-post="/admin/signatures/{{ r.id }}/ignore" hx-target="closest tr" hx-swap="outerHTML">
-      <input type="hidden" name="csrf_token" value="{{ csrf }}">
-      <input type="hidden" name="ignored" value="{{ '0' if r.ignored else '1' }}">
-      <button class="small quiet" type="submit">{{ 'Stop ignoring' if r.ignored else 'Ignore' }}</button>
-    </form>
-    {% if r.top_host %}<a class="small" href="/admin/export/signature.csv?host={{ r.top_host|urlencode }}&amp;sig={{ r.id }}&amp;days=30">History CSV</a>{% endif %}
+  <td class="col-check" data-label=""><input type="checkbox" data-bulk-item form="bulk-signatures" name="sig_id" value="{{ r.id }}" aria-label="Select this signature"></td>
+  <td data-label="Signature"><div class="cell-clip">{% if r.app %}<strong>{{ r.app }}</strong>: {% endif %}{{ r.template }}{% if r.ignored %} <span class="badge warn">ignored</span>{% endif %}</div></td>
+  <td data-label="24 h" class="num">{{ '{:,}'.format(r.n24) }}</td>
+  <td data-label="Last seen">{{ r.last_seen }}</td>
+  <td data-label="">
+    <div class="row-actions">
+      <button type="button" class="btn btn--secondary btn--sm" hx-post="/admin/signatures/{{ r.id }}/ignore" hx-vals='{"ignored": "{{ '0' if r.ignored else '1' }}"}' hx-target="closest tr" hx-swap="outerHTML">{{ 'Stop ignoring' if r.ignored else 'Ignore' }}</button>
+      {% if r.top_host %}<a class="btn btn--ghost btn--sm" href="/admin/export/signature.csv?host={{ r.top_host|urlencode }}&amp;sig={{ r.id }}&amp;days=30">History CSV</a>{% endif %}
+    </div>
   </td>
 </tr>

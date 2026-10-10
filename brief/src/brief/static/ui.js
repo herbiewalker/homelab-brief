@@ -166,3 +166,60 @@ document.body.addEventListener("htmx:beforeRequest", function (ev) {
   document.body.addEventListener("htmx:afterSwap", all);
   all();
 })();
+
+// List pages: bulk selection and saved views. Plain script, wired by data attributes and event delegation.
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------- bulk selection
+  // A container with data-bulk holds checkboxes [data-bulk-item], one [data-bulk-all], a [data-bulk-bar] that is shown when
+  // something is ticked, and a [data-bulk-count] for "3 selected".
+  function bulkUpdate(form) {
+    var items = form.querySelectorAll("[data-bulk-item]"), on = 0;
+    items.forEach(function (i) { if (i.checked) on++; });
+    var bar = form.querySelector("[data-bulk-bar]"), count = form.querySelector("[data-bulk-count]"), all = form.querySelector("[data-bulk-all]");
+    if (bar) bar.hidden = on === 0;
+    if (count) count.textContent = on + " selected";
+    if (all) { all.checked = on > 0 && on === items.length; all.indeterminate = on > 0 && on < items.length; }
+  }
+  document.addEventListener("change", function (ev) {
+    var t = ev.target, form = t.closest && t.closest("[data-bulk]");
+    if (!form) return;
+    if (t.hasAttribute("data-bulk-all")) form.querySelectorAll("[data-bulk-item]").forEach(function (i) { i.checked = t.checked; });
+    if (t.hasAttribute("data-bulk-all") || t.hasAttribute("data-bulk-item")) bulkUpdate(form);
+  });
+  document.body.addEventListener("htmx:afterSwap", function () { document.querySelectorAll("[data-bulk]").forEach(bulkUpdate); });
+  document.querySelectorAll("[data-bulk]").forEach(bulkUpdate);
+
+  // ---------------------------------------------------------------- saved views (per browser)
+  // <div data-saved-views="findings"> shows the views saved for that page and a small form to save the current filters.
+  function store(key) { try { return JSON.parse(localStorage.getItem("views:" + key) || "[]"); } catch (e) { return []; } }
+  function keep(key, list) { try { localStorage.setItem("views:" + key, JSON.stringify(list.slice(0, 12))); } catch (e) {} }
+  function renderViews(box) {
+    var key = box.getAttribute("data-saved-views"), list = store(key), holder = box.querySelector("[data-views-list]");
+    if (!holder) return;
+    holder.textContent = "";
+    list.forEach(function (v, i) {
+      var chip = document.createElement("span"), a = document.createElement("a"), x = document.createElement("button");
+      chip.className = "view-chip"; a.href = location.pathname + (v.q ? "?" + v.q : ""); a.textContent = v.name;
+      x.type = "button"; x.setAttribute("aria-label", "Remove the saved view " + v.name); x.setAttribute("data-view-remove", String(i)); x.textContent = "×";
+      chip.appendChild(a); chip.appendChild(x); holder.appendChild(chip);
+    });
+    var none = box.querySelector("[data-views-none]"); if (none) none.hidden = list.length > 0;
+  }
+  document.addEventListener("click", function (ev) {
+    var box = ev.target.closest && ev.target.closest("[data-saved-views]");
+    if (!box) return;
+    var key = box.getAttribute("data-saved-views");
+    if (ev.target.closest("[data-view-save]")) {
+      var input = box.querySelector("[data-view-name]"), name = (input && input.value || "").trim();
+      if (!name) { if (input) input.focus(); return; }
+      var list = store(key).filter(function (v) { return v.name !== name; });
+      list.unshift({ name: name.slice(0, 40), q: location.search.replace(/^\?/, "") });
+      keep(key, list); if (input) input.value = ""; renderViews(box);
+    }
+    var rm = ev.target.closest("[data-view-remove]");
+    if (rm) { var l = store(key); l.splice(+rm.getAttribute("data-view-remove"), 1); keep(key, l); renderViews(box); }
+  });
+  document.querySelectorAll("[data-saved-views]").forEach(renderViews);
+})();

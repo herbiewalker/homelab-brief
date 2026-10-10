@@ -5,6 +5,7 @@ the guarded admin router, so a session is required for all of them and a CSRF to
 The only writes are an acknowledgement or snooze of an alert, which brief.alerts records in the audit log.
 """
 
+import json
 import re
 import time
 from collections.abc import Callable
@@ -57,6 +58,7 @@ NAV_GROUPS = [
 NAV = [(key, href, label) for _, links in NAV_GROUPS for key, href, label, _ in links]
 
 ALERT_ACTIONS = ("ack", "snooze_24h", "snooze_7d")
+BULK_MAX = 200
 FINDING_ID = re.compile(r"^[A-Za-z0-9_.:@/ -]{1,300}$")
 
 
@@ -113,14 +115,12 @@ def register(admin: APIRouter, d: Deps) -> None:
     def sources(request: Request):
         now = datetime.now(UTC)
         rows = admin_data.sources(d.store, d.current_status()[0], now)
-        unknown = sum(1 for r in rows if not r["known"])
         return d.render(
             request,
             "admin_sources.html",
             csrf=d.session(request).csrf,
             active="sources",
-            rows=rows,
-            unknown=unknown,
+            **admin_data.sources_view(rows, dict(request.query_params)),
         )
 
     @admin.get("/findings", response_class=HTMLResponse)
@@ -140,7 +140,7 @@ def register(admin: APIRouter, d: Deps) -> None:
                 d.store, [s["id"] for s in status.get("stories") or [] if isinstance(s.get("id"), str)]
             ),
             developing=status.get("developing") or [],
-            alerts=admin_data.alert_rows(d.store, now),
+            **admin_data.alerts_view(d.store, now, dict(request.query_params)),
         )
 
     @admin.post("/alerts/act")
@@ -164,9 +164,56 @@ def register(admin: APIRouter, d: Deps) -> None:
             return d.render(request, page, csrf=session.csrf, a=row)
         return RedirectResponse("/admin/findings", status_code=303)
 
+    @admin.post("/alerts/bulk")
+    async def alert_bulk(request: Request):
+        """Acknowledge or snooze every ticked alert, then show the alert list again with the same filters."""
+        from urllib.parse import parse_qsl
+
+        session = d.session(request)
+        form = await request.form()
+        action = str(form.get("action", ""))
+        if action not in ALERT_ACTIONS:
+            return Response("That is not an action on an alert.", status_code=400)
+        ids = [str(i) for i in form.getlist("finding_id")][:BULK_MAX]
+        book = alerts.load_book(d.store, include_resolved=True)
+        now = datetime.now(UTC)
+        done = 0
+        for finding_id in ids:
+            if FINDING_ID.match(finding_id) and finding_id in book:
+                alerts.apply_feedback(d.store, finding_id, action, now, source=f"admin:{session.username}")
+                done += 1
+        params = dict(parse_qsl(str(form.get("view_query", ""))[:600]))
+        words = {
+            "ack": "acknowledged",
+            "snooze_24h": "snoozed for 24 hours",
+            "snooze_7d": "snoozed for 7 days",
+        }
+        response = d.render(
+            request,
+            "_alerts_card.html",
+            csrf=session.csrf,
+            **admin_data.alerts_view(d.store, now, params),
+        )
+        response.headers["HX-Trigger"] = json.dumps(
+            {
+                "toast": {
+                    "kind": "ok" if done else "info",
+                    "text": f"{done} alert{'s' if done != 1 else ''} {words[action]}.",
+                }
+            }
+        )
+        return response
+
     @admin.get("/audit", response_class=HTMLResponse)
-    def audit(request: Request, user: str = "", q: str = "", before: int | None = None):
-        page = admin_data.audit(d.store, user=user, text=q, before=before)
+    def audit(request: Request, user: str = "", q: str = "", before: int | None = None, kind: str = ""):
+        page = admin_data.audit(d.store, user=user, text=q, before=before, kind=kind)
         return d.render(
-            request, "admin_audit.html", csrf=d.session(request).csrf, active="audit", user=user, q=q, **page
+            request,
+            "admin_audit.html",
+            csrf=d.session(request).csrf,
+            active="audit",
+            user=user,
+            q=q,
+            kind=kind,
+            **page,
         )

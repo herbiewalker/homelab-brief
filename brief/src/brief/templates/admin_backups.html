@@ -1,46 +1,55 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, alert, empty, page_head %}
 {% block title %}Backups and exports{% endblock %}
 {% block body %}
-<h1>Backups and exports</h1>
-{% if error %}<div class="card error">{{ error }}</div>{% endif %}
-{% if restored %}<div class="card notice">
+{% call page_head('Backups and exports', 'Take a copy of your configuration and data, get help safely, restore the config, and download reports.') %}{% endcall %}
+<div class="stack">
+{% if error %}{% call alert('bad') %}{{ error }}{% endcall %}{% endif %}
+{% if restored %}{% call alert('ok') %}
   Restored the config files from the backup:
   {% if restored.applied %}applied {% for n in restored.applied %}<code>{{ n }}</code>{% if not loop.last %}, {% endif %}{% endfor %}{% else %}nothing needed changing{% endif %}{% if restored.unchanged %}; already the same: {{ restored.unchanged|length }}{% endif %}.
   Each file was checked, and what it replaced is in its <a href="/admin/config">history</a>. The pipeline picks them up on its next cycle.
   {% if restored.skipped %}<div class="muted">Not applied here: {{ restored.skipped|join(', ') }} (only config files are restored from this page).</div>{% endif %}
-</div>{% endif %}
+{% endcall %}{% endif %}
 
-<h2>Download a backup</h2>
-<div class="card">
+<div class="grid grid--2">
+<section class="card" aria-labelledby="bk-h">
+  <h2 id="bk-h">Download a backup</h2>
   <p>One file with your config files, a consistent copy of the database, and the signature miner's state. It does not include the raw log archive, the TLS key, or the event files.</p>
   <p class="warn"><strong>Treat it like a password:</strong> the database holds the admin password hash and sessions.</p>
-  <a class="button" href="/admin/backups/download">Download backup</a>
-</div>
+  <a class="btn" href="/admin/backups/download">{{ icon('archive') }}<span>Download backup</span></a>
+</section>
 
-<h2>Ask for help: a support bundle</h2>
-<div class="card">
+<section class="card" aria-labelledby="sb-h">
+  <h2 id="sb-h">Ask for help: a support bundle</h2>
   <p>A diagnostics file you can send to someone, with the install's names taken out. It holds structure and numbers (the status, the shape of your config files, counts of senders, alerts and calls), never log lines or message text, and every address, MAC, domain, name, and secret is replaced by an alias such as <code>&lt;ip-1&gt;</code>. It checks itself before it is written, and is not made at all if anything private is left.</p>
-  <a class="button" href="/admin/backups/support-bundle">Download support bundle</a>
+  <a class="btn" href="/admin/backups/support-bundle">{{ icon('shield') }}<span>Download support bundle</span></a>
   <p class="muted">To turn an alias in a reply back into a name, run <code>brief support-bundle --map aliases.json</code> and keep that file private.</p>
+</section>
 </div>
 
-<h2>Restore the config from a backup</h2>
-<form class="card" method="post" action="/admin/backups/restore" enctype="multipart/form-data">
-  <input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <label for="backup">Backup file (.tar.gz, up to {{ max_mb }} MB)</label>
-  <input type="file" id="backup" name="backup" accept=".gz,.tgz,application/gzip">
-  <button type="submit">Restore the config files</button>
-  <p class="muted">Only the config files are applied, one at a time through the same checks as the config editor; if one is not valid, nothing changes. To put the database back, stop the container and replace <code>baseline.db</code> in the appdata <code>state</code> folder with the one in the backup.</p>
-</form>
+<section class="card" aria-labelledby="rs-h">
+  <h2 id="rs-h">Restore the config from a backup</h2>
+  <form method="post" action="/admin/backups/restore" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="field"><label for="backup">Backup file (.tar.gz, up to {{ max_mb }} MB)</label>
+      <input type="file" id="backup" name="backup" accept=".gz,.tgz,application/gzip">
+      <div class="hint">Only the config files are applied, one at a time through the same checks as the config editor; if one is not valid, nothing changes. To put the database back, stop the container and replace <code>baseline.db</code> in the appdata <code>state</code> folder with the one in the backup.</div></div>
+    <button type="submit" class="btn btn--secondary">{{ icon('undo') }}<span>Restore the config files</span></button>
+  </form>
+</section>
 
-<h2>Reports and exports</h2>
-<div class="grid">
-  <div class="card"><h2>Daily briefs</h2>
-    {% for n in files.brief %}<div><a href="/admin/files/brief/{{ n }}">{{ n }}</a></div>{% else %}<span class="muted">None yet.</span>{% endfor %}</div>
-  <div class="card"><h2>Weekly reports</h2>
-    {% for n in files.weekly %}<div><a href="/admin/files/weekly/{{ n }}">{{ n }}</a></div>{% else %}<span class="muted">None yet.</span>{% endfor %}</div>
-  <div class="card"><h2>History exports</h2>
-    {% for n in files.export %}<div><a href="/admin/files/export/{{ n }}">{{ n }}</a></div>{% else %}<span class="muted">None yet.</span>{% endfor %}
-    <p class="muted">Make one from the <a href="/admin/signatures">Signatures</a> page (History CSV) or with <code>brief export</code>.</p></div>
+<section aria-labelledby="re-h">
+  <h2 id="re-h">Reports and exports</h2>
+  <div class="grid grid--2">
+    <div class="card card--flush"><div class="card-head card-body"><h3>Daily briefs</h3></div>
+      <ul class="list-plain">{% for n in files.brief %}<li><a href="/admin/files/brief/{{ n }}">{{ icon('file-text') }} {{ n }}</a></li>{% else %}<li class="muted">None yet.</li>{% endfor %}</ul></div>
+    <div class="card card--flush"><div class="card-head card-body"><h3>Weekly reports</h3></div>
+      <ul class="list-plain">{% for n in files.weekly %}<li><a href="/admin/files/weekly/{{ n }}">{{ icon('file-text') }} {{ n }}</a></li>{% else %}<li class="muted">None yet.</li>{% endfor %}</ul></div>
+    <div class="card card--flush"><div class="card-head card-body"><h3>History exports</h3></div>
+      <ul class="list-plain">{% for n in files.export %}<li><a href="/admin/files/export/{{ n }}">{{ icon('file-text') }} {{ n }}</a></li>{% else %}<li class="muted">None yet.</li>{% endfor %}</ul>
+      <div class="card-body"><p class="muted">Make one from the <a href="/admin/signatures">Signatures</a> page (History CSV) or with <code>brief export</code>.</p></div></div>
+  </div>
+</section>
 </div>
 {% endblock %}

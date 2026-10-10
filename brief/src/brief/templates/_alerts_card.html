@@ -1,0 +1,52 @@
+{% from "_ui.html" import icon, chip, empty %}
+{% from "_lists.html" import sort_th, pager, saved_views, sort_select %}
+<section class="card card--flush" id="alerts-card" aria-labelledby="alerts-h">
+  <div class="card-head card-body">
+    <h2 id="alerts-h">Alerts</h2>
+    <span class="muted">{{ page.total }} shown{% if page.total != total_open %} of {{ total_open }}{% endif %}</span>
+  </div>
+  <div class="card-body stack-sm">
+    <form class="filters" method="get" action="/admin/findings" role="search">
+      <div class="f grow"><label for="af-q">Search</label><input type="search" id="af-q" name="q" value="{{ view.get('q') }}" placeholder="Title or kind"></div>
+      <div class="f"><label for="af-state">State</label>
+        <select id="af-state" name="state"><option value="">Any</option>{% for s in states %}<option value="{{ s }}"{% if view.get('state') == s %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+      <div class="f"><label for="af-level">Level</label>
+        <select id="af-level" name="level"><option value="">Any</option>{% for l in levels %}<option value="{{ l }}"{% if view.get('level') == l %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+      {{ sort_select(view, [('opened', 'Opened'), ('title', 'Alert'), ('state', 'State'), ('level', 'Level'), ('pushed', 'Notified')], 'opened') }}
+      <button type="submit" class="btn">Filter</button>
+      {% if view.filtered %}<a class="btn btn--ghost" href="/admin/findings">Clear</a>{% endif %}
+    </form>
+    {{ saved_views('findings') }}
+  </div>
+  {% if page.rows %}
+  <div data-bulk>
+    <div class="scroll">
+    <table class="table--cards" id="alerts">
+      <caption class="sr-only">Open, acknowledged and snoozed alerts</caption>
+      <thead><tr>
+        <th scope="col" class="col-check"><input type="checkbox" data-bulk-all aria-label="Select every alert on this page"></th>
+        {{ sort_th(view, 'title', 'Alert', 'asc') }}{{ sort_th(view, 'state', 'State', 'asc') }}{{ sort_th(view, 'level', 'Level') }}{{ sort_th(view, 'opened', 'Opened') }}{{ sort_th(view, 'pushed', 'Notified') }}<th scope="col"><span class="sr-only">Actions</span></th>
+      </tr></thead>
+      <tbody>
+      {% for a in page.rows %}{% include "_alert_row.html" %}{% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <form id="bulk-alerts" class="bulkbar" data-bulk-bar hidden method="post" action="/admin/alerts/bulk" hx-post="/admin/alerts/bulk" hx-target="#alerts-card" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input type="hidden" name="view_query" value="{{ view.query }}">
+      <span data-bulk-count aria-live="polite">0 selected</span>
+      <div class="row-actions">
+        <button type="submit" class="btn btn--secondary btn--sm" name="action" value="ack">Acknowledge</button>
+        <button type="submit" class="btn btn--secondary btn--sm" name="action" value="snooze_24h">Snooze 24 h</button>
+        <button type="submit" class="btn btn--secondary btn--sm" name="action" value="snooze_7d">Snooze 7 d</button>
+      </div>
+    </form>
+  </div>
+  {{ pager(view, page, 'alerts') }}
+  {% elif total_open %}
+  {% call empty('search', 'No alert matches', 'Change or clear the filters.') %}{% endcall %}
+  {% else %}
+  {% call empty('check-circle', 'No open alerts', 'Nothing has been pushed that still needs you.') %}{% endcall %}
+  {% endif %}
+</section>

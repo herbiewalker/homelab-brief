@@ -247,8 +247,8 @@ Spec: `docs/guide/11-admin-ui.md`. Started 2026-10-10 after the first real setup
 - [x] Devices (profile per device, with the privacy explanation), topology and map settings, registry and views.
 - Accept: every value in these files has a control; a change shows what it would have done to last week (replay) before it is saved.
 
-## Task 35: Operations pages
-- [ ] Findings and alerts, Sources, Signatures, Log search, Replay and tuning, Audit log, Backups and exports rebuilt on the shell: filters, sort, search, pagination, bulk actions where they make sense, saved views.
+## Task 35: Operations pages (built 2026-10-10, version 0.0.51)
+- [x] Findings and alerts, Sources, Signatures, Log search, Replay and tuning, Audit log, Backups and exports rebuilt on the shell: filters, sort, search, pagination, bulk actions where they make sense (alerts, signatures), saved views (kept in the browser).
 - Accept: each page is usable at 360 px and by keyboard.
 
 ## Task 36: Intelligence pages
