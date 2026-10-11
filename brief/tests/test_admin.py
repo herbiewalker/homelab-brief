@@ -291,3 +291,37 @@ def test_an_inline_ack_on_the_overview_returns_a_compact_row(lab):
         headers={"HX-Request": "true"},
     )
     assert r.status_code == 200 and r.text.lstrip().startswith("<li") and "acked" in r.text
+
+
+# ---------------------------------------------------------------- keyboard and error states (Task 37)
+
+
+def test_every_admin_page_has_a_skip_link_a_main_landmark_and_the_command_palette(lab):
+    html = lab.client.get("/admin").text
+    assert 'class="skip-link" href="#main"' in html and '<main class="page" id="main"' in html
+    assert 'id="palette"' in html and 'role="combobox"' in html and 'id="help-dialog"' in html
+    assert 'data-action="palette"' in html and 'aria-label="Jump to a page"' in html
+
+
+def test_a_person_gets_a_page_for_a_rejected_request_and_a_script_gets_plain_text(lab):
+    page = lab.client.post(
+        "/admin/alerts/act", data={"finding_id": "x", "action": "ack"}, headers={"Accept": "text/html"}
+    )
+    assert (
+        page.status_code == 403
+        and "That request was rejected" in page.text
+        and "Go to the overview" in page.text
+    )
+    plain = lab.client.post("/admin/alerts/act", data={"finding_id": "x", "action": "ack"})
+    assert plain.status_code == 403 and plain.text == "Request rejected."
+    htmx = lab.client.post(
+        "/admin/alerts/act", data={"finding_id": "x"}, headers={"Accept": "text/html", "HX-Request": "true"}
+    )
+    assert htmx.status_code == 403 and htmx.text == "Request rejected."  # htmx shows its own toast
+
+
+def test_an_unknown_admin_page_says_so_to_a_person_and_stays_plain_for_a_script(lab):
+    page = lab.client.get("/admin/no-such-page", headers={"Accept": "text/html"})
+    assert page.status_code == 404 and "Page not found" in page.text and "Ctrl K" in page.text
+    assert lab.client.get("/admin/no-such-page").text == "Not found."
+    assert " style=" not in page.text and "<script>" not in page.text

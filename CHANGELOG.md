@@ -5,6 +5,16 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.53
+
+Task 37: the interface is checked and finished.
+
+- **Keyboard.** A "Skip to the page" link, a **command palette** (Ctrl or Cmd + K, or `/`) that jumps to any page or action, `g` then a letter to go to a page (`g` `f` for Findings), and `?` for the list. Shortcuts are off while a field has focus or a dialog is open.
+- **Contrast is tested on every build.** A new test reads the colour tokens and checks every text colour on every background in the light theme and both ways of getting the dark one. It found three real failures, now fixed: white text on the dark theme's red button, light-theme control borders, and faint hint text.
+- **Audited in a real browser** at 360, 768, and 1280 px in both themes, on every admin page. Fixed: data tables without a caption for screen readers, three kinds of input that were too short to tap, a file input that pushed the map toolbar wider than a phone, a crowded phone top bar (the sign-out button is now icon-only), a stray scrollbar on the tab strip, and a tablet board with no heading. `scripts/ui-audit.js` is the audit; screenshots are in `docs/ui-audit/`.
+- **Friendlier failures.** An expired form or an unknown address shows a page with a way back, to a person; a script or an htmx request still gets plain text.
+- The interface guide (`docs/guide/11-admin-ui.md`) lists every page and the keyboard shortcuts.
+
 ## 0.0.52
 
 Task 36: the AI area is rebuilt as five tabs and nothing in it needs the text editor any more.

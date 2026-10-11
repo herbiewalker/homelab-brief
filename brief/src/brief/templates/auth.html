@@ -2,10 +2,10 @@
 {% from "_ui.html" import icon %}
 {% block scripts %}<script src="/static/theme.js?v={{ asset_v }}"></script><script defer src="/static/ui.js?v={{ asset_v }}"></script>{% endblock %}
 {% block outer %}
-<div class="auth">
+<main class="auth" id="main">
   <div class="auth-box">
     <a class="brandmark" href="/"><span class="logo">{{ icon('activity') }}</span><span>homelab-brief</span></a>
     {% block body %}{% endblock %}
   </div>
-</div>
+</main>
 {% endblock %}

@@ -28,9 +28,12 @@ The side menu is grouped; each group is one page of cards, not a long list of li
 | Group | Pages |
 | --- | --- |
 | Monitor | Overview, Findings and alerts, Sources, Network map |
-| Configure | Systems, Collectors, Detection (ignore rules, priorities, playbook thresholds), Devices and topology, Notifications, Schedule and retention, Network and access |
-| Intelligence | AI (providers, chains, guardrails, prompts), Agents, Proposals, Evaluation, MCP clients |
-| System | Backups and exports, Config files (text), Audit log, Log search, Replay and tuning, Account |
+| Configure | Setup wizard, Systems, Collectors, Network and access, Schedule and retention, Notifications, Devices and map (devices, topology, map), Pages and sensors (tablet board, Home Assistant sensors), Config files (text) |
+| Detection | Ignore rules (with a pattern tester), Priorities and alerts, Thresholds and advice |
+| Intelligence | AI and agents, in five tabs: Settings (switches, providers, chains, guardrails, prompts), Agents, Proposals (diff review), MCP clients, Tests and call log |
+| System | Backups and exports, Signatures, Log search, Replay and tuning, Audit log, Account |
+
+Every page of the first four groups above is a set of cards built from one field specification (`settingspages.py`), so a setting that is in a config file has a control on its page.
 
 A top bar carries the instance status (run ok, silent hosts, open alerts, collectors failing), a theme switch, and the account menu. Every page has one primary action and a clear "what this page is for" line.
 
@@ -55,10 +58,28 @@ The first screen answers "is everything fine, and if not, what do I do?":
 - Setup checklist for a new install (account, sources repointed, systems named, collectors, notifications), each step done or one click away.
 - Live refresh without flicker; empty states that say what to do next.
 
+## Keyboard (Task 37)
+
+Everything is a native button, link, checkbox, or select, so Tab reaches it, with a visible focus ring. A "Skip to the page" link is the first thing a keyboard reaches. On top of that:
+
+| Keys | Does |
+| --- | --- |
+| Ctrl or Cmd + K, or `/` | The command palette: type to filter every page and action, arrows to move, Enter to open, Esc to close. |
+| `g` then a letter | Go to a page: `o` Overview, `f` Findings, `s` Sources, `m` Map, `y` Systems, `c` Collectors, `n` Network, `h` Schedule, `t` Notifications, `d` Devices, `i` Ignore rules, `p` Priorities, `e` Thresholds, `a` AI, `b` Backups, `g` Signatures, `l` Logs, `r` Replay, `u` Audit. |
+| `?` | The list of shortcuts. |
+
+Shortcuts are off while a field has focus or a dialog is open.
+
+## How it is checked (Task 37)
+
+- **Contrast, every build.** `tests/test_ui_contrast.py` reads the colour tokens from the stylesheet and checks every text colour on every background it is used on, in the light theme and both ways of getting the dark one, against WCAG 2.1 AA (4.5:1 for text, 3:1 for control borders and accents). A change that breaks contrast fails the tests. The first run found three real failures (white text on the dark theme's red button, light control borders, faint hint text), all fixed.
+- **In a real browser.** `scripts/ui-audit.js` audits one page in the browser it is loaded in: horizontal overflow, text whose measured contrast is below AA, controls with no accessible name, images with no alt, duplicate ids, heading order, tables with no caption, and tap targets under 24 by 24 pixels, in both themes. Every admin page was audited at 360, 768, and 1280 px; the findings (uncaptioned tables, three input types missing the control height, a file input that overflowed the map toolbar at 360 px, a crowded phone top bar, a stray scrollbar on the tab strip) were fixed and the audit re-run clean. Screenshots of the key pages in both themes at the three widths are in `docs/ui-audit/`.
+- **Failure states.** A rejected form (an expired page) and an unknown address show a page with a way back to a person, and plain text to a script or an htmx request, so nothing parses an HTML error.
+
 ## Done when
 
-- Every setting in every config file can be viewed and changed from a form, and the form and the text editor agree.
-- A fresh install can be fully set up, including a collector with its server address, without opening a text editor.
-- No page needs horizontal scrolling at 360 px; the menu works by keyboard and touch; both themes pass a contrast check.
-- Saving never reloads the page; every write shows a result and (where possible) an Undo.
-- The pages are checked in a real browser at phone, tablet, and desktop widths, in both themes, with screenshots kept in the release notes.
+- [x] Every setting in every config file can be viewed and changed from a form, and the form and the text editor agree (the few exceptions, such as adding a new agent or an advice-rule condition, are listed in the changelog).
+- [x] A fresh install can be fully set up, including a collector with its server address, without opening a text editor.
+- [x] No page needs horizontal scrolling at 360 px; the menu works by keyboard and touch; both themes pass a contrast check.
+- [x] Saving never reloads the page; every write shows a result and (where possible) an Undo.
+- [x] The pages are checked in a real browser at phone, tablet, and desktop widths, in both themes, with screenshots kept in `docs/ui-audit/`.

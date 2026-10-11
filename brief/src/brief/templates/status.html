@@ -10,7 +10,7 @@
 
 <div class="card">
 <h2>Health</h2>
-<table>
+<table><caption class="sr-only">Health checks</caption>
   <tr><td>Overall</td><td class="{{ 'ok' if health.status == 'ok' else 'bad' }}">{{ health.status }}</td></tr>
   {% for name, c in health.checks.items() %}
   <tr><td>{{ name }}</td><td class="{{ 'ok' if c.ok else 'bad' }}">{{ c.state or ('ok' if c.ok else 'failed') }}{% if c.last_cycle_s is defined %} ({{ c.last_cycle_s }}s ago){% endif %}</td></tr>
@@ -20,7 +20,7 @@
 
 <div class="card">
 <h2>Ingest, last 24 hours</h2>
-<table>
+<table><caption class="sr-only">Ingest, last 24 hours</caption>
   <tr><td>Events counted</td><td>{{ stats.counted }}</td></tr>
   <tr><td>Events suppressed by ignore rules</td><td>{{ stats.suppressed }}</td></tr>
   <tr><td>Signatures</td><td>{{ stats.signatures }}</td></tr>

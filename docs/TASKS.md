@@ -255,9 +255,9 @@ Spec: `docs/guide/11-admin-ui.md`. Started 2026-10-10 after the first real setup
 - [x] AI (providers, chains, guardrails, prompts), Agents, Proposals (diff review), Evaluation, MCP clients, and the Network map rebuilt on the shell, every setting a control.
 - Accept: the AI page no longer needs the text editor for anything.
 
-## Task 37: Polish and verification
-- [ ] A responsive, accessibility, and contrast audit of every page in a real browser at three widths in both themes; screenshots kept; fixes applied.
-- [ ] Error and empty states reviewed; keyboard shortcuts and a command palette for jumping between pages; documentation and the deploy guide updated.
+## Task 37: Polish and verification (built 2026-10-11, version 0.0.53)
+- [x] A responsive, accessibility, and contrast audit of every page in a real browser at three widths in both themes; screenshots kept; fixes applied.
+- [x] Error and empty states reviewed; keyboard shortcuts and a command palette for jumping between pages; documentation and the deploy guide updated.
 - Accept: the "Done when" list in the guide passes.
 
 ## Later (not in the first build)

@@ -14,6 +14,7 @@
 <script defer src="/static/ui.js?v={{ asset_v }}"></script>
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{ csrf }}"}'>
+<a class="skip-link" href="#main">Skip to the page</a>
 {% from "_ui.html" import icon, chip %}
 {% include "_icons.html" %}
 <div class="app">
@@ -36,10 +37,11 @@
         {% for c in topbar %}{% if c.href %}<a class="chip-link" href="{{ c.href }}">{{ chip(c.kind, c.text) }}</a>{% else %}{{ chip(c.kind, c.text) }}{% endif %}{% endfor %}
       </div>
       <div class="topbar-spacer"></div>
-      <span class="muted">{{ icon('user') }} {{ session.username }}</span>
-      <form class="inline" method="post" action="/admin/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit" class="btn btn--secondary btn--sm">{{ icon('log-out') }}<span>Sign out</span></button></form>
+      <button type="button" class="btn btn--secondary btn--sm palette-btn" data-action="palette" aria-label="Jump to a page" aria-keyshortcuts="Control+K">{{ icon('search') }}<span>Jump to</span><kbd>Ctrl K</kbd></button>
+      <span class="muted user-name">{{ icon('user') }} {{ session.username }}</span>
+      <form class="inline" method="post" action="/admin/logout"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit" class="btn btn--secondary btn--sm" aria-label="Sign out">{{ icon('log-out') }}<span class="btn-label">Sign out</span></button></form>
     </header>
-    <main class="page">
+    <main class="page" id="main" tabindex="-1">
 {% block body %}{% endblock %}
     </main>
   </div>
@@ -48,6 +50,31 @@
 <dialog id="confirm-dialog" aria-labelledby="confirm-title">
   <div class="dialog-body"><h3 id="confirm-title">Are you sure?</h3><p data-confirm-text></p></div>
   <div class="dialog-foot"><button type="button" class="btn btn--secondary" data-confirm-cancel>Cancel</button><button type="button" class="btn" data-confirm-ok>Continue</button></div>
+</dialog>
+<dialog id="palette" aria-label="Jump to a page">
+  <div class="palette-box">
+    <input type="search" id="palette-input" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-label="Jump to a page or action" placeholder="Jump to a page or action" autocomplete="off" spellcheck="false">
+    <ul id="palette-list" role="listbox" aria-label="Pages and actions"></ul>
+    <p class="palette-hint muted"><kbd>&uarr;</kbd> <kbd>&darr;</kbd> to move, <kbd>Enter</kbd> to open, <kbd>Esc</kbd> to close</p>
+  </div>
+</dialog>
+<dialog id="help-dialog" aria-labelledby="help-title">
+  <div class="dialog-body">
+    <h3 id="help-title">Keyboard shortcuts</h3>
+    <table class="plain"><caption class="sr-only">Keyboard shortcuts</caption><tbody>
+      <tr><td><kbd>Ctrl</kbd> <kbd>K</kbd> or <kbd>/</kbd></td><td>Jump to any page or action</td></tr>
+      <tr><td><kbd>g</kbd> then <kbd>o</kbd></td><td>Overview</td></tr>
+      <tr><td><kbd>g</kbd> then <kbd>f</kbd> / <kbd>s</kbd> / <kbd>m</kbd></td><td>Findings / Sources / Network map</td></tr>
+      <tr><td><kbd>g</kbd> then <kbd>y</kbd> / <kbd>c</kbd> / <kbd>n</kbd></td><td>Systems / Collectors / Network and access</td></tr>
+      <tr><td><kbd>g</kbd> then <kbd>h</kbd> / <kbd>t</kbd> / <kbd>d</kbd></td><td>Schedule / Notifications / Devices and map</td></tr>
+      <tr><td><kbd>g</kbd> then <kbd>i</kbd> / <kbd>p</kbd> / <kbd>e</kbd></td><td>Ignore rules / Priorities / Thresholds</td></tr>
+      <tr><td><kbd>g</kbd> then <kbd>a</kbd> / <kbd>b</kbd></td><td>AI and agents / Backups</td></tr>
+      <tr><td><kbd>g</kbd> then <kbd>g</kbd> / <kbd>l</kbd> / <kbd>r</kbd> / <kbd>u</kbd></td><td>Signatures / Log search / Replay / Audit log</td></tr>
+      <tr><td><kbd>?</kbd></td><td>This list</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Close a dialog or the menu</td></tr>
+    </tbody></table>
+  </div>
+  <div class="dialog-foot"><button type="button" class="btn" data-help-close>Close</button></div>
 </dialog>
 </body>
 </html>

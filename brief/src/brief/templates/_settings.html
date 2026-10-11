@@ -76,7 +76,7 @@
 {% if ns.open %}</div>{% endif %}
 {% if section.grid %}
 {% set g = namespace(last=none) %}
-<div class="scroll"><table class="grid-table">
+<div class="scroll"><table class="grid-table"><caption class="sr-only">{{ section.title }}</caption>
   <thead><tr><th scope="col">{{ section.grid_title or 'Name' }}</th>{% for col in section.grid %}<th scope="col">{{ col|replace('_', ' ')|capitalize }}</th>{% endfor %}</tr></thead>
   <tbody>
   {% for item in section.items %}{% if item.columns is not defined and '.' in item.key and item.key.rsplit('.', 1)[1] in section.grid %}

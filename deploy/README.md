@@ -141,3 +141,12 @@ Off by default. The **AI** page in the admin GUI (and `brief ai ...`) holds the 
 ## Rollback
 
 Stop the container and repoint the devices back at the host server's built-in syslog server (most devices send to only one target, so there is no automatic second copy). That is why the old server stays configured, idle, for the first week. Remove `appdata/homelab-brief` only when you are sure you no longer want the history.
+
+## Using the admin interface
+
+Open `https://<container-ip>/admin` (or the advertised address). Everything is set by clicking: each page of the Configure, Detection, and Intelligence groups has a form for every setting in its config file, with an "Edit as text" link when you prefer the file. Every save is checked, kept as a version (a toast offers Undo), and recorded in the audit log.
+
+- **Jump anywhere with the keyboard.** Press `Ctrl K` (or `Cmd K`, or `/`) for the command palette, `g` then a letter to go straight to a page (`g` `f` for Findings), and `?` for the full list.
+- **Phone and tablet.** The side menu becomes a drawer below 960 px and tables become cards, so the interface is usable from 360 px up. Theme follows the system and can be changed from the menu.
+- **After an upgrade,** a browser may keep the old stylesheet and scripts for a moment; the addresses carry the version, so a reload picks the new ones up.
+- **Nothing here needs the text editor.** If a form refuses a value it says why next to the field, and nothing is saved until it is valid.

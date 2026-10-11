@@ -38,7 +38,7 @@
 <h2>History</h2>
 <div class="card scroll">
 {% if versions %}
-<table class="wide">
+<table class="wide"><caption class="sr-only">Saved versions</caption>
   <thead><tr><th>Version (UTC)</th><th>Replaced by</th><th>By</th><th class="num">Size</th><th></th></tr></thead>
   {% for v in versions %}<tr>
     <td><code>{{ v.stamp }}</code></td><td>{{ v.action }}</td><td>{{ v.user }}</td><td class="num">{{ v.size }} B</td>

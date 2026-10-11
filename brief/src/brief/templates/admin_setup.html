@@ -21,7 +21,7 @@
   <input type="hidden" name="count" value="{{ rows|length }}">
   <datalist id="systems">{% for s in existing %}<option value="{{ s }}">{% endfor %}</datalist>
   <div class="card scroll">
-  <table class="wide">
+  <table class="wide"><caption class="sr-only">Senders to name</caption>
     <thead><tr><th>Sender</th><th class="num">24 h</th><th>Talks about</th><th>System</th><th>Kind</th></tr></thead>
     {% for r in rows %}<tr>
       <td><code>{{ r.host }}</code><input type="hidden" name="host-{{ loop.index0 }}" value="{{ r.host }}"></td>
@@ -43,7 +43,7 @@
 
 <h2>3. Check the rest</h2>
 <div class="card">
-  <table class="plain">
+  <table class="plain"><caption class="sr-only">Summary</caption>
     <tr><td>Config files that load</td><td>{% if invalid_files %}<span class="bad">{{ invalid_files }} not valid</span> (<a href="/admin/config">fix them</a>){% else %}<span class="ok">all valid</span>{% endif %}</td></tr>
     <tr><td>Notifications beyond Home Assistant</td><td><a href="/admin/config/notify.yaml">notify.yaml</a>, then <code>brief notify test</code></td></tr>
     <tr><td>Optional AI wording</td><td>off by default: <a href="/admin/config/ai.yaml">ai.yaml</a></td></tr>

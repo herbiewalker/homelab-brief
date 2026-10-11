@@ -223,3 +223,87 @@ document.body.addEventListener("htmx:beforeRequest", function (ev) {
   });
   document.querySelectorAll("[data-saved-views]").forEach(renderViews);
 })();
+
+// Keyboard: a command palette (Ctrl or Cmd + K, or "/"), a shortcut list ("?"), and "g" then a letter to jump to a page.
+(function () {
+  "use strict";
+  var GO = {
+    o: "/admin", f: "/admin/findings", s: "/admin/sources", m: "/admin/map", w: "/admin/wizard", y: "/admin/systems",
+    c: "/admin/collectors", n: "/admin/network", h: "/admin/schedule", t: "/admin/notifications", d: "/admin/devices",
+    p: "/admin/priorities", i: "/admin/ignore", e: "/admin/thresholds", a: "/admin/ai", b: "/admin/backups",
+    g: "/admin/signatures", l: "/admin/logs", r: "/admin/replay", u: "/admin/audit"
+  };
+  var dlg = document.getElementById("palette"), help = document.getElementById("help-dialog");
+  if (!dlg) return;
+  var input = document.getElementById("palette-input"), list = document.getElementById("palette-list");
+  var items = [], shown = [], at = 0, lastFocus = null;
+
+  function collect() {
+    items = [];
+    document.querySelectorAll(".sidebar a.nav-link[href]").forEach(function (a) {
+      var label = (a.querySelector("span") || a).textContent.trim();
+      var group = "", g = a.previousElementSibling; while (g && !g.classList.contains("nav-group")) g = g.previousElementSibling;
+      if (g) group = g.textContent.trim();
+      items.push({ label: label, group: group, href: a.getAttribute("href") });
+    });
+    items.push({ label: "Change theme", group: "Action", run: function () { var b = document.querySelector('[data-action="theme"]'); if (b) b.click(); } });
+    items.push({ label: "Keyboard shortcuts", group: "Action", run: function () { openHelp(); } });
+  }
+  function render() {
+    var q = input.value.trim().toLowerCase();
+    shown = items.filter(function (i) { return !q || (i.label + " " + i.group).toLowerCase().indexOf(q) !== -1; });
+    at = Math.min(at, Math.max(shown.length - 1, 0));
+    list.textContent = "";
+    shown.forEach(function (it, n) {
+      var li = document.createElement("li"), s = document.createElement("span"), g = document.createElement("span");
+      li.id = "palette-opt-" + n; li.setAttribute("role", "option"); li.setAttribute("aria-selected", n === at ? "true" : "false");
+      s.textContent = it.label; g.className = "muted"; g.textContent = it.group;
+      li.appendChild(s); li.appendChild(g);
+      li.addEventListener("mousedown", function (e) { e.preventDefault(); choose(n); });
+      list.appendChild(li);
+    });
+    if (!shown.length) { var none = document.createElement("li"); none.className = "muted"; none.textContent = "Nothing matches."; none.setAttribute("role", "presentation"); list.appendChild(none); }
+    input.setAttribute("aria-activedescendant", shown.length ? "palette-opt-" + at : "");
+    var cur = list.querySelector('[aria-selected="true"]'); if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: "nearest" });
+  }
+  function choose(n) {
+    var it = shown[n]; if (!it) return;
+    dlg.close();
+    if (it.run) it.run(); else window.location.href = it.href;
+  }
+  function openPalette() {
+    if (dlg.open) return;
+    lastFocus = document.activeElement; collect(); input.value = ""; at = 0; render();
+    if (typeof dlg.showModal === "function") dlg.showModal(); else dlg.setAttribute("open", "");
+    input.focus();
+  }
+  function openHelp() { if (help && typeof help.showModal === "function" && !help.open) help.showModal(); }
+  dlg.addEventListener("close", function () { if (lastFocus && lastFocus.focus) lastFocus.focus(); });
+  input.addEventListener("input", function () { at = 0; render(); });
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowDown") { e.preventDefault(); at = Math.min(at + 1, shown.length - 1); render(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); at = Math.max(at - 1, 0); render(); }
+    else if (e.key === "Enter") { e.preventDefault(); choose(at); }
+  });
+  dlg.addEventListener("click", function (e) { if (e.target === dlg) dlg.close(); });
+  if (help) help.addEventListener("click", function (e) { if (e.target === help || e.target.closest("[data-help-close]")) help.close(); });
+
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest('[data-action="palette"]'); if (t) { e.preventDefault(); openPalette(); }
+  });
+
+  var pending = null, timer = null;
+  function typing(el) { return el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable); }
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openPalette(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target) || document.querySelector("dialog[open]")) return;
+    if (e.key === "/") { e.preventDefault(); openPalette(); return; }
+    if (e.key === "?") { e.preventDefault(); openHelp(); return; }
+    if (pending) {
+      var dest = GO[e.key.toLowerCase()]; pending = null; clearTimeout(timer);
+      if (dest) { e.preventDefault(); window.location.href = dest; }
+      return;
+    }
+    if (e.key === "g") { pending = true; timer = setTimeout(function () { pending = null; }, 1200); }
+  });
+})();

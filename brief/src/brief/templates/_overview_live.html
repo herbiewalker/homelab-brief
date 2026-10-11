@@ -88,19 +88,19 @@
 <div class="grid grid--2">
   <section class="card" aria-labelledby="runs-h">
     <h2 id="runs-h">Last runs</h2>
-    <table class="plain">
+    <table class="plain"><caption class="sr-only">Last runs</caption>
       {% for r in data.runs %}<tr><td>{{ r.job }}</td><td class="{{ 'ok' if r.ok else ('bad' if r.ok is false else 'muted') }}">{{ r.when_text }}{% if r.note %} <span class="muted">{{ r.note }}</span>{% endif %}</td></tr>{% endfor %}
       <tr><td>Version</td><td>{{ version }}</td></tr>
       <tr><td>Up</td><td>{{ uptime }}</td></tr>
     </table>
     <h3>Health checks</h3>
-    <table class="plain">
+    <table class="plain"><caption class="sr-only">Health checks</caption>
       {% for name, c in data.health.checks.items() %}<tr><td>{{ name }}</td><td class="{{ 'ok' if c.ok else 'bad' }}">{{ c.state or ('ok' if c.ok else 'failing') }}</td></tr>{% endfor %}
     </table>
   </section>
   <section class="card" aria-labelledby="busy-h">
     <h2 id="busy-h">Busiest senders, last hour</h2>
-    {% if data.top_sources %}<table class="plain">
+    {% if data.top_sources %}<table class="plain"><caption class="sr-only">Busiest senders in the last hour</caption>
       {% for host, n in data.top_sources %}<tr><td><code>{{ host }}</code></td><td class="num">{{ '{:,}'.format(n) }}</td></tr>{% endfor %}
     </table><div class="muted"><a href="/admin/sources">All sources</a></div>
     {% else %}<p class="muted">Nothing received in the last hour.</p>{% endif %}

@@ -1,0 +1,13 @@
+{% extends "auth.html" %}
+{% from "_ui.html" import icon %}
+{% block title %}{{ heading }}{% endblock %}
+{% block body %}
+<section class="card" aria-labelledby="err-h">
+  <h1 id="err-h">{{ heading }}</h1>
+  <div class="alert alert--bad" role="alert">{{ icon('alert-circle') }}<div>{{ message }}</div></div>
+  <p class="muted">{{ hint }}</p>
+  <div class="row">
+    <a class="btn" href="/admin">{{ icon('activity') }}<span>Go to the overview</span></a>
+  </div>
+</section>
+{% endblock %}

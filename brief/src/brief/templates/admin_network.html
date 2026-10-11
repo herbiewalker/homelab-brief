@@ -8,7 +8,7 @@
 
 <div class="grid">
   <div class="card"><h2>Detected</h2>
-    <table class="plain">
+    <table class="plain"><caption class="sr-only">What was detected</caption>
       <tr><td>Mode</td><td><span class="badge ok">{{ net.mode }}</span>{% if net.mode != net.detected_mode %} <span class="muted">(detected: {{ net.detected_mode }})</span>{% endif %}</td></tr>
       <tr><td>Container address</td><td>{% if net.address %}<code>{{ net.address }}</code>{% else %}<span class="bad">no route found</span>{% endif %}</td></tr>
       <tr><td>Advertised address</td><td>{% if net.advertised %}<code>{{ net.advertised }}</code>{% else %}<span class="muted">not set</span>{% endif %}</td></tr>
@@ -16,7 +16,7 @@
     </table>
   </div>
   <div class="card"><h2>Listening</h2>
-    <table class="plain">
+    <table class="plain"><caption class="sr-only">What is listening</caption>
       {% for l in listening %}<tr><td>{{ l.name }}</td><td><code>{{ l.port }}</code> <span class="{{ 'ok' if l.ok else 'bad' }}">{{ 'answers' if l.ok else 'not answering' }}</span></td></tr>{% endfor %}
     </table>
   </div>
@@ -45,7 +45,7 @@
 <h2>Where each expected sender stands</h2>
 <div class="card scroll">
 {% if repointing %}
-<table class="wide">
+<table class="wide"><caption class="sr-only">Where each expected sender stands</caption>
   <thead><tr><th>System</th><th>Sender</th><th>Status</th><th>Last line</th></tr></thead>
   {% for r in repointing %}<tr><td>{{ r.system }}</td><td><code>{{ r.entry }}</code></td><td><span class="badge {{ 'ok' if r.state == 'receiving' else 'bad' }}">{{ r.state }}</span></td><td>{{ r.last_seen or '' }}</td></tr>{% endfor %}
 </table>

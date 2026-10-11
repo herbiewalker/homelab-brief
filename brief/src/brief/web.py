@@ -396,10 +396,38 @@ def create_app(
             )
         return Response("Sign in first.", status_code=401)
 
+    def wants_page(request: Request) -> bool:
+        """A person navigating (not htmx, not a script) gets a page; everything else keeps the plain text."""
+        return "text/html" in request.headers.get("accept", "") and not request.headers.get("hx-request")
+
+    def error_page(request: Request, status: int, heading: str, message: str, hint: str = "") -> Response:
+        return render(request, "error.html", status, heading=heading, message=message, hint=hint)
+
     @app.exception_handler(Forbidden)
     async def forbidden(request: Request, exc: Forbidden) -> Response:
         log("csrf_rejected", path=request.url.path, reason=exc.reason)
+        if wants_page(request):
+            return error_page(
+                request,
+                403,
+                "That request was rejected",
+                "Request rejected.",
+                "The page was probably open for a long time, or the request did not come from this site. "
+                "Go back, reload the page, and try again.",
+            )
         return Response("Request rejected.", status_code=403)
+
+    @app.exception_handler(404)
+    async def not_found(request: Request, exc) -> Response:
+        if wants_page(request) and request.url.path.startswith("/admin"):
+            return error_page(
+                request,
+                404,
+                "Page not found",
+                "Not found.",
+                "There is no such page. Use the menu, or press Ctrl K to jump to a page.",
+            )
+        return Response("Not found.", status_code=404, media_type="text/plain")
 
     admin = APIRouter(prefix="/admin", dependencies=[Depends(guard)])
 
