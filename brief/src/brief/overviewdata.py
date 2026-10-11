@@ -53,7 +53,12 @@ def headline_action(status: dict, health: dict, config_errors: dict, checklist_o
         return {"text": "See silent hosts", "href": "/admin/sources", "why": "a host has stopped sending"}
     failing = [n for n, c in (status.get("collectors") or {}).items() if not c.get("ok")]
     if failing:
-        return {"text": "Open the collectors", "href": "/admin/collectors", "why": f"{failing[0]} is failing"}
+        reason = str(status["collectors"][failing[0]].get("error") or "see the collectors page")[:90]
+        return {
+            "text": "Open the collectors",
+            "href": "/admin/collectors",
+            "why": f"{failing[0]} is failing: {reason}",
+        }
     return None
 
 
@@ -109,7 +114,7 @@ def cards(data: dict, counts: dict) -> list[dict]:
     out.append(
         _card(
             "Storage",
-            f"{days} days" if days is not None else "ok",
+            ("over 10 years" if days > 3650 else f"{round(days)} days") if days is not None else "ok",
             (
                 f"{free} GB free, archive {p.get('archive_mb')} MB"
                 if free is not None
@@ -138,7 +143,9 @@ def cards(data: dict, counts: dict) -> list[dict]:
             _card(
                 "Collectors",
                 f"{len(collectors) - len(failing)} of {len(collectors)}",
-                f"{failing[0]} failing" if failing else "all reporting",
+                f"{failing[0]}: {str(collectors[failing[0]].get('error') or 'failing')[:90]}"
+                if failing
+                else "all reporting",
                 "bad" if failing else "ok",
                 "/admin/collectors",
                 "plug",

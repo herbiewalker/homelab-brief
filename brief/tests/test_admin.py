@@ -325,3 +325,25 @@ def test_an_unknown_admin_page_says_so_to_a_person_and_stays_plain_for_a_script(
     assert page.status_code == 404 and "Page not found" in page.text and "Ctrl K" in page.text
     assert lab.client.get("/admin/no-such-page").text == "Not found."
     assert " style=" not in page.text and "<script>" not in page.text
+
+
+def test_the_overview_says_why_a_collector_is_failing_and_never_shows_absurd_storage_days():
+    from brief import overviewdata
+
+    status = {
+        "pipeline": {
+            "events_24h": 5,
+            "storage_days_left": 1617185.3,
+            "archive_free_gb": 100,
+            "archive_mb": 3,
+        },
+        "collectors": {
+            "unraid": {"ok": False, "error": "no server could be read: server-1: no answer within 10 s"}
+        },
+    }
+    data = {"status": status, "open_alerts": 0, "ai_calls_today": 0}
+    by_label = {c["label"]: c for c in overviewdata.cards(data, {})}
+    assert by_label["Collectors"]["sub"] == "unraid: no server could be read: server-1: no answer within 10 s"
+    assert by_label["Storage"]["value"] == "over 10 years" and by_label["Storage"]["kind"] == ""
+    action = overviewdata.headline_action({**status, "run_ok": True}, {"checks": {}}, {}, False)
+    assert "no answer within 10 s" in action["why"]

@@ -5,6 +5,11 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.54
+
+- **The Overview says why a collector is failing.** The Collectors tile and the headline now show the collector's own error (for example "no server could be read: server-1: no answer within 10 s") instead of only its name.
+- **Storage no longer shows an impossible number** when the archive is barely growing: more than ten years is shown as "over 10 years".
+
 ## 0.0.53
 
 Task 37: the interface is checked and finished.
