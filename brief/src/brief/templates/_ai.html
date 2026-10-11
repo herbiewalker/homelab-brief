@@ -1,0 +1,11 @@
+{#- The heading, tabs, and messages shared by every tab of the AI area. Import with: {% from "_ai.html" import ai_head with context %} -#}
+{% from "_ui.html" import icon, alert, page_head %}
+
+{% macro ai_head(lead) -%}
+{% call page_head('AI and agents', lead) %}{% endcall %}
+<nav class="tabs" aria-label="AI sections">
+  {% for key, href, label in tabs %}<a class="tab" href="{{ href }}"{% if key == tab %} aria-current="page"{% endif %}>{{ label }}{% if key == 'proposals' and pending %} <span class="chip chip--info">{{ pending }}</span>{% endif %}</a>{% endfor %}
+</nav>
+{% if notice %}{% call alert('ok') %}{{ notice }}{% endcall %}{% endif %}
+{% if error %}{% call alert('bad') %}<strong>Not saved.</strong> {{ error }}{% endcall %}{% endif %}
+{%- endmacro %}

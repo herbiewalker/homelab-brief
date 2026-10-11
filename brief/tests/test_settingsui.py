@@ -118,3 +118,26 @@ def test_an_example_row_with_placeholders_in_a_list_is_not_shown():
     assert settingsui.load(settingspages.SYSTEMS, text)["rows"]["systems"] == []
     real = text.replace("<udm-hostname>", "198.51.100.1")
     assert settingsui.load(settingspages.SYSTEMS, real)["rows"]["systems"][0]["hosts"] == "198.51.100.1"
+
+
+def test_a_list_inside_a_one_line_mapping_and_a_list_over_two_lines_are_rewritten():
+    text = "tasks:\n  a: { chain: [local, template], prompt: p.md }\nagents:\n  x:\n    tools: [one, two,\n            three]   # keep\n    other: 1\n"
+    out = yamlscalar.set_flow_list(text, ["tasks", "a", "chain"], ["cloud", "template"])
+    out = yamlscalar.set_flow_list(out, ["agents", "x", "tools"], ["one", "four"])
+    data = yaml.safe_load(out)
+    assert data["tasks"]["a"] == {"chain": ["cloud", "template"], "prompt": "p.md"}
+    assert data["agents"]["x"] == {"tools": ["one", "four"], "other": 1} and "# keep" in out
+
+
+def test_rows_can_be_written_one_key_per_line():
+    out = yamlscalar.replace_list(
+        "# top\nproviders:\n  - { id: old }\nafter: 1\n",
+        ["providers"],
+        [{"id": "a", "model": "m x"}, {"id": "b"}],
+        block=True,
+    )
+    assert (
+        yaml.safe_load(out) == {"providers": [{"id": "a", "model": "m x"}, {"id": "b"}], "after": 1}
+        and "# top" in out
+    )
+    assert "    model: " in out  # a block, not a flow

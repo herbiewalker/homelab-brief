@@ -668,3 +668,160 @@ PAGES["display"] = Page(
     "",
 )
 SECTIONS.update({s.id: s for s in (DEVICES, TOPOLOGY, MAP, VIEWS, REGISTRY)})
+
+
+# ---------------------------------------------------------------- AI, MCP, and agents (Task 36)
+
+MODEL_RE = r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,120}$"
+PROVIDER_ID = r"^[a-z][a-z0-9_-]{0,30}$"
+
+AI_PROVIDERS = Section(
+    "ai-providers",
+    "Model providers",
+    "ai.yaml",
+    (),
+    (
+        Rows(
+            "providers",
+            "Providers",
+            (
+                Field("id", "Id", "text", "A short name that the fallback chains use.", required=True, pattern=PROVIDER_ID, pattern_help="lowercase letters, digits, hyphens, underscores.", slug=True, placeholder="local"),
+                Field("type", "Kind", "choice", "openai_compatible works with Ollama, llama.cpp, vLLM, LM Studio, a LiteLLM gateway, and hosted services.", ("openai_compatible", "anthropic"), initial="openai_compatible"),
+                Field("base_url", "Address", "text", "For an OpenAI-compatible server, its /v1 address. Not needed for the Anthropic kind.", pattern=r"^https?://\S+$", pattern_help="an address starting with http:// or https://.", placeholder="http://198.51.100.20:11434/v1"),
+                Field("api_key_var", "Key variable", "var", "The container variable holding this provider's key, if it needs one. Never type the key itself.", placeholder="AI_LOCAL_API_KEY"),
+                Field("model", "Model", "text", "Use List models on the card above to see what the server offers.", pattern=MODEL_RE, pattern_help="a model name such as llama3.1:8b."),
+                Field("locality", "Where it runs", "choice", "lan: on your network. cloud: a hosted service, which only ever receives system-level summaries and only for features you allow.", ("lan", "cloud"), initial="lan"),
+                Field("timeout_s", "Time limit", "number", unit="seconds", minimum=1, maximum=3600, initial=120),
+                Field("max_output_tokens", "Longest answer", "number", unit="tokens", minimum=1, maximum=100000, initial=1200),
+                Field("context_tokens", "Context size", "number", "Match the model server's own setting.", unit="tokens", minimum=256, maximum=2000000, initial=8192),
+                Field("disable_thinking", "Turn off the model's separate reasoning mode", "switch"),
+                Field("supports_tools", "Can call tools (needed for agents)", "switch", initial=True),
+                Field("enabled", "Switched on", "switch"),
+            ),
+            noun="provider",
+            help="Each provider is written as a block, one setting per line.",
+            block=True,
+            keep_examples=True,
+        ),
+    ),
+    blurb="The model servers the product may talk to. Switch one on only when its address is set. A test is a real, tiny model call and counts toward the daily budget.",
+    icon="sparkles",
+    switch="",
+)  # fmt: skip
+
+AI_OTHER = Section(
+    "ai-other",
+    "Outside clients and logging",
+    "ai.yaml",
+    (),
+    (
+        Field("mcp.default_scope", "What a new client token may read by default", "multi", "logs, devices, and dns reveal more about your household: leave them off unless a client needs them.", ("status", "findings", "history", "systems", "map", "logs", "devices", "dns", "propose"), group="Outside AI clients (MCP)"),
+        Field("logging.record_calls", "Record every model call", "switch", "Provider, model, feature, time, tokens, and outcome. Never the content.", group="Logging"),
+    ),
+    blurb="Defaults for tokens you create on the MCP tab, and the call log.",
+    icon="shield",
+    switch="",
+)  # fmt: skip
+
+AGENT_LIMITS = {
+    "max_steps": ("Steps per run", "steps", 1, 30),
+    "max_tool_calls": ("Tool calls per run", "calls", 1, 60),
+    "max_tokens_per_run": ("Tokens per run", "tokens", 500, 200000),
+    "timeout_s": ("Time limit per run", "seconds", 10, 3600),
+    "max_runs_per_day": ("Runs per day", "runs", 1, 1000),
+}
+
+AGENT_DEFAULTS = Section(
+    "agents-defaults",
+    "Limits for every agent",
+    "agents.yaml",
+    ("defaults",),
+    (
+        *[
+            Field(key, label, "number", unit=unit, minimum=low, maximum=high, group="Hard limits" if key == "max_steps" else "")
+            for key, (label, unit, low, high) in AGENT_LIMITS.items()
+        ],
+        Field("chain", "Providers to try", "list", "Providers that can call tools, in order. Agents have no template fallback.", pattern=PROVIDER_ID, pattern_help="a provider id.", group="Model"),
+    ),
+    blurb="An agent that sets its own limit below overrides these. Every statement an agent writes must cite a tool result; that rule is locked on.",
+    icon="bot",
+    switch="",
+)  # fmt: skip
+
+
+def _agent_section(
+    name: str, title: str, blurb: str, triggers: tuple[Field, ...], tools: tuple[str, ...]
+) -> Section:
+    limits = tuple(
+        Field(
+            key,
+            label,
+            "number",
+            "Empty uses the limit for every agent.",
+            unit=unit,
+            minimum=low,
+            maximum=high,
+            group="Own limits" if key == "max_steps" else "",
+        )
+        for key, (label, unit, low, high) in AGENT_LIMITS.items()
+    )
+    return Section(
+        f"agent-{name}",
+        title,
+        "agents.yaml",
+        ("agents", name),
+        (
+            *triggers,
+            *limits,
+            Field(
+                "tools",
+                "Tools it may use",
+                "multi",
+                "All read-only. A tool that reads device detail or raw lines is never offered to a cloud model.",
+                tools,
+                group="Tools",
+            ),
+        ),
+        blurb=blurb,
+        icon="bot",
+        switch="enabled",
+        switch_label=f"Let {title.lower()} run",
+    )
+
+
+def _agent_sections() -> tuple[Section, ...]:
+    from brief.agenttools import TOOLS
+
+    names = tuple(sorted(TOOLS))
+    return (
+        _agent_section(
+            "investigator", "Investigator", "Looks into a high-ranking finding and attaches a cited note to it.",
+            (
+                Field("trigger.on_finding_rank_at_least", "Investigate findings ranked at least", "number", "A finding at or above this rank is investigated in the background.", minimum=0, maximum=1000, group="When it runs"),
+                Field("trigger.on_demand", "Also allow an on-demand run", "switch"),
+            ),
+            names,
+        ),
+        _agent_section(
+            "triage", "Triage", "Gives a verdict on each new log pattern. It only advises; it never ignores or routes anything itself.",
+            (
+                Field("trigger.on_new_signatures", "Look at new log patterns", "switch", group="When it runs"),
+                Field("trigger.after_learning_period", "Wait for the learning period to end", "switch"),
+            ),
+            names,
+        ),
+        _agent_section(
+            "tuner", "Tuner", "Suggests single-value changes to thresholds and priorities. Each is replayed over the last week by the product, and nothing changes until you approve it.",
+            (Field("trigger.schedule", "Run", "choice", "weekly, or never to run it only by hand.", ("weekly", "never"), group="When it runs"),),
+            names,
+        ),
+        _agent_section(
+            "ask_the_lab", "Ask the lab", "Answers questions typed on the Agents tab, with a citation for every fact.",
+            (Field("trigger.on_demand", "Answer questions typed in the admin interface", "switch", group="When it runs"),),
+            names,
+        ),
+    )  # fmt: skip
+
+
+AGENT_SECTIONS = _agent_sections()
+SECTIONS.update({s.id: s for s in (AI_PROVIDERS, AI_OTHER, AGENT_DEFAULTS, *AGENT_SECTIONS)})

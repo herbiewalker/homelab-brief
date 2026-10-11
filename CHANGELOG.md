@@ -5,6 +5,17 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.52
+
+Task 36: the AI area is rebuilt as five tabs and nothing in it needs the text editor any more.
+
+- **Settings**: the master switch with today's usage, the feature switches with their chains and call counts, a status card per provider (Test connection, List models), and **a form for the providers themselves**: kind, address, key variable, model, where it runs, time and size limits, tool support, and on or off, with a row to add or remove each one. Fallback chains, adjustable guardrails, the default scopes for new MCP tokens, call logging, and the prompts are on the same tab.
+- **Agents**: every agent is a card (on or off, when it runs, its own limits, and which tools it may use), plus the limits that apply to all of them and the providers they try. Recent runs, the queue, Ask the lab, triage verdicts, and the evaluation scores are on the same tab.
+- **Proposals**: each one as a before-and-after diff with its evidence, **Approve and apply** or **Reject** with a reason, and the decided ones below.
+- **MCP clients** and **Tests and call log** (the side-by-side brief, explain a finding, and every model call) have their own tabs. A new token shows once, with a Copy button.
+- The **network map** page and the prompt editor use the new layout; map settings are on Devices and map.
+- Settings of every kind of file now keep their comments where the file allows it: a list inside a one-line mapping, a list that runs over two lines, and a providers list written one setting per line are all edited in place.
+
 ## 0.0.51
 
 Task 35: the operations pages are rebuilt on the new interface. Each is usable on a phone and by keyboard.

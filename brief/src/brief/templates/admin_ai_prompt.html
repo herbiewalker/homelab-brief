@@ -1,33 +1,36 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, alert, page_head %}
 {% block title %}Prompt {{ key|replace('_', ' ') }}{% endblock %}
 {% block body %}
-<h1>Prompt: {{ key|replace('_', ' ') }}</h1>
-<p class="muted"><a href="/admin/ai">Back to the AI page</a>. Plain Markdown with no vendor-specific syntax. The notes above the line holding only <code>---</code> are for you; everything after it is sent to the model as its instructions. Placeholders in braces, such as <code>{date}</code>, are filled in by the product.</p>
-{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
-{% if error %}<div class="card error"><strong>Not saved.</strong> {{ error }}</div>{% endif %}
+{% call page_head('Prompt: ' ~ key|replace('_', ' '), 'Plain Markdown with no vendor-specific syntax. The notes above the line holding only --- are for you; everything after it is sent to the model as its instructions. Placeholders in braces, such as {date}, are filled in by the product.', [('/admin/ai', 'AI and agents')]) %}{% endcall %}
+<div class="stack">
+{% if notice %}{% call alert('ok') %}{{ notice }}{% endcall %}{% endif %}
+{% if error %}{% call alert('bad') %}<strong>Not saved.</strong> {{ error }}{% endcall %}{% endif %}
 <form class="card" method="post" action="/admin/ai/prompt/{{ key }}">
   <input type="hidden" name="csrf_token" value="{{ csrf }}">
   <input type="hidden" name="base" value="{{ base }}">
-  <label for="text">{{ file }}{% if not customised %} (the shipped default){% endif %}</label>
-  <textarea id="text" name="text" rows="24" spellcheck="false" autocomplete="off">{{ text }}</textarea>
-  <p><label><input type="checkbox" name="accept_eval"> Save even though the score is lower (only matters if the agent's test cases flag this change)</label></p>
-  <button type="submit">Save</button>
+  <div class="field"><label for="text">{{ file }}{% if not customised %} (the shipped default){% endif %}</label>
+    <textarea id="text" name="text" rows="24" spellcheck="false" autocomplete="off">{{ text }}</textarea></div>
+  <label class="check"><input type="checkbox" name="accept_eval"><span>Save even though the score is lower (only matters if the agent's test cases flag this change)</span></label>
+  <div class="row spaced"><button type="submit" class="btn">Save</button></div>
 </form>
 {% if customised %}
-<form class="inline" method="post" action="/admin/ai/prompt/{{ key }}/reset">
+<form method="post" action="/admin/ai/prompt/{{ key }}/reset" data-confirm="Go back to the shipped default? Your version stays in the history." data-confirm-ok="Use default">
   <input type="hidden" name="csrf_token" value="{{ csrf }}">
-  <button class="quiet" type="submit">Use the shipped default</button>
+  <button class="btn btn--secondary" type="submit">Use the shipped default</button>
 </form>
 {% endif %}
-<h2>History</h2>
-<div class="card scroll">
-{% if versions %}
-<table class="wide">
-  <tr><th>Saved</th><th>By</th><th>What</th><th></th></tr>
-  {% for v in versions %}<tr><td>{{ v.stamp }}</td><td>{{ v.user }}</td><td>{{ v.action }}</td><td>
-    <form class="inline" method="post" action="/admin/ai/prompt/{{ key }}/restore"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="stamp" value="{{ v.stamp }}"><button class="quiet" type="submit">Restore</button></form>
-  </td></tr>{% endfor %}
-</table>
-{% else %}<p>No earlier versions yet.</p>{% endif %}
+<section class="card card--flush" aria-label="History">
+  <div class="card-head card-body"><h2>History</h2></div>
+  {% if versions %}
+  <div class="scroll"><table class="table--cards">
+    <caption class="sr-only">Earlier versions of this prompt</caption>
+    <thead><tr><th scope="col">Saved</th><th scope="col">By</th><th scope="col">What</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>{% for v in versions %}<tr><td data-label="Saved">{{ v.stamp }}</td><td data-label="By">{{ v.user }}</td><td data-label="What">{{ v.action }}</td><td data-label="">
+      <form method="post" action="/admin/ai/prompt/{{ key }}/restore"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="stamp" value="{{ v.stamp }}"><button class="btn btn--secondary btn--sm" type="submit">Restore</button></form>
+    </td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}<div class="card-body"><p class="muted">No earlier versions yet.</p></div>{% endif %}
+</section>
 </div>
 {% endblock %}

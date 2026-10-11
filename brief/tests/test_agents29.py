@@ -653,7 +653,7 @@ def test_the_mcp_finding_tool_returns_the_note_and_the_list_flags_it(lab, monkey
 
 def test_ask_the_lab_queues_a_question_and_shows_the_cited_answer(lab, monkeypatch):  # noqa: F811
     four(lab)
-    page = lab.client.get("/admin/ai")
+    page = lab.client.get("/admin/ai/agents")
     assert "<h2>Ask the lab</h2>" in page.text and "<h2>Triage verdicts</h2>" in page.text
     csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
     assert lab.client.post("/admin/ai/ask", data={"question": "why?"}).status_code == 403  # no CSRF token

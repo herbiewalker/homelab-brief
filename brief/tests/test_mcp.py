@@ -423,7 +423,7 @@ def test_the_weekly_resource_is_trimmed_to_system_tables_without_the_devices_sco
 
 
 def test_the_ai_page_makes_and_revokes_tokens(lab):  # noqa: F811
-    page = lab.client.get("/admin/ai")
+    page = lab.client.get("/admin/ai/mcp")
     assert "MCP clients" in page.text
     csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
     made = lab.client.post(
@@ -438,7 +438,7 @@ def test_the_ai_page_makes_and_revokes_tokens(lab):  # noqa: F811
     assert made.status_code == 200 and "cannot be shown again" in made.text
     secret = re.search(r"hbm_[0-9a-f]{8}_[\w-]+", made.text).group(0)
     assert mcptokens.verify(lab.store, secret).scopes == {"status", "findings"}
-    listing = lab.client.get("/admin/ai").text
+    listing = lab.client.get("/admin/ai/mcp").text
     assert "home-assistant" in listing and secret not in listing
     assert audit(lab, "mcp.token.create")[0]["detail"].startswith("home-assistant")
     bad = lab.client.post(

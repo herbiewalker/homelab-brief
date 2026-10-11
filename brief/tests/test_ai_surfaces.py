@@ -221,11 +221,12 @@ def test_the_page_needs_a_login_and_shows_everything_off(lab):  # noqa: F811
         "OFF",
         "Locked (always on)",
         "Adjustable",
-        "Call log",
         "Fallback chains",
-        "Side by side",
+        "Model providers",
     ):
         assert text in page.text, text
+    tools = lab.client.get("/admin/ai/activity").text
+    assert "Call log" in tools and "Side by side" in tools
     assert "AI_LOCAL_API_KEY" in page.text and "super-secret" not in page.text
     assert 'href="/admin/ai"' in lab.client.get("/admin").text  # in the navigation
 
@@ -321,7 +322,8 @@ def test_the_preview_shows_the_template_beside_the_providers_version(lab, serve,
         os.environ.pop("AI_LOCAL_API_KEY", None)
     assert r.status_code == 200 and "Template" in r.text and "Quiet night" in r.text
     assert (
-        "Call log" in lab.client.get("/admin/ai").text and "morning_brief" in lab.client.get("/admin/ai").text
+        "Call log" in lab.client.get("/admin/ai/activity").text
+        and "morning_brief" in lab.client.get("/admin/ai/activity").text
     )
 
 

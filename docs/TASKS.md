@@ -251,8 +251,8 @@ Spec: `docs/guide/11-admin-ui.md`. Started 2026-10-10 after the first real setup
 - [x] Findings and alerts, Sources, Signatures, Log search, Replay and tuning, Audit log, Backups and exports rebuilt on the shell: filters, sort, search, pagination, bulk actions where they make sense (alerts, signatures), saved views (kept in the browser).
 - Accept: each page is usable at 360 px and by keyboard.
 
-## Task 36: Intelligence pages
-- [ ] AI (providers, chains, guardrails, prompts), Agents, Proposals (diff review), Evaluation, MCP clients, and the Network map rebuilt on the shell, every setting a control.
+## Task 36: Intelligence pages (built 2026-10-11, version 0.0.52)
+- [x] AI (providers, chains, guardrails, prompts), Agents, Proposals (diff review), Evaluation, MCP clients, and the Network map rebuilt on the shell, every setting a control.
 - Accept: the AI page no longer needs the text editor for anything.
 
 ## Task 37: Polish and verification

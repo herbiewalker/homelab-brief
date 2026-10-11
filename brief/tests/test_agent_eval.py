@@ -348,14 +348,14 @@ def test_resetting_a_prompt_to_the_shipped_default_is_tested_as_well(lab, brain)
 
 def test_the_ai_page_runs_the_cases_and_shows_scores_and_held_changes(lab, brain):  # noqa: F811
     prepare(lab)
-    page = lab.client.get("/admin/ai")
+    page = lab.client.get("/admin/ai/agents")
     assert "<h2>Agent evaluation</h2>" in page.text and "Not run yet." in page.text
     csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
     assert lab.client.post("/admin/ai/eval", data={"agent": "triage"}).status_code == 403
     assert lab.client.post("/admin/ai/eval", data={"csrf_token": csrf, "agent": "nobody"}).status_code == 404
     done = lab.client.post("/admin/ai/eval", data={"csrf_token": csrf, "agent": "triage"})
     assert done.status_code == 303
-    after = lab.client.get("/admin/ai").text
+    after = lab.client.get("/admin/ai/agents").text
     assert "triage" in after and "Not run yet." not in after and "3/3" in after or "1/1" in after
     assert [a["action"] for a in rows(lab, "audit_log") if a["action"] == "agent.eval"] == ["agent.eval"]
     with pytest.raises(configedit.EditError):
@@ -368,7 +368,7 @@ def test_the_ai_page_runs_the_cases_and_shows_scores_and_held_changes(lab, brain
             configedit.digest(old),
             lab.settings.state_dir,
         )
-    assert "Changes held for a lower score" in lab.client.get("/admin/ai").text
+    assert "Changes held for a lower score" in lab.client.get("/admin/ai/agents").text
 
 
 def test_the_editor_blocks_a_worse_prompt_until_the_box_is_ticked(lab, brain):  # noqa: F811

@@ -1,16 +1,18 @@
-<div class="row spaced">
-  <label><input type="checkbox" id="layer-network" checked> Network</label>
-  <label><input type="checkbox" id="layer-services" checked> Services</label>
-  <label><input type="checkbox" id="layer-power" checked> Power</label>
-  <button type="button" id="map-export" class="quiet">Export layout</button>
-  <label class="quiet">Import layout <input type="file" id="map-import" accept="application/json"></label>
-  <button type="button" id="map-reset" class="quiet">Forget my layout</button>
-  {% if save_url %}<button type="button" id="map-save">Save as default</button>{% endif %}
+<div class="card">
+  <div class="filters">
+    <label class="check"><input type="checkbox" id="layer-network" checked><span>Network</span></label>
+    <label class="check"><input type="checkbox" id="layer-services" checked><span>Services</span></label>
+    <label class="check"><input type="checkbox" id="layer-power" checked><span>Power</span></label>
+    <button type="button" id="map-export" class="btn btn--secondary btn--sm">Export layout</button>
+    <label class="btn btn--secondary btn--sm">Import layout <input type="file" id="map-import" accept="application/json"></label>
+    <button type="button" id="map-reset" class="btn btn--secondary btn--sm">Forget my layout</button>
+    {% if save_url %}<button type="button" id="map-save" class="btn btn--sm">Save as default</button>{% endif %}
+  </div>
+  <p class="muted" id="map-note" aria-live="polite">Loading the map.</p>
 </div>
-<p class="muted" id="map-note">Loading the map.</p>
 <div class="map-wrap">
-  <div id="map" data-api="/api/v1/map"{% if save_url %} data-save="{{ save_url }}" data-csrf="{{ csrf }}"{% endif %}></div>
-  <div id="map-detail" class="card map-detail"><p class="muted">Click a node for details. Double-click a server to fold what is inside it.</p></div>
+  <div id="map" role="img" aria-label="Interactive network map" data-api="/api/v1/map"{% if save_url %} data-save="{{ save_url }}" data-csrf="{{ csrf }}"{% endif %}></div>
+  <div id="map-detail" class="card map-detail" aria-live="polite"><p class="muted">Click a node for details. Double-click a server to fold what is inside it.</p></div>
 </div>
 <script src="/static/vendor/cytoscape-3.34.3.min.js"></script>
 <script src="/static/map.js"></script>

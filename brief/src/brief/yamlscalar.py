@@ -79,7 +79,7 @@ def _inline(lines: list[str], i: int, rest: list[str], new: str, add: bool = Fal
         start += m.end() - 1
         segment = line[start:]
     key = rest[-1]
-    m = re.search(rf"(?P<head>[{{,]\s*{re.escape(key)}:\s*)(?P<val>[^,}}\s]+)", segment)
+    m = re.search(rf"(?P<head>[{{,]\s*{re.escape(key)}:\s*)(?P<val>\[[^\]]*\]|[^,}}\s]+)", segment)
     if not m and add:  # the key is not in the one-line mapping yet: add it before the closing brace
         close = segment.find("}")
         if close < 0 or "{" in segment[1:close]:
@@ -222,7 +222,7 @@ def _parent_is_inline(lines: list[str], path: list[str], add: bool = False):
     return None
 
 
-def replace_list(text: str, path: list[str], rows: list[dict]) -> str:
+def replace_list(text: str, path: list[str], rows: list[dict], block: bool = False) -> str:
     """Rewrite the list at `path` from rows (dicts), one flow-style row per line. Comments above the key are kept;
     an empty list becomes `key: []`. The key may be absent (it is added to its parent)."""
     lines = text.split("\n")
@@ -244,7 +244,15 @@ def replace_list(text: str, path: list[str], rows: list[dict]) -> str:
     while end > at + 1 and lines[end - 1].lstrip().startswith("#"):
         end -= 1
     head = " " * base + f"{path[-1]}:"
-    new = [head + " []"] if not rows else [head, *[" " * (base + 2) + f"- {render_row(r)}" for r in rows]]
+    if not rows:
+        new = [head + " []"]
+    elif block:  # one key per line, easier to read and to edit by hand
+        new = [head]
+        for r in rows:
+            for i, (k, v) in enumerate(r.items()):
+                new.append(" " * (base + 2) + ("- " if i == 0 else "  ") + f"{k}: {render_text(v)}")
+    else:
+        new = [head, *[" " * (base + 2) + f"- {render_row(r)}" for r in rows]]
     lines[at:end] = new
     return "\n".join(lines)
 
@@ -254,6 +262,9 @@ def set_flow_list(text: str, path: list[str], items: list) -> str:
     A block list under the key is replaced; an absent key is added to its parent."""
     new = "[" + ", ".join(render_text(i) for i in items) + "]"
     lines = text.split("\n")
+    inline = _parent_is_inline(lines, path, add=True) if len(path) > 1 else None
+    if inline is not None:  # the list sits in a one-line { a: [..] } mapping
+        return inline(new)
     try:
         at, base = _find(lines, path)
     except EditError:
@@ -269,11 +280,21 @@ def set_flow_list(text: str, path: list[str], items: list) -> str:
     if val and not val.startswith("["):
         raise EditError(f"{'.'.join(path)} is not a list")
     end = at + 1
+    if val.startswith("[") and "]" not in val:  # a flow list that runs onto the next lines
+        for j in range(at + 1, len(lines)):
+            end = j + 1
+            if "]" in lines[j]:
+                break
     if not val:  # a block list (or an empty value): the dash lines under the key are replaced
         end = _block_end(lines, at, base)
         while end > at + 1 and lines[end - 1].lstrip().startswith("#"):
             end -= 1
-    lines[at:end] = [m.group("head").rstrip() + " " + new + m.group("tail")]
+    tail = m.group("tail")
+    if end > at + 1 and not tail.strip():  # a comment after the closing bracket on a later line is kept
+        after = re.search(r"\][ \t]*(#.*)$", lines[end - 1])
+        if after:
+            tail = "   " + after.group(1)
+    lines[at:end] = [m.group("head").rstrip() + " " + new + tail]
     return "\n".join(lines)
 
 

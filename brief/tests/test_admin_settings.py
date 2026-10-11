@@ -504,3 +504,179 @@ def test_views_and_sensors_save(lab):  # noqa: F811
         "crit": 3,
         "direction": "high",
     }
+
+
+# ---------------------------------------------------------------- Task 36: AI, MCP, and agents
+
+
+def test_untouched_ai_and_agent_forms_change_nothing_in_the_shipped_files():
+    from brief import settingsui
+
+    for file, sections in (
+        ("ai.yaml", (settingspages.AI_OTHER,)),
+        ("agents.yaml", (settingspages.AGENT_DEFAULTS, *settingspages.AGENT_SECTIONS)),
+    ):
+        text = (_brief() / file).read_text()
+        for section in sections:
+            state = settingsui.load(section, text)
+            values, errors, on = settingsui.parse(section, form_of(section, state))
+            assert not errors, (section.id, errors)
+            assert settingsui.apply(section, text, values, on) == text, section.id
+
+
+def test_every_agent_in_the_shipped_file_has_a_card_and_its_tools_are_real():
+    from brief.agenttools import TOOLS
+
+    shipped = yaml.safe_load((_brief() / "agents.yaml").read_text())["agents"]
+    cards = {s.id for s in settingspages.AGENT_SECTIONS}
+    assert cards == {f"agent-{name}" for name in shipped}
+    tools = next(f for f in settingspages.AGENT_SECTIONS[0].scalar_fields if f.key == "tools").choices
+    assert set(tools) == set(TOOLS) and all(t in tools for a in shipped.values() for t in a["tools"])
+
+
+def test_the_ai_tabs_render_and_need_a_login(lab):  # noqa: F811
+    ship(lab, "ai.yaml")
+    ship(lab, "agents.yaml")
+    for path in (
+        "/admin/ai",
+        "/admin/ai/agents",
+        "/admin/ai/proposals",
+        "/admin/ai/mcp",
+        "/admin/ai/activity",
+    ):
+        assert lab.https().get(path).status_code == 303, path
+        page = lab.client.get(path)
+        assert (
+            page.status_code == 200
+            and 'aria-label="AI sections"' in page.text
+            and 'aria-current="page"' in page.text
+        ), path
+        assert " style=" not in page.text and "<script>" not in page.text, path
+        for table in re.findall(r"<table[^>]*>.*?</table>", page.text, re.S):
+            assert "<caption" in table, path
+
+
+PROVIDER_FORM = {
+    "r.providers.count": "2",
+    "r.providers.0.orig": "0", "r.providers.0.id": "local", "r.providers.0.type": "openai_compatible",
+    "r.providers.0.base_url": "http://198.51.100.20:11434/v1", "r.providers.0.api_key_var": "AI_LOCAL_API_KEY",
+    "r.providers.0.model": "llama3.1:8b", "r.providers.0.locality": "lan", "r.providers.0.timeout_s": "90",
+    "r.providers.0.max_output_tokens": "1200", "r.providers.0.context_tokens": "8192",
+    "r.providers.0.supports_tools": "on", "r.providers.0.enabled": "on",
+    "r.providers.1.orig": "1", "r.providers.1.id": "cloud", "r.providers.1.type": "openai_compatible",
+    "r.providers.1.locality": "cloud", "r.providers.1.timeout_s": "60", "r.providers.1.max_output_tokens": "1200",
+    "r.providers.1.context_tokens": "32000", "r.providers.1.supports_tools": "on",
+}  # fmt: skip
+
+
+def test_the_provider_card_shows_the_shipped_example_and_saves_blocks(lab):  # noqa: F811
+    ship(lab, "ai.yaml")
+    html = lab.client.get("/admin/ai").text
+    assert 'value="local"' in html and 'value="cloud"' in html  # the shipped examples are shown, to fill in
+    assert "model-server-ip" not in html  # the placeholder address is an empty box
+    r = save(lab, "/admin/ai", "ai-providers", **PROVIDER_FORM)
+    assert r.status_code == 200, r.text[-600:]
+    text = (lab.cfg / "ai.yaml").read_text()
+    providers = yaml.safe_load(text)["providers"]
+    assert providers[0]["base_url"] == "http://198.51.100.20:11434/v1" and providers[0]["enabled"] is True
+    assert providers[0]["model"] == "llama3.1:8b" and providers[0]["timeout_s"] == 90
+    assert (
+        providers[1]["id"] == "cloud" and "base_url" not in providers[1] and providers[1]["enabled"] is False
+    )
+    assert "    base_url: " in text  # written one setting per line
+    assert yaml.safe_load(text)["tasks"]["morning_brief"]["chain"] == [
+        "local",
+        "template",
+    ]  # the rest is untouched
+
+
+def test_a_provider_switched_on_without_an_address_or_with_a_bad_one_is_refused(lab):  # noqa: F811
+    ship(lab, "ai.yaml")
+    row = {
+        "r.providers.count": "1",
+        "r.providers.0.orig": "0",
+        "r.providers.0.id": "local",
+        "r.providers.0.enabled": "on",
+    }
+    r = save(lab, "/admin/ai", "ai-providers", **row)
+    assert r.status_code == 422 and "no real base_url" in r.text and not (lab.cfg / "ai.yaml").exists()
+    bad = {**row, "r.providers.0.base_url": "ftp://x", "r.providers.0.enabled": ""}
+    r = save(lab, "/admin/ai", "ai-providers", **bad)
+    assert r.status_code == 422 and "address starting with http" in r.text
+
+
+def test_removing_a_provider_that_a_chain_uses_is_refused_with_the_reason(lab):  # noqa: F811
+    ship(lab, "ai.yaml")
+    row = {"r.providers.count": "1", "r.providers.0.orig": "1", "r.providers.0.id": "cloud"}
+    r = save(lab, "/admin/ai", "ai-providers", **row)
+    assert r.status_code == 422 and "not a provider" in r.text
+
+
+def test_the_mcp_default_scopes_and_call_logging_save(lab):  # noqa: F811
+    from brief import settingsui
+
+    ship(lab, "ai.yaml")
+    form = form_of(
+        settingspages.AI_OTHER, settingsui.load(settingspages.AI_OTHER, (_brief() / "ai.yaml").read_text())
+    )
+    form["f.mcp.default_scope"] = ["status", "findings"]
+    form.pop("f.logging.record_calls")
+    r = save(lab, "/admin/ai", "ai-other", **form)
+    assert r.status_code == 200, r.text[-400:]
+    data = yaml.safe_load((lab.cfg / "ai.yaml").read_text())
+    assert data["mcp"]["default_scope"] == ["status", "findings"] and data["logging"]["record_calls"] is False
+
+
+def test_an_agent_is_switched_on_and_limited_from_its_card(lab):  # noqa: F811
+    from brief import settingsui
+
+    ship(lab, "agents.yaml")
+    section = next(s for s in settingspages.AGENT_SECTIONS if s.id == "agent-investigator")
+    form = form_of(section, settingsui.load(section, (_brief() / "agents.yaml").read_text()))
+    form.update(
+        {
+            "f.enabled": "on",
+            "f.max_steps": "5",
+            "f.trigger.on_finding_rank_at_least": "70",
+            "f.tools": ["get_status", "list_findings", "get_finding"],
+        }
+    )
+    r = save(lab, "/admin/ai/agents", "agent-investigator", **form)
+    assert r.status_code == 200, r.text[-500:]
+    out = (lab.cfg / "agents.yaml").read_text()
+    agent = yaml.safe_load(out)["agents"]["investigator"]
+    assert (
+        agent["enabled"] is True
+        and agent["max_steps"] == 5
+        and agent["trigger"]["on_finding_rank_at_least"] == 70
+    )
+    assert set(agent["tools"]) == {"get_status", "list_findings", "get_finding"}
+    assert agent["prompt"] == "prompts/agent_investigator.md"
+    assert yaml.safe_load(out)["agents"]["triage"]["enabled"] is False  # the others are untouched
+    assert "# Phase 3 agents" in out
+
+
+def test_agent_limits_are_checked_and_the_tuner_schedule_is_a_choice(lab):  # noqa: F811
+    from brief import settingsui
+
+    ship(lab, "agents.yaml")
+    section = next(s for s in settingspages.AGENT_SECTIONS if s.id == "agent-tuner")
+    form = form_of(section, settingsui.load(section, (_brief() / "agents.yaml").read_text()))
+    bad = save(lab, "/admin/ai/agents", "agent-tuner", **{**form, "f.max_steps": "99"})
+    assert bad.status_code == 422 and "at most" in bad.text
+    ok = save(lab, "/admin/ai/agents", "agent-tuner", **{**form, "f.trigger.schedule": "never"})
+    tuner = yaml.safe_load((lab.cfg / "agents.yaml").read_text())["agents"]["tuner"]
+    assert ok.status_code == 200 and tuner["trigger"]["schedule"] == "never"
+
+
+def test_the_agent_defaults_card_edits_the_limits_and_the_provider_list(lab):  # noqa: F811
+    from brief import settingsui
+
+    ship(lab, "agents.yaml")
+    text = (_brief() / "agents.yaml").read_text()
+    form = form_of(settingspages.AGENT_DEFAULTS, settingsui.load(settingspages.AGENT_DEFAULTS, text))
+    form.update({"f.max_runs_per_day": "40", "f.chain": "local, cloud"})
+    assert save(lab, "/admin/ai/agents", "agents-defaults", **form).status_code == 200
+    defaults = yaml.safe_load((lab.cfg / "agents.yaml").read_text())["defaults"]
+    assert defaults["max_runs_per_day"] == 40 and defaults["chain"] == ["local", "cloud"]
+    assert defaults["require_citations"] is True

@@ -1,9 +1,14 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, alert, page_head %}
 {% block title %}Network map{% endblock %}
 {% block body %}
-<h1>Network map</h1>
-{% if not enabled %}<div class="card notice">The map is switched off. Set <code>enabled: true</code> in <a href="/admin/config">map.yaml</a>; it works with only <a href="/admin/config">topology.yaml</a> filled in and gets richer as collectors run.</div>{% endif %}
+{% call page_head('Network map', 'What is on your network and how it connects. Drag nodes to arrange them; click one for details.') %}
+<a class="btn btn--secondary" href="/admin/devices">{{ icon('sliders') }}<span>Map settings</span></a>
+{% endcall %}
+<div class="stack">
+{% if not enabled %}{% call alert('info') %}<strong>The map is switched off.</strong> Turn it on under <a href="/admin/devices">Devices and map</a>. It works with only the topology filled in and gets richer as collectors run.{% endcall %}{% endif %}
 {% include "_map_widget.html" %}
 <p class="muted">Positions are saved in this browser as you drag. <strong>Save as default</strong> makes this arrangement the default for every screen and for <a href="/map.svg">map.svg</a>.
 Also available read-only: <a href="/map.html">map.html</a>, <a href="/api/v1/map">map.json</a>{% if drawio %}, <a href="/admin/map/drawio">map.drawio</a>{% endif %}.</p>
+</div>
 {% endblock %}

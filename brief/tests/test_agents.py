@@ -514,7 +514,7 @@ def test_the_ai_page_lists_agents_and_their_runs(lab):  # noqa: F811
     go(
         lab, Model(calls(("get_status", {})), final("ok [ref:r1]")), now=datetime.now(UTC)
     )  # the page counts the real last 24 hours
-    page = lab.client.get("/admin/ai").text
+    page = lab.client.get("/admin/ai/agents").text
     assert "<h2>Agents</h2>" in page and "investigator" in page and "off_one" in page and "1 of 3" in page
 
 

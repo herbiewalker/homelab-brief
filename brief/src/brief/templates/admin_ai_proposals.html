@@ -1,0 +1,45 @@
+{% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, chip, alert, empty %}
+{% from "_ai.html" import ai_head with context %}
+{% block title %}AI proposals{% endblock %}
+{% block body %}
+{{ ai_head('Changes that an agent or an outside client suggests, shown as a before and after. Nothing changes until you approve.') }}
+<div class="stack">
+<section class="card" aria-label="Proposals">
+  <h2>Proposals</h2>
+  <p class="muted">Changes that an agent or an outside client suggests. <strong>Nothing changes until you approve.</strong> Approving saves the file through the config editor (checked again, kept as a version you can roll back, and written to the audit log). Rejecting is logged too. A proposal made against an older version of the file is closed instead of applied.</p>
+</section>
+{% for v in proposals %}
+<section class="card" aria-labelledby="pp-{{ v.p.proposal_id }}">
+  <div class="row row--between">
+    <h3 id="pp-{{ v.p.proposal_id }}">#{{ v.p.proposal_id }}: {{ v.p.file }}</h3>
+    <span class="row">{{ chip('ok', '+' ~ v.added) }}{{ chip('bad', '−' ~ v.removed) }}</span>
+  </div>
+  <p class="muted">From {{ v.p.source }}, {{ v.p.created }}</p>
+  <p><strong>Why:</strong> {{ v.p.reason }}</p>
+  <details><summary>Evidence</summary><pre>{{ v.p.evidence }}</pre></details>
+  <div class="diff scroll" role="region" aria-label="Changes to {{ v.p.file }}" tabindex="0">{% for l in v.diff %}<span class="{{ l.kind }}">{{ '+' if l.kind == 'add' else '-' if l.kind == 'del' else ' ' }}{{ l.text }}</span>{% endfor %}</div>
+  {% if v.stale %}{% call alert('bad') %}The file has changed since this was proposed. It can no longer be approved.{% endcall %}{% endif %}
+  {% if v.problem %}{% call alert('bad') %}It is not valid now: {{ v.problem }}{% endcall %}{% endif %}
+  <div class="row spaced">
+    {% if v.approvable %}<form method="post" action="/admin/ai/proposal/{{ v.p.proposal_id }}/approve"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit" class="btn">{{ icon('check') }}<span>Approve and apply</span></button></form>{% endif %}
+    <form class="filters" method="post" action="/admin/ai/proposal/{{ v.p.proposal_id }}/reject"><input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="f"><label for="rj-{{ v.p.proposal_id }}">Why not (optional)</label><input id="rj-{{ v.p.proposal_id }}" name="note" maxlength="300"></div>
+      <button type="submit" class="btn btn--secondary">Reject</button></form>
+  </div>
+</section>
+{% else %}
+<section class="card">{% call empty('check-circle', 'No proposals are waiting.', 'When an agent suggests a change to a threshold, a priority, or an ignore rule, it appears here to review.') %}{% endcall %}</section>
+{% endfor %}
+{% if proposal_history %}
+<section class="card card--flush" aria-label="Decided proposals">
+  <div class="card-head card-body"><h2>Decided</h2></div>
+  <div class="scroll"><table class="table--cards">
+    <caption class="sr-only">Decided proposals</caption>
+    <thead><tr><th scope="col">#</th><th scope="col">File</th><th scope="col">From</th><th scope="col">Outcome</th><th scope="col">By</th></tr></thead>
+    <tbody>{% for p in proposal_history %}{% if p.status != 'pending' %}<tr><td data-label="#">{{ p.proposal_id }}</td><td data-label="File">{{ p.file }}</td><td data-label="From">{{ p.source }}</td><td data-label="Outcome">{{ p.status }}{% if p.note %} <span class="muted">({{ p.note }})</span>{% endif %}</td><td data-label="By">{{ p.decided_by or '' }}</td></tr>{% endif %}{% endfor %}</tbody>
+  </table></div>
+</section>
+{% endif %}
+</div>
+{% endblock %}

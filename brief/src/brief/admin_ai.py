@@ -12,6 +12,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from brief import (
+    admin_settings,
     agenteval,
     agentrun,
     ai,
@@ -24,6 +25,7 @@ from brief import (
     mcptokens,
     outputs,
     proposals,
+    settingspages,
 )
 from brief.admin import Deps
 from brief.config import ConfigError
@@ -64,41 +66,86 @@ def register(admin: APIRouter, d: Deps) -> None:
                 )
             }
 
-    def page(request: Request, status: int = 200, **extra) -> HTMLResponse:
-        data = cli_ai.status(d.store)
+    TABS = (
+        ("settings", "/admin/ai", "Settings"),
+        ("agents", "/admin/ai/agents", "Agents"),
+        ("proposals", "/admin/ai/proposals", "Proposals"),
+        ("mcp", "/admin/ai/mcp", "MCP clients"),
+        ("activity", "/admin/ai/activity", "Tests and call log"),
+    )
+    TEMPLATES = {
+        "settings": "admin_ai.html",
+        "agents": "admin_ai_agents.html",
+        "proposals": "admin_ai_proposals.html",
+        "mcp": "admin_ai_mcp.html",
+        "activity": "admin_ai_activity.html",
+    }
+
+    def tab_context(request: Request, tab: str) -> dict:
+        """What one tab of the AI area shows. Each tab reads only what it needs."""
+        if tab == "settings":
+            return {
+                "ai": cli_ai.status(d.store),
+                "locked": aiconfig.LOCKED,
+                "features": aiconfig.FEATURES,
+                "feature_task": FEATURE_TASK,
+                "used": usage_by_task(),
+                "prompts": sorted(PROMPT_KEYS),
+                "task_names": [t for t in aiconfig.TASKS],
+                "cards": admin_settings.cards_html(d, request, ("ai-providers", "ai-other")),
+            }
+        if tab == "agents":
+            ids = ("agents-defaults", *(s.id for s in settingspages.AGENT_SECTIONS))
+            return {
+                "ai": cli_ai.status(d.store),
+                "agents": [
+                    {"spec": s, "runs": agentrun.runs_today(d.store, s.name, datetime.now(UTC))}
+                    for s in agentrun.load().values()
+                ],
+                "agent_runs": agentrun.recent_runs(d.store, 10),
+                "verdicts": agentrun.verdicts(d.store, 15),
+                "eval_scores": agenteval.latest(d.store),
+                "eval_live": agenteval.live_metrics(d.store),
+                "eval_flagged": agenteval.flagged_changes(d.store),
+                "agent_queue": agentrun.queue(d.store),
+                "cards": admin_settings.cards_html(d, request, ids),
+            }
+        if tab == "proposals":
+            return {
+                "proposals": [proposals.view(p) for p in proposals.listing(d.store)],
+                "proposal_history": proposals.listing(d.store, None, 10),
+            }
+        if tab == "mcp":
+            return {
+                "ai": cli_ai.status(d.store),
+                "tokens": mcptokens.listing(d.store),
+                "all_scopes": mcptokens.SCOPES,
+                "default_scopes": mcpserver.default_scopes(),
+            }
+        return {"ai": cli_ai.status(d.store), "calls": aitools.recent_calls(d.store, 30)}
+
+    def pending_proposals() -> int:
+        try:
+            with d.store.read() as db:
+                return db.execute("SELECT COUNT(*) FROM proposal WHERE status = 'pending'").fetchone()[0]
+        except Exception:  # a count is never worth an error page
+            return 0
+
+    def page(request: Request, status: int = 200, tab: str = "settings", **extra) -> HTMLResponse:
         text, _ = configedit.current("ai.yaml")
         return d.render(
             request,
-            "admin_ai.html",
+            TEMPLATES[tab],
             status,
             csrf=d.session(request).csrf,
             active="ai",
-            ai=data,
+            tab=tab,
+            tabs=TABS,
+            pending=pending_proposals(),
             base=configedit.digest(text),
-            locked=aiconfig.LOCKED,
-            features=aiconfig.FEATURES,
-            feature_task=FEATURE_TASK,
-            used=usage_by_task(),
-            calls=aitools.recent_calls(d.store, 30),
-            agents=[
-                {"spec": s, "runs": agentrun.runs_today(d.store, s.name, datetime.now(UTC))}
-                for s in agentrun.load().values()
-            ],
-            agent_runs=agentrun.recent_runs(d.store, 10),
-            verdicts=agentrun.verdicts(d.store, 15),
-            eval_scores=agenteval.latest(d.store),
-            eval_live=agenteval.live_metrics(d.store),
-            eval_flagged=agenteval.flagged_changes(d.store),
-            agent_queue=agentrun.queue(d.store),
-            proposals=[proposals.view(p) for p in proposals.listing(d.store)],
-            proposal_history=proposals.listing(d.store, None, 10),
-            tokens=mcptokens.listing(d.store),
-            all_scopes=mcptokens.SCOPES,
-            default_scopes=mcpserver.default_scopes(),
-            prompts=sorted(PROMPT_KEYS),
-            task_names=[t for t in aiconfig.TASKS],
             notice=extra.pop("notice", None),
             error=extra.pop("error", None),
+            **tab_context(request, tab),
             **extra,
         )
 
@@ -121,7 +168,7 @@ def register(admin: APIRouter, d: Deps) -> None:
         try:
             token_id, secret = mcptokens.create(d.store, name, scopes, locality, by=f"admin:{user}")
         except mcptokens.TokenError as exc:
-            return page(request, 422, error=str(exc))
+            return page(request, 422, tab="mcp", error=str(exc))
         d.store.audit(
             f"admin:{user}",
             "mcp.token.create",
@@ -139,9 +186,9 @@ def register(admin: APIRouter, d: Deps) -> None:
         try:
             name = mcptokens.revoke(d.store, str(form.get("token_id", "")))
         except mcptokens.TokenError as exc:
-            return page(request, 404, error=str(exc))
+            return page(request, 404, tab="mcp", error=str(exc))
         d.store.audit(f"admin:{user}", "mcp.token.revoke", name)
-        return RedirectResponse("/admin/ai?done=revoked", status_code=303)
+        return RedirectResponse("/admin/ai/mcp?done=revoked", status_code=303)
 
     @admin.post("/ai/proposal/{pid}/approve")
     async def proposal_approve(request: Request, pid: int):
@@ -149,8 +196,8 @@ def register(admin: APIRouter, d: Deps) -> None:
         try:
             proposals.approve(d.store, pid, user, d.settings.state_dir)
         except proposals.ProposalError as exc:
-            return page(request, exc.status, error=str(exc))
-        return RedirectResponse("/admin/ai?done=approved", status_code=303)
+            return page(request, exc.status, tab="proposals", error=str(exc))
+        return RedirectResponse("/admin/ai/proposals?done=approved", status_code=303)
 
     @admin.post("/ai/proposal/{pid}/reject")
     async def proposal_reject(request: Request, pid: int):
@@ -159,8 +206,8 @@ def register(admin: APIRouter, d: Deps) -> None:
         try:
             proposals.reject(d.store, pid, user, str(form.get("note", "")))
         except proposals.ProposalError as exc:
-            return page(request, exc.status, error=str(exc))
-        return RedirectResponse("/admin/ai?done=rejected", status_code=303)
+            return page(request, exc.status, tab="proposals", error=str(exc))
+        return RedirectResponse("/admin/ai/proposals?done=rejected", status_code=303)
 
     @admin.post("/ai/ask")
     async def ask(request: Request):
@@ -169,14 +216,19 @@ def register(admin: APIRouter, d: Deps) -> None:
         user = f"admin:{d.session(request).username}"
         spec = agentrun.load().get("ask_the_lab")
         if not question:
-            return page(request, 422, error="Type a question first.")
+            return page(request, 422, tab="agents", error="Type a question first.")
         if spec is None or not spec.enabled or not ai.feature_on(ai.load_settings(), "agents"):
             return page(
-                request, 422, error="Ask the lab is off: switch on AI, the agents feature, and this agent."
+                request,
+                422,
+                tab="agents",
+                error="Ask the lab is off: switch on AI, the agents feature, and this agent.",
             )
         if not agentrun.enqueue(d.store, "ask_the_lab", question, "on_demand", user):
-            return page(request, 422, error="That question is already waiting, or the queue is full.")
-        return RedirectResponse("/admin/ai?done=asked", status_code=303)
+            return page(
+                request, 422, tab="agents", error="That question is already waiting, or the queue is full."
+            )
+        return RedirectResponse("/admin/ai/agents?done=asked", status_code=303)
 
     @admin.get("/ai/ask/recent", response_class=HTMLResponse)
     def ask_recent(request: Request):
@@ -189,19 +241,30 @@ def register(admin: APIRouter, d: Deps) -> None:
         name = str(form.get("agent", "")).strip() or None
         user = f"admin:{d.session(request).username}"
         if name is not None and name not in agentrun.load():
-            return page(request, 404, error="There is no such agent.")
+            return page(request, 404, tab="agents", error="There is no such agent.")
         try:
             scores = agenteval.evaluate(d.store, [name] if name else None, label="manual")
         except agenteval.EvalError as exc:
-            return page(request, 422, error=str(exc))
+            return page(request, 422, tab="agents", error=str(exc))
         d.store.audit(
             user, "agent.eval", ", ".join(f"{s.agent} {s.score:.1f}" for s in scores) or "nothing to run"
         )
-        return RedirectResponse("/admin/ai?done=evaluated", status_code=303)
+        return RedirectResponse("/admin/ai/agents?done=evaluated", status_code=303)
 
     @admin.get("/ai", response_class=HTMLResponse)
     def ai_page(request: Request, done: str = ""):
         return page(request, notice=DONE.get(done))
+
+    def tab_route(tab: str):
+        def show(request: Request, done: str = ""):
+            return page(request, tab=tab, notice=DONE.get(done))
+
+        return show
+
+    for _tab, _href, _label in TABS[1:]:
+        admin.add_api_route(
+            _href.removeprefix("/admin"), tab_route(_tab), methods=["GET"], response_class=HTMLResponse
+        )
 
     @admin.post("/ai/master")
     async def master(request: Request):

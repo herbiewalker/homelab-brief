@@ -1,0 +1,46 @@
+{% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, chip, empty %}
+{% from "_ai.html" import ai_head with context %}
+{% block title %}AI tests and call log{% endblock %}
+{% block body %}
+{{ ai_head('Try a provider on real data before you rely on it, and see every model call that was made.') }}
+<div class="stack">
+<div class="grid grid--2">
+  <section class="card" aria-label="Side by side">
+    <h2>Side by side</h2>
+    <p>Today's brief: the template next to a provider's version, with the same privacy scan, checks, and budget as the real task.</p>
+    <form class="filters" hx-post="/admin/ai/preview" hx-target="#preview">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="f"><label for="pv-p">Provider</label><select id="pv-p" name="provider">{% for p in ai.providers if p.enabled %}<option value="{{ p.id }}">{{ p.id }} ({{ p.locality }})</option>{% else %}<option value="">No provider is switched on</option>{% endfor %}</select></div>
+      <button type="submit" class="btn">Compare</button>
+    </form>
+    <div id="preview" class="spaced" aria-live="polite"></div>
+  </section>
+  <section class="card" aria-label="Explain a finding">
+    <h2>Explain a finding</h2>
+    <form class="filters" hx-post="/admin/ai/explain" hx-target="#explain">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="f grow"><label for="finding_id">Finding id (from Findings and alerts)</label><input type="text" id="finding_id" name="finding_id" autocomplete="off"></div>
+      <button type="submit" class="btn">Explain</button>
+    </form>
+    <div id="explain" class="spaced" aria-live="polite"></div>
+  </section>
+</div>
+
+<section class="card card--flush" aria-label="Call log">
+  <div class="card-head card-body"><h2>Call log</h2></div>
+  <div class="card-body"><p class="muted">Provider, model, task, time, tokens, and outcome. Never the content.</p></div>
+  {% if calls %}
+  <div class="scroll"><table class="table--cards">
+    <caption class="sr-only">Recent model calls</caption>
+    <thead><tr><th scope="col">When (UTC)</th><th scope="col">Task</th><th scope="col">Provider</th><th scope="col">Outcome</th><th scope="col" class="num">ms</th><th scope="col">Tokens in/out</th><th scope="col">Note</th></tr></thead>
+    <tbody>
+    {% for c in calls %}<tr><td data-label="When (UTC)">{{ c.ts }}</td><td data-label="Task">{{ c.task }}</td><td data-label="Provider">{{ c.provider }}{% if c.locality == 'cloud' %} <span class="badge bad">cloud</span>{% endif %}</td><td data-label="Outcome">{{ c.outcome }}</td><td data-label="ms" class="num">{{ c.latency_ms if c.latency_ms is not none else '-' }}</td><td data-label="Tokens in/out">{{ c.tokens_in or 0 }} / {{ c.tokens_out or 0 }}</td><td data-label="Note"><div class="cell-clip">{{ c.detail or '' }}</div></td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  {% call empty('sparkles', 'No model call has been made.', 'Calls appear here as soon as a provider answers a test or a task.') %}{% endcall %}
+  {% endif %}
+</section>
+</div>
+{% endblock %}

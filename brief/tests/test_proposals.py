@@ -267,7 +267,7 @@ def test_the_ai_page_shows_the_diff_and_approves_and_rejects(lab):  # noqa: F811
     setup(lab)
     first = make(lab)
     second = make(lab, new_text=edited(configedit.current("ignore.yaml")[0]) + "# second\n")
-    page = lab.client.get("/admin/ai")
+    page = lab.client.get("/admin/ai/proposals")
     assert "Nothing changes until you approve" in page.text and "# proposed: a note" in page.text
     csrf = re.search(r'name="csrf_token" value="([^"]+)"', page.text).group(1)
     assert lab.client.post(f"/admin/ai/proposal/{first}/approve").status_code == 403  # no CSRF token

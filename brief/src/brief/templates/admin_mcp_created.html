@@ -1,11 +1,15 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, alert, page_head %}
 {% block title %}MCP token{% endblock %}
 {% block body %}
-<h1>MCP token for {{ client_name }}</h1>
-<div class="card notice">
-  <p><strong>Copy this now. It cannot be shown again.</strong> Only a hash is kept.</p>
-  <p><code>{{ secret }}</code></p>
+{% call page_head('MCP token for ' ~ client_name, '', [('/admin/ai/mcp', 'MCP clients')]) %}{% endcall %}
+<div class="stack">
+{% call alert('ok') %}<strong>Copy this now. It cannot be shown again.</strong> Only a hash is kept.{% endcall %}
+<section class="card">
+  <div class="row"><code id="mcp-secret" class="grow mono-cell">{{ secret }}</code>
+    <button type="button" class="btn btn--secondary btn--sm" data-action="copy" data-copy-from="#mcp-secret">{{ icon('copy') }}<span>Copy</span></button></div>
   <p>Scopes: {{ scopes|join(', ') }} ({{ locality }}). Endpoint: <code>https://&lt;this-host&gt;/mcp</code>, header <code>Authorization: Bearer &lt;token&gt;</code>. The server answers only while the master switch and the <strong>mcp_server</strong> feature are on.</p>
+</section>
+<p><a class="btn btn--secondary" href="/admin/ai/mcp">Back to the MCP clients</a></p>
 </div>
-<p><a href="/admin/ai">Back to the AI page</a></p>
 {% endblock %}

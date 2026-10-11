@@ -71,6 +71,10 @@ class Rows:
     noun: str = "row"
     help: str = ""
     required: bool = False  # at least one row is needed before the thing can be switched on
+    block: bool = False  # write each row as a block of one key per line (long rows) instead of one line
+    keep_examples: bool = (
+        False  # show a row that still holds a <placeholder> (as an empty field) instead of hiding it
+    )
     test_label: str = ""  # a "test" button on each row (posts the row to <card>/rowtest)
 
 
@@ -205,7 +209,7 @@ def load(section: Section, text: str, default_text: str = "") -> dict:
                 "_orig": i,
             }
             for i, row in enumerate(listed)
-            if not _has_placeholder(row)
+            if r.keep_examples or not _has_placeholder(row)
         ]
     enabled = bool(base.get(section.switch)) if section.switch else True
     return {"values": values, "defaults": defaults, "rows": rows, "enabled": enabled}
@@ -380,7 +384,10 @@ def apply(section: Section, text: str, values: Mapping, enabled: bool | None = N
         elif f.kind in ("list", "multi"):
             if value is MISSING or (current is MISSING and not value):
                 continue
-            if current is not MISSING and list(current or []) == list(value):
+            same = (
+                set(current or []) == set(value) if f.kind == "multi" else list(current or []) == list(value)
+            )
+            if current is not MISSING and same:
                 continue
             text = yamlscalar.set_flow_list(text, [*path, *f.key.split(".")], list(value))
             continue
@@ -406,7 +413,7 @@ def apply(section: Section, text: str, values: Mapping, enabled: bool | None = N
             merged.update({k: v for k, v in row.items() if k != "_orig"})
             rows.append(merged)
         if rows != original:
-            text = yamlscalar.replace_list(text, [*path, r.key], rows)
+            text = yamlscalar.replace_list(text, [*path, r.key], rows, block=r.block)
     return text
 
 

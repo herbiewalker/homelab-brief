@@ -1,255 +1,119 @@
 {% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, chip, tile, empty %}
+{% from "_ai.html" import ai_head with context %}
 {% block title %}AI{% endblock %}
 {% block body %}
-<h1>AI</h1>
-<p class="muted">Optional, and off by default. Rules decide what is a finding; a model only puts existing findings into words, and every task falls back to the plain template. Every change here is checked, kept as a version you can roll back from the <a href="/admin/config/ai.yaml">config editor</a>, and written to the audit log. Keys are never shown: they come from template variables.</p>
-{% if notice %}<div class="card notice">{{ notice }}</div>{% endif %}
-{% if error %}<div class="card error"><strong>Not saved.</strong> {{ error }}</div>{% endif %}
+{{ ai_head('Optional, and off by default. Rules decide what is a finding; a model only puts existing findings into words, and every task falls back to the plain template. Every change is checked, kept as a version you can undo, and recorded in the audit log.') }}
+<div class="stack">
 
-<div class="card">
-  <h2>Master switch</h2>
-  <p>AI is <span class="badge {{ 'ok' if ai.enabled else 'bad' }}">{{ 'ON' if ai.enabled else 'OFF' }}</span>.
-    {% if not ai.enabled %}No model is called anywhere; the product runs on rules and templates.{% else %}Only the features switched on below call a model.{% endif %}</p>
-  <form class="inline" method="post" action="/admin/ai/master">
+<section class="card" aria-labelledby="ms-h">
+  <div class="row row--between">
+    <h2 id="ms-h">Master switch</h2>
+    {{ chip('ok' if ai.enabled else 'bad', 'ON' if ai.enabled else 'OFF') }}
+  </div>
+  <p>AI is <strong>{{ 'ON' if ai.enabled else 'OFF' }}</strong>. {% if not ai.enabled %}No model is called anywhere; the product runs on rules and templates.{% else %}Only the features switched on below call a model.{% endif %}</p>
+  <div class="grid grid--tight">
+    {{ tile('Model calls today', ai.usage.calls_today ~ ' of ' ~ ai.usage.max_calls, '', '', '', 'sparkles') }}
+    {{ tile('Cloud tokens today', '{:,}'.format(ai.usage.cloud_tokens_today) ~ ' of ' ~ '{:,}'.format(ai.usage.max_cloud_tokens), '', '', '', 'shield') }}
+  </div>
+  <form class="spaced" method="post" action="/admin/ai/master">
     <input type="hidden" name="csrf_token" value="{{ csrf }}">
     <input type="hidden" name="state" value="{{ 'off' if ai.enabled else 'on' }}">
-    <button type="submit">{{ 'Turn AI off' if ai.enabled else 'Turn AI on' }}</button>
+    <button type="submit" class="btn {{ 'btn--secondary' if ai.enabled }}">{{ 'Turn AI off' if ai.enabled else 'Turn AI on' }}</button>
   </form>
-  <p class="muted">Today: {{ ai.usage.calls_today }} of {{ ai.usage.max_calls }} model calls; {{ ai.usage.cloud_tokens_today }} of {{ ai.usage.max_cloud_tokens }} cloud tokens.</p>
-</div>
+</section>
 
-<h2>Features</h2>
-<div class="card scroll">
-<table class="wide">
-  <tr><th>Feature</th><th>State</th><th>Fallback chain</th><th>Calls, 24 h</th></tr>
-  {% for f in features %}
-  <tr>
-    <td>{{ f|replace('_', ' ') }}</td>
-    <td>
-      <form class="inline" method="post" action="/admin/ai/feature">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <input type="hidden" name="name" value="{{ f }}">
-        <input type="hidden" name="state" value="{{ 'off' if ai.features[f] else 'on' }}">
-        <span class="badge {{ 'ok' if ai.features[f] else '' }}">{{ 'on' if ai.features[f] else 'off' }}</span>
-        <button class="quiet" type="submit">{{ 'Turn off' if ai.features[f] else 'Turn on' }}</button>
+<section class="card card--flush" aria-labelledby="ft-h">
+  <div class="card-head card-body"><h2 id="ft-h">Features</h2></div>
+  <div class="scroll"><table class="table--cards">
+    <caption class="sr-only">AI features</caption>
+    <thead><tr><th scope="col">Feature</th><th scope="col">State</th><th scope="col">Fallback chain</th><th scope="col" class="num">Calls, 24 h</th></tr></thead>
+    <tbody>
+    {% for f in features %}
+    <tr>
+      <td data-label="Feature">{{ f|replace('_', ' ') }}</td>
+      <td data-label="State">
+        <form class="row" method="post" action="/admin/ai/feature">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="name" value="{{ f }}"><input type="hidden" name="state" value="{{ 'off' if ai.features[f] else 'on' }}">
+          {{ chip('ok' if ai.features[f] else '', 'on' if ai.features[f] else 'off') }}
+          <button class="btn btn--secondary btn--sm" type="submit">{{ 'Turn off' if ai.features[f] else 'Turn on' }}</button>
+        </form>
+      </td>
+      <td data-label="Fallback chain">{% if feature_task.get(f) and ai.chains.get(feature_task[f]) %}{{ ai.chains[feature_task[f]]|join(' → ') }}{% else %}<span class="muted">{{ 'set on the Agents tab' if f == 'agents' else ('set on the MCP clients tab' if f == 'mcp_server' else '') }}</span>{% endif %}</td>
+      <td data-label="Calls, 24 h" class="num">{{ used.get(feature_task.get(f), 0) if feature_task.get(f) else '-' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+
+<section aria-labelledby="pv-h">
+  <h2 id="pv-h">Providers</h2>
+  {% if ai.providers %}
+  <div class="grid grid--2">
+  {% for p in ai.providers %}
+  <div class="card">
+    <div class="row row--between"><h3>{{ p.id }}</h3><span class="row">{{ chip('ok' if p.locality == 'lan' else 'bad', p.locality) }}{{ chip('ok' if p.enabled else '', 'on' if p.enabled else 'off') }}</span></div>
+    <table class="plain"><caption class="sr-only">Settings of provider {{ p.id }}</caption>
+      <tr><td>Kind</td><td>{{ p.type }}</td></tr>
+      <tr><td>Address</td><td>{% if p.usable %}<code>{{ p.base_url or 'the vendor default' }}</code>{% else %}<span class="muted">not set yet: add it in the form below</span>{% endif %}</td></tr>
+      <tr><td>Key</td><td>{% if p.key_var %}<code>{{ p.key_var }}</code> {{ 'is set' if p.key_set else 'is not set' }}{% else %}<span class="muted">none needed</span>{% endif %}</td></tr>
+      <tr><td>Model</td><td>{{ p.model or '' }}{% if not p.model %}<span class="muted">not chosen: use List models</span>{% endif %}</td></tr>
+    </table>
+    <div class="row spaced">
+      <form class="row" method="post" action="/admin/ai/provider">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="id" value="{{ p.id }}"><input type="hidden" name="action" value="{{ 'off' if p.enabled else 'on' }}">
+        <button type="submit" class="btn btn--secondary btn--sm">{{ 'Switch off' if p.enabled else 'Switch on' }}</button>
       </form>
-    </td>
-    <td>{% if feature_task.get(f) and ai.chains.get(feature_task[f]) %}{{ ai.chains[feature_task[f]]|join(' → ') }}{% else %}<span class="muted">{{ 'agents and the MCP server arrive with later tasks' if f in ('agents', 'mcp_server') else 'not set' }}</span>{% endif %}</td>
-    <td>{{ used.get(feature_task.get(f), 0) if feature_task.get(f) else '-' }}</td>
-  </tr>
+      <button class="btn btn--secondary btn--sm" type="button" hx-post="/admin/ai/test/{{ p.id }}" hx-target="#out-{{ p.id }}" hx-disabled-elt="this">{{ icon('play') }}<span>Test connection</span></button>
+      <button class="btn btn--secondary btn--sm" type="button" hx-post="/admin/ai/models/{{ p.id }}" hx-target="#out-{{ p.id }}" hx-disabled-elt="this">{{ icon('list') }}<span>List models</span></button>
+    </div>
+    <div id="out-{{ p.id }}" class="spaced" aria-live="polite"></div>
+  </div>
   {% endfor %}
-</table>
-</div>
-
-<h2>Providers</h2>
-{% for p in ai.providers %}
-<div class="card">
-  <h3>{{ p.id }} <span class="badge {{ 'ok' if p.locality == 'lan' else 'bad' }}">{{ p.locality }}</span> <span class="badge {{ 'ok' if p.enabled else '' }}">{{ 'on' if p.enabled else 'off' }}</span></h3>
-  <table class="plain">
-    <tr><td>Type</td><td>{{ p.type }}</td></tr>
-    <tr><td>Address</td><td>{% if p.usable %}<code>{{ p.base_url or 'the vendor default' }}</code>{% else %}<span class="muted">not set yet (edit base_url in the <a href="/admin/config/ai.yaml">config editor</a>)</span>{% endif %}</td></tr>
-    <tr><td>Key</td><td>{% if p.key_var %}<code>{{ p.key_var }}</code> {{ 'is set' if p.key_set else 'is not set' }}{% else %}<span class="muted">none needed</span>{% endif %}</td></tr>
-    <tr><td>Model</td><td>
-      <form class="inline" method="post" action="/admin/ai/provider">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="id" value="{{ p.id }}"><input type="hidden" name="action" value="model">
-        <input type="text" name="value" value="{{ p.model }}" placeholder="use List models" autocomplete="off"> <button class="quiet" type="submit">Set model</button>
-      </form>
-    </td></tr>
-  </table>
-  <form class="inline" method="post" action="/admin/ai/provider">
-    <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="id" value="{{ p.id }}">
-    <input type="hidden" name="action" value="{{ 'off' if p.enabled else 'on' }}">
-    <button type="submit">{{ 'Switch off' if p.enabled else 'Switch on' }}</button>
-  </form>
-  <button class="quiet" type="button" hx-post="/admin/ai/test/{{ p.id }}" hx-target="#out-{{ p.id }}">Test connection</button>
-  <button class="quiet" type="button" hx-post="/admin/ai/models/{{ p.id }}" hx-target="#out-{{ p.id }}">List models</button>
-  <div id="out-{{ p.id }}" class="spaced" aria-live="polite"></div>
+  </div>
   <p class="muted">A test is a real, tiny model call: it appears in the call log and counts toward the daily budget.</p>
-</div>
-{% else %}
-<div class="card">No providers are listed in <code>ai.yaml</code>.</div>
-{% endfor %}
+  {% else %}
+  <div class="card">{% call empty('sparkles', 'No providers yet', 'Add one in the form below.') %}{% endcall %}</div>
+  {% endif %}
+</section>
+{% for html in cards %}{{ html|safe }}{% endfor %}
 
-<h2>Fallback chains</h2>
-<div class="card">
+<section class="card" aria-labelledby="ch-h">
+  <h2 id="ch-h">Fallback chains</h2>
   <p class="muted">Providers are tried in order; <code>template</code> means no AI and must come last (the conversation task has no template).</p>
   {% for task in task_names %}
-  <form class="inline" method="post" action="/admin/ai/chain">
+  <form class="filters" method="post" action="/admin/ai/chain">
     <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="task" value="{{ task }}">
-    <label for="chain-{{ task }}">{{ task|replace('_', ' ') }}</label>
-    <input type="text" id="chain-{{ task }}" name="chain" value="{{ ai.chains.get(task, [])|join(', ') }}" autocomplete="off">
-    <button class="quiet" type="submit">Save</button>
+    <div class="f grow"><label for="chain-{{ task }}">{{ task|replace('_', ' ') }}</label><input type="text" id="chain-{{ task }}" name="chain" value="{{ ai.chains.get(task, [])|join(', ') }}" autocomplete="off"></div>
+    <button class="btn btn--secondary" type="submit">Save</button>
   </form>
   {% endfor %}
-</div>
+</section>
 
-<h2>Guardrails</h2>
-<div class="grid">
-  <div class="card">
-    <h3>Locked (always on)</h3>
+<div class="grid grid--2">
+  <section class="card" aria-labelledby="lk-h">
+    <h2 id="lk-h">Guardrails: Locked (always on)</h2>
     <p class="muted">These have no switch, so they cannot be turned off by accident.</p>
     <ul>{% for title, why in locked %}<li><strong>{{ title }}.</strong> {{ why }}</li>{% endfor %}</ul>
-  </div>
-  <div class="card">
-    <h3>Adjustable</h3>
+  </section>
+  <section class="card" aria-labelledby="ad-h">
+    <h2 id="ad-h">Guardrails: Adjustable</h2>
     {% for key, value in ai.guardrails.items() %}
-    <form class="inline" method="post" action="/admin/ai/guardrail">
+    <form class="filters" method="post" action="/admin/ai/guardrail">
       <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="key" value="{{ key }}">
-      <label for="g-{{ key }}">{{ key|replace('_', ' ') }}</label>
-      <input type="text" id="g-{{ key }}" name="value" value="{% if value is iterable and value is not string %}{{ value|join(', ') }}{% else %}{{ value if value is not none else '' }}{% endif %}" autocomplete="off">
-      <button class="quiet" type="submit">Save</button>
+      <div class="f grow"><label for="g-{{ key }}">{{ key|replace('_', ' ') }}</label><input type="text" id="g-{{ key }}" name="value" value="{% if value is iterable and value is not string %}{{ value|join(', ') }}{% else %}{{ value if value is not none else '' }}{% endif %}" autocomplete="off"></div>
+      <button class="btn btn--secondary" type="submit">Save</button>
     </form>
     {% endfor %}
     <p class="muted"><code>allow cloud for</code> lists the features that may use a cloud provider at all (comma-separated); empty means none.</p>
-  </div>
+  </section>
 </div>
 
-<h2>Agent evaluation</h2>
-<div class="card">
-  <p class="muted">Each agent is tested against past cases with known good outcomes, run in a scratch copy so nothing real is touched. The score (0 to 100) is 60% cases passed, 30% how much of what it wrote was cited, 10% steps used. Changing an agent's prompt, model, tools, limits, or chain runs its cases first; a change that scores more than five points lower is held until you accept it. Test runs use real model calls and count against the day's budget. Add your own cases in <code>/config/brief/fixtures/agents/</code>.</p>
-  {% if eval_scores %}<div class="scroll"><table class="wide">
-    <tr><th>Agent</th><th>Score</th><th>Cases</th><th>Cited</th><th>Steps</th><th>Seconds</th><th>Model</th><th>Tested</th><th>Live: runs</th><th>Live: cited</th><th>Proposals ok / rejected</th></tr>
-    {% for e in eval_scores %}{% set m = eval_live.get(e.agent) %}<tr>
-      <td>{{ e.agent }}</td><td><strong>{{ '%.1f'|format(e.score) }}</strong></td><td>{{ e.passed }}/{{ e.cases }}</td>
-      <td>{{ '%.0f'|format(e.citation_rate * 100) }}%</td><td>{{ '%.1f'|format(e.avg_steps) }}</td><td>{{ '%.1f'|format(e.avg_ms / 1000) }}</td>
-      <td>{{ e.model or '' }}</td><td>{{ e.started }}</td>
-      <td>{{ m.runs if m else 0 }}</td><td>{% if m and m.citation_rate is not none %}{{ '%.0f'|format(m.citation_rate * 100) }}%{% endif %}</td>
-      <td>{{ m.approved if m else 0 }} / {{ m.rejected if m else 0 }}</td>
-    </tr>{% endfor %}
-  </table></div>{% else %}<p class="muted">Not run yet.</p>{% endif %}
-  {% if eval_flagged %}<p><strong>Changes held for a lower score:</strong></p><ul>{% for f in eval_flagged %}<li>{{ f.agent }} at {{ f.started }}: {{ '%.1f'|format(f.score) }} against {{ '%.1f'|format(f.baseline_score) }} ({{ f.note }})</li>{% endfor %}</ul>{% endif %}
-  <form method="post" action="/admin/ai/eval" class="row spaced">
-    <input type="hidden" name="csrf_token" value="{{ csrf }}">
-    <select name="agent"><option value="">All agents</option>{% for a in agents %}<option value="{{ a.spec.name }}">{{ a.spec.name }}</option>{% endfor %}</select>
-    <button type="submit">Run test cases now</button>
-  </form>
-  <p class="muted">This can take a few minutes with a local model; the page waits.</p>
-</div>
-
-<h2>Agents</h2>
-<div class="card">
-  <p class="muted">Agents look things up with the same read-only tools the MCP server offers, in a small bounded loop, in the background. Every statement in a note must cite a tool result or it is deleted. They only read: anything that would change a setting becomes a proposal for you to approve. Switch them on with the <strong>agents</strong> feature above and the agent's own <code>enabled</code> in <a href="/admin/config">agents.yaml</a>.</p>
-  <div class="scroll"><table class="wide">
-    <tr><th>Agent</th><th>State</th><th>Runs, 24 h</th><th>Limits</th><th>Tools</th></tr>
-    {% for a in agents %}<tr>
-      <td>{{ a.spec.name }}</td>
-      <td><span class="badge {{ 'ok' if a.spec.enabled else 'bad' }}">{{ 'on' if a.spec.enabled else 'off' }}</span></td>
-      <td>{{ a.runs }} of {{ a.spec.max_runs_per_day }}</td>
-      <td>{{ a.spec.max_steps }} steps, {{ a.spec.max_tool_calls }} calls, {{ a.spec.timeout_s }} s</td>
-      <td>{{ a.spec.tools|join(', ') }}</td>
-    </tr>{% else %}<tr><td colspan="5" class="muted">agents.yaml defines no agents (or has an error: see the config page).</td></tr>{% endfor %}
-  </table></div>
-  {% if agent_queue %}<p class="muted">Waiting: {% for j in agent_queue %}{{ j.agent }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>{% endif %}
-  {% if agent_runs %}<div class="scroll"><table class="wide">
-    <tr><th>When</th><th>Agent</th><th>Outcome</th><th>Steps</th><th>Cited / dropped</th><th>Tokens</th></tr>
-    {% for r in agent_runs %}<tr><td>{{ r.started }}</td><td>{{ r.agent }}</td><td>{{ r.outcome }}{% if r.detail %} <span class="muted">({{ r.detail }})</span>{% endif %}</td><td>{{ r.steps }} / {{ r.tool_calls }} calls</td><td>{{ r.kept }} / {{ r.dropped }}</td><td>{{ r.tokens }}</td></tr>{% endfor %}
-  </table></div>{% endif %}
-</div>
-
-<h2>Ask the lab</h2>
-<div class="card">
-  <p class="muted">A question answered by the <strong>ask_the_lab</strong> agent from the read-only tools, with a citation for every fact. It runs in the background, so the answer appears below in a few seconds to a minute. Needs AI, the agents feature, and this agent switched on.</p>
-  <form method="post" action="/admin/ai/ask" class="row">
-    <input type="hidden" name="csrf_token" value="{{ csrf }}">
-    <input name="question" placeholder="For example: why was the gateway busy last night?" maxlength="300" required>
-    <button type="submit">Ask</button>
-  </form>
-  <div hx-get="/admin/ai/ask/recent" hx-trigger="load" hx-swap="outerHTML"></div>
-</div>
-
-<h2>Triage verdicts</h2>
-<div class="card">
-  {% if verdicts %}<div class="scroll"><table class="wide"><tr><th>Signature</th><th>App</th><th>Verdict</th><th>Why</th><th>When</th></tr>
-  {% for v in verdicts %}<tr><td>{{ v.sig_id }}</td><td>{{ v.app or '' }}</td><td>{{ v.verdict }}</td><td>{{ v.reason }}</td><td>{{ v.created }}</td></tr>{% endfor %}</table></div>
-  {% else %}<p class="muted">No verdicts yet. A verdict is advice; it never ignores or routes anything by itself.</p>{% endif %}
-</div>
-
-<h2>Proposals</h2>
-<div class="card">
-  <p class="muted">Changes that an agent or an outside client suggests. <strong>Nothing changes until you approve.</strong> Approving saves the file through the config editor (checked again, kept as a version you can roll back, and written to the audit log). Rejecting is logged too. A proposal made against an older version of the file is closed instead of applied.</p>
-  {% for v in proposals %}
-  <div class="card">
-    <h3>#{{ v.p.proposal_id }}: {{ v.p.file }} <span class="muted">+{{ v.added }} −{{ v.removed }}, from {{ v.p.source }}, {{ v.p.created }}</span></h3>
-    <p><strong>Why:</strong> {{ v.p.reason }}</p>
-    <details><summary>Evidence</summary><pre>{{ v.p.evidence }}</pre></details>
-    <div class="diff">{% for l in v.diff %}<span class="{{ l.kind }}">{{ '+' if l.kind == 'add' else '-' if l.kind == 'del' else ' ' }}{{ l.text }}</span>{% endfor %}</div>
-    {% if v.stale %}<p class="error">The file has changed since this was proposed. It can no longer be approved.</p>{% endif %}
-    {% if v.problem %}<p class="error">It is not valid now: {{ v.problem }}</p>{% endif %}
-    <div class="row spaced">
-      {% if v.approvable %}<form class="inline" method="post" action="/admin/ai/proposal/{{ v.p.proposal_id }}/approve"><input type="hidden" name="csrf_token" value="{{ csrf }}"><button type="submit">Approve and apply</button></form>{% endif %}
-      <form class="inline" method="post" action="/admin/ai/proposal/{{ v.p.proposal_id }}/reject"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input name="note" placeholder="Why not (optional)" maxlength="300"><button type="submit" class="quiet">Reject</button></form>
-    </div>
-  </div>
-  {% else %}<p>No proposals are waiting.</p>{% endfor %}
-  {% if proposal_history %}<div class="scroll"><table class="wide"><tr><th>#</th><th>File</th><th>From</th><th>Outcome</th><th>By</th></tr>
-    {% for p in proposal_history %}{% if p.status != 'pending' %}<tr><td>{{ p.proposal_id }}</td><td>{{ p.file }}</td><td>{{ p.source }}</td><td>{{ p.status }}{% if p.note %} <span class="muted">({{ p.note }})</span>{% endif %}</td><td>{{ p.decided_by or '' }}</td></tr>{% endif %}{% endfor %}
-  </table></div>{% endif %}
-</div>
-
-<h2>MCP clients</h2>
-<div class="card">
-  <p class="muted">Outside AI clients (Home Assistant, Claude, others) reach read-only tools at <code>/mcp</code> over HTTPS with a bearer token. Needs the master switch and the <strong>mcp_server</strong> feature on. A token is shown once, stored only as a hash, and every call is in the <a href="/admin/audit">audit log</a>. The default scope has no per-device activity, DNS data, or raw log lines; a <em>cloud</em> client can never have those, and what it receives is scanned for addresses and private names.</p>
-  {% if tokens %}<div class="scroll"><table class="wide">
-    <tr><th>Name</th><th>Scopes</th><th>Where</th><th>Created</th><th>Last used</th><th></th></tr>
-    {% for t in tokens %}<tr>
-      <td>{{ t.name }} <span class="muted">({{ t.token_id }})</span></td>
-      <td>{{ t.scopes|join(', ') }}</td>
-      <td>{{ t.locality }}</td>
-      <td>{{ t.created }}</td>
-      <td>{{ t.last_used or 'never' }}</td>
-      <td><form class="inline" method="post" action="/admin/ai/mcp/revoke" data-confirm="Revoke {{ t.name }}? It stops working at once.">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="token_id" value="{{ t.token_id }}">
-        <button type="submit" class="quiet">Revoke</button></form></td>
-    </tr>{% endfor %}
-  </table></div>{% else %}<p>No clients yet.</p>{% endif %}
-  <form method="post" action="/admin/ai/mcp/create" class="spaced">
-    <input type="hidden" name="csrf_token" value="{{ csrf }}">
-    <div class="row">
-      <input name="name" placeholder="Client name, such as home-assistant" required maxlength="40">
-      <select name="locality"><option value="lan">on my LAN</option><option value="cloud">cloud-hosted</option></select>
-    </div>
-    <p>{% for s in all_scopes %}<label><input type="checkbox" name="scope" value="{{ s }}"{% if s in default_scopes %} checked{% endif %}> {{ s }}</label> {% endfor %}</p>
-    <p class="muted">logs, devices, and dns reveal more about your household; leave them off unless this client needs them (not allowed for cloud clients).</p>
-    <button type="submit">Create token</button>
-  </form>
-</div>
-
-<h2>Prompts</h2>
-<div class="card">
+<section class="card" aria-labelledby="pr-h">
+  <h2 id="pr-h">Prompts</h2>
   <p class="muted">Plain Markdown, edited with history and rollback like any config file.</p>
-  <ul>{% for key in prompts %}<li><a href="/admin/ai/prompt/{{ key }}">{{ key|replace('_', ' ') }}</a></li>{% endfor %}</ul>
-</div>
-
-<h2>Side by side</h2>
-<div class="card">
-  <p>Today's brief: the template next to a provider's version, with the same privacy scan, checks, and budget as the real task.</p>
-  <form hx-post="/admin/ai/preview" hx-target="#preview" hx-indicator="#preview">
-    <input type="hidden" name="csrf_token" value="{{ csrf }}">
-    <select name="provider" aria-label="Provider">{% for p in ai.providers if p.enabled %}<option value="{{ p.id }}">{{ p.id }} ({{ p.locality }})</option>{% endfor %}</select>
-    <button type="submit">Compare</button>
-  </form>
-  <div id="preview" class="spaced" aria-live="polite"></div>
-</div>
-
-<h2>Explain a finding</h2>
-<div class="card">
-  <form hx-post="/admin/ai/explain" hx-target="#explain">
-    <input type="hidden" name="csrf_token" value="{{ csrf }}">
-    <label for="finding_id">Finding id (from Findings and alerts)</label>
-    <input type="text" id="finding_id" name="finding_id" autocomplete="off">
-    <button type="submit">Explain</button>
-  </form>
-  <div id="explain" class="spaced" aria-live="polite"></div>
-</div>
-
-<h2>Call log</h2>
-<div class="card scroll">
-<p class="muted">Provider, model, task, time, tokens, and outcome. Never the content.</p>
-{% if calls %}
-<table class="wide">
-  <tr><th>When (UTC)</th><th>Task</th><th>Provider</th><th>Outcome</th><th>ms</th><th>Tokens in/out</th><th>Note</th></tr>
-  {% for c in calls %}<tr><td>{{ c.ts }}</td><td>{{ c.task }}</td><td>{{ c.provider }}{% if c.locality == 'cloud' %} <span class="badge bad">cloud</span>{% endif %}</td><td>{{ c.outcome }}</td><td>{{ c.latency_ms if c.latency_ms is not none else '-' }}</td><td>{{ c.tokens_in or 0 }} / {{ c.tokens_out or 0 }}</td><td>{{ c.detail or '' }}</td></tr>{% endfor %}
-</table>
-{% else %}<p>No model call has been made.</p>{% endif %}
+  <ul class="list-plain">{% for key in prompts %}<li><a class="grow" href="/admin/ai/prompt/{{ key }}">{{ icon('file-text') }} {{ key|replace('_', ' ') }}</a></li>{% endfor %}</ul>
+</section>
 </div>
 {% endblock %}

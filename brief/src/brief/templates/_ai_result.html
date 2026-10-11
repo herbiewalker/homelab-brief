@@ -1,29 +1,33 @@
+{% from "_ui.html" import icon, alert %}
 {% if kind == 'error' %}
-<div class="card error">{{ message }}</div>
+{% call alert('bad') %}{{ message }}{% endcall %}
 {% elif kind == 'test' %}
-<div class="card {{ 'notice' if result.ok else 'error' }}">
+{% call alert('ok' if result.ok else 'bad') %}
   <strong>{{ 'The connection works.' if result.ok else 'The connection failed.' }}</strong>
   {% if result.error %}<div>{{ result.error }}</div>{% endif %}
-  <table class="plain">
+  <table class="plain"><caption class="sr-only">Connection test result</caption>
     {% if result.latency_ms is not none %}<tr><td>Latency</td><td>{{ result.latency_ms }} ms for a one-word answer</td></tr>{% endif %}
     <tr><td>Models listed</td><td>{{ result.models|length }}{% if result.model_listed is false %} <span class="bad">(the chosen model is not among them)</span>{% endif %}{% if result.models_error %} <span class="muted">(the server does not list models: {{ result.models_error }})</span>{% endif %}</td></tr>
     <tr><td>Tool calling</td><td>{% if result.tools is true %}works{% elif result.tools is false %}not supported by this model or server (agents need it){% else %}could not be told{% endif %}</td></tr>
   </table>
-</div>
+{% endcall %}
 {% elif kind == 'models' %}
 <div class="card">
   {% if models %}
   <p>{{ models|length }} model(s). Choose one:</p>
+  <ul class="list-plain">
   {% for m in models %}
-  <form class="inline" method="post" action="/admin/ai/provider">
-    <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="id" value="{{ pid }}"><input type="hidden" name="action" value="model"><input type="hidden" name="value" value="{{ m }}">
-    <code>{{ m }}</code> <button class="quiet" type="submit">Use</button>
-  </form><br>
+  <li><code class="grow">{{ m }}</code>
+    <form method="post" action="/admin/ai/provider">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="id" value="{{ pid }}"><input type="hidden" name="action" value="model"><input type="hidden" name="value" value="{{ m }}">
+      <button class="btn btn--secondary btn--sm" type="submit">Use</button>
+    </form></li>
   {% endfor %}
+  </ul>
   {% else %}<p>The server listed no models.</p>{% endif %}
 </div>
 {% elif kind == 'preview' %}
-<div class="grid">
+<div class="grid grid--2">
   <div class="card scroll"><h3>Template</h3><pre>{{ result.template|join('\n') }}</pre></div>
   <div class="card scroll"><h3>{{ pid }}</h3>
     {% if result.prose %}<p><strong>{{ result.prose.headline }}</strong></p>{% for p in result.prose.paragraphs %}<p>{{ p }}</p>{% endfor %}<p class="muted">{{ result.prose.provider }} ({{ result.prose.model }})</p>

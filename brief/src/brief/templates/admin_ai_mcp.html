@@ -1,0 +1,53 @@
+{% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, chip, empty %}
+{% from "_ai.html" import ai_head with context %}
+{% block title %}MCP clients{% endblock %}
+{% block body %}
+{{ ai_head('Outside AI clients (Home Assistant, Claude, others) reach read-only tools with a bearer token.') }}
+<div class="stack">
+<section class="card" aria-label="MCP clients">
+  <h2>MCP clients</h2>
+  <p class="muted">Outside AI clients (Home Assistant, Claude, others) reach read-only tools at <code>/mcp</code> over HTTPS with a bearer token. Needs the master switch and the <strong>mcp_server</strong> feature on (Settings tab). A token is shown once, stored only as a hash, and every call is in the <a href="/admin/audit">audit log</a>. The default scope has no per-device activity, DNS data, or raw log lines; a <em>cloud</em> client can never have those, and what it receives is scanned for addresses and private names.</p>
+  <p>Server: {{ chip('ok' if ai.enabled and ai.features.get('mcp_server') else 'bad', 'open' if ai.enabled and ai.features.get('mcp_server') else 'closed') }}</p>
+</section>
+
+<section class="card card--flush" aria-label="Clients">
+  <div class="card-head card-body"><h2>Clients</h2></div>
+  {% if tokens %}
+  <div class="scroll"><table class="table--cards">
+    <caption class="sr-only">MCP client tokens</caption>
+    <thead><tr><th scope="col">Name</th><th scope="col">Scopes</th><th scope="col">Where</th><th scope="col">Created</th><th scope="col">Last used</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+    <tbody>
+    {% for t in tokens %}<tr>
+      <td data-label="Name">{{ t.name }} <span class="muted">({{ t.token_id }})</span></td>
+      <td data-label="Scopes">{{ t.scopes|join(', ') }}</td>
+      <td data-label="Where">{{ t.locality }}</td>
+      <td data-label="Created">{{ t.created }}</td>
+      <td data-label="Last used">{{ t.last_used or 'never' }}</td>
+      <td data-label=""><form method="post" action="/admin/ai/mcp/revoke" data-confirm="Revoke {{ t.name }}? It stops working at once." data-confirm-ok="Revoke" data-danger>
+        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="token_id" value="{{ t.token_id }}">
+        <button type="submit" class="btn btn--secondary btn--sm">Revoke</button></form></td>
+    </tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}
+  {% call empty('key', 'No clients yet', 'Create a token below for each outside client.') %}{% endcall %}
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="nt-h">
+  <h2 id="nt-h">Create a token</h2>
+  <form method="post" action="/admin/ai/mcp/create">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="form-grid">
+      <div class="field"><label for="mc-name">Client name</label><input id="mc-name" name="name" placeholder="such as home-assistant" required maxlength="40"></div>
+      <div class="field"><label for="mc-loc">Where it runs</label><select id="mc-loc" name="locality"><option value="lan">on my LAN</option><option value="cloud">cloud-hosted</option></select></div>
+    </div>
+    <div class="field"><label>What it may read</label>
+      <div class="checks" role="group" aria-label="Scopes">{% for s in all_scopes %}<label class="check"><input type="checkbox" name="scope" value="{{ s }}"{% if s in default_scopes %} checked{% endif %}><span>{{ s }}</span></label>{% endfor %}</div>
+      <div class="hint">logs, devices, and dns reveal more about your household; leave them off unless this client needs them (not allowed for cloud clients). Change what is ticked by default under "Outside clients and logging" on the Settings tab.</div></div>
+    <button type="submit" class="btn">{{ icon('key') }}<span>Create token</span></button>
+  </form>
+</section>
+</div>
+{% endblock %}

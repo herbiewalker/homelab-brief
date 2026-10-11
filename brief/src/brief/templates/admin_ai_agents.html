@@ -1,0 +1,96 @@
+{% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, chip, empty %}
+{% from "_ai.html" import ai_head with context %}
+{% block title %}AI agents{% endblock %}
+{% block body %}
+{{ ai_head('Agents look things up with the same read-only tools the MCP server offers, in a small bounded loop, in the background. Every statement in a note must cite a tool result or it is deleted. They only read.') }}
+<div class="stack">
+
+<section class="card card--flush" aria-label="Agents">
+  <div class="card-head card-body"><h2>Agents</h2></div>
+  <div class="card-body"><p class="muted">Anything that would change a setting becomes a proposal for you to approve. Switch them on with the <strong>agents</strong> feature on the Settings tab and the agent's own switch in the settings below.</p></div>
+  <div class="scroll"><table class="table--cards">
+    <caption class="sr-only">Agents</caption>
+    <thead><tr><th scope="col">Agent</th><th scope="col">State</th><th scope="col">Runs, 24 h</th><th scope="col">Limits</th><th scope="col">Tools</th></tr></thead>
+    <tbody>
+    {% for a in agents %}<tr>
+      <td data-label="Agent">{{ a.spec.name }}</td>
+      <td data-label="State">{{ chip('ok' if a.spec.enabled else 'bad', 'on' if a.spec.enabled else 'off') }}</td>
+      <td data-label="Runs, 24 h">{{ a.runs }} of {{ a.spec.max_runs_per_day }}</td>
+      <td data-label="Limits">{{ a.spec.max_steps }} steps, {{ a.spec.max_tool_calls }} calls, {{ a.spec.timeout_s }} s</td>
+      <td data-label="Tools"><div class="cell-clip">{{ a.spec.tools|join(', ') }}</div></td>
+    </tr>{% else %}<tr><td colspan="5" class="muted">agents.yaml defines no agents (or has an error: see the config page).</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% if agent_queue %}<div class="card-body"><p class="muted">Waiting: {% for j in agent_queue %}{{ j.agent }}{% if not loop.last %}, {% endif %}{% endfor %}.</p></div>{% endif %}
+  {% if agent_runs %}
+  <div class="scroll"><table class="table--cards">
+    <caption class="sr-only">Recent agent runs</caption>
+    <thead><tr><th scope="col">When</th><th scope="col">Agent</th><th scope="col">Outcome</th><th scope="col">Steps</th><th scope="col">Cited / dropped</th><th scope="col">Tokens</th></tr></thead>
+    <tbody>{% for r in agent_runs %}<tr><td data-label="When">{{ r.started }}</td><td data-label="Agent">{{ r.agent }}</td><td data-label="Outcome">{{ r.outcome }}{% if r.detail %} <span class="muted">({{ r.detail }})</span>{% endif %}</td><td data-label="Steps">{{ r.steps }} / {{ r.tool_calls }} calls</td><td data-label="Cited / dropped">{{ r.kept }} / {{ r.dropped }}</td><td data-label="Tokens">{{ r.tokens }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% endif %}
+</section>
+
+<section class="card" aria-label="Ask the lab">
+  <h2>Ask the lab</h2>
+  <p class="muted">A question answered by the <strong>ask_the_lab</strong> agent from the read-only tools, with a citation for every fact. It runs in the background, so the answer appears below in a few seconds to a minute. Needs AI, the agents feature, and this agent switched on.</p>
+  <form method="post" action="/admin/ai/ask" class="filters">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="f grow"><label for="ask-q">Your question</label><input id="ask-q" name="question" placeholder="For example: why was the gateway busy last night?" maxlength="300" required></div>
+    <button type="submit" class="btn">Ask</button>
+  </form>
+  <div hx-get="/admin/ai/ask/recent" hx-trigger="load" hx-swap="outerHTML"></div>
+</section>
+
+<section class="card card--flush" aria-label="Triage verdicts">
+  <div class="card-head card-body"><h2>Triage verdicts</h2></div>
+  {% if verdicts %}
+  <div class="scroll"><table class="table--cards">
+    <caption class="sr-only">Triage verdicts</caption>
+    <thead><tr><th scope="col">Signature</th><th scope="col">App</th><th scope="col">Verdict</th><th scope="col">Why</th><th scope="col">When</th></tr></thead>
+    <tbody>{% for v in verdicts %}<tr><td data-label="Signature">{{ v.sig_id }}</td><td data-label="App">{{ v.app or '' }}</td><td data-label="Verdict">{{ v.verdict }}</td><td data-label="Why"><div class="cell-clip">{{ v.reason }}</div></td><td data-label="When">{{ v.created }}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% else %}
+  {% call empty('check-circle', 'No verdicts yet', 'A verdict is advice; it never ignores or routes anything by itself.') %}{% endcall %}
+  {% endif %}
+</section>
+
+<section class="card card--flush" aria-label="Agent evaluation">
+  <div class="card-head card-body"><h2>Agent evaluation</h2></div>
+  <div class="card-body">
+    <p class="muted">Each agent is tested against past cases with known good outcomes, run in a scratch copy so nothing real is touched. The score (0 to 100) is 60% cases passed, 30% how much of what it wrote was cited, 10% steps used. Changing an agent's prompt, model, tools, limits, or chain runs its cases first; a change that scores more than five points lower is held until you accept it. Test runs use real model calls and count against the day's budget. Add your own cases in <code>/config/brief/fixtures/agents/</code>.</p>
+  </div>
+  {% if eval_scores %}
+  <div class="scroll"><table class="table--cards">
+    <caption class="sr-only">Agent evaluation scores</caption>
+    <thead><tr><th scope="col">Agent</th><th scope="col">Score</th><th scope="col">Cases</th><th scope="col">Cited</th><th scope="col">Steps</th><th scope="col">Seconds</th><th scope="col">Model</th><th scope="col">Tested</th><th scope="col">Live: runs</th><th scope="col">Live: cited</th><th scope="col">Proposals ok / rejected</th></tr></thead>
+    <tbody>
+    {% for e in eval_scores %}{% set m = eval_live.get(e.agent) %}<tr>
+      <td data-label="Agent">{{ e.agent }}</td><td data-label="Score"><strong>{{ '%.1f'|format(e.score) }}</strong></td><td data-label="Cases">{{ e.passed }}/{{ e.cases }}</td>
+      <td data-label="Cited">{{ '%.0f'|format(e.citation_rate * 100) }}%</td><td data-label="Steps">{{ '%.1f'|format(e.avg_steps) }}</td><td data-label="Seconds">{{ '%.1f'|format(e.avg_ms / 1000) }}</td>
+      <td data-label="Model">{{ e.model or '' }}</td><td data-label="Tested">{{ e.started }}</td>
+      <td data-label="Live: runs">{{ m.runs if m else 0 }}</td><td data-label="Live: cited">{% if m and m.citation_rate is not none %}{{ '%.0f'|format(m.citation_rate * 100) }}%{% endif %}</td>
+      <td data-label="Proposals ok / rejected">{{ m.approved if m else 0 }} / {{ m.rejected if m else 0 }}</td>
+    </tr>{% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<div class="card-body"><p class="muted">Not run yet.</p></div>{% endif %}
+  <div class="card-body">
+  {% if eval_flagged %}<p><strong>Changes held for a lower score:</strong></p><ul>{% for f in eval_flagged %}<li>{{ f.agent }} at {{ f.started }}: {{ '%.1f'|format(f.score) }} against {{ '%.1f'|format(f.baseline_score) }} ({{ f.note }})</li>{% endfor %}</ul>{% endif %}
+  <form method="post" action="/admin/ai/eval" class="filters">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="f"><label for="eval-agent">Agent</label><select id="eval-agent" name="agent"><option value="">All agents</option>{% for a in agents %}<option value="{{ a.spec.name }}">{{ a.spec.name }}</option>{% endfor %}</select></div>
+    <button type="submit" class="btn btn--secondary" data-confirm="Run the test cases now? They make real model calls and can take a few minutes.">{{ icon('play') }}<span>Run test cases now</span></button>
+  </form>
+  <p class="muted">This can take a few minutes with a local model; the page waits.</p>
+  </div>
+</section>
+
+<section aria-labelledby="as-h">
+  <h2 id="as-h">Agent settings</h2>
+  <p class="muted">Each card is one agent. Saving writes <code>agents.yaml</code> through the config editor, and changing an agent's tools, limits, or model runs its test cases first.</p>
+  <div class="stack">{% for html in cards %}{{ html|safe }}{% endfor %}</div>
+</section>
+</div>
+{% endblock %}
