@@ -18,12 +18,12 @@ def tokens(block: str) -> dict[str, str]:
 
 
 def themes() -> dict[str, dict[str, str]]:
-    light = tokens(CSS.split(":root {", 1)[1].split("}", 1)[0])
-    media = CSS.split("@media (prefers-color-scheme: dark) {", 1)[1].split("}", 1)[0]
-    dark_system = {**light, **tokens(media)}
-    explicit = CSS.split(':root[data-theme="dark"] {', 1)[1].split("}", 1)[0]
-    dark_chosen = {**light, **tokens(explicit)}
-    return {"light": light, "dark (system)": dark_system, "dark (chosen)": dark_chosen}
+    dark = tokens(CSS.split(":root {", 1)[1].split("}", 1)[0])
+    chosen = CSS.split(':root[data-theme="light"] {', 1)[1].split("}", 1)[0]
+    light_chosen = {**dark, **tokens(chosen)}
+    media = CSS.split("@media (prefers-color-scheme: light) {", 1)[1].split("}", 1)[0]
+    light_system = {**dark, **tokens(media)}
+    return {"dark (default)": dark, "light (chosen)": light_chosen, "light (auto, system)": light_system}
 
 
 def luminance(hex_colour: str) -> float:
@@ -87,5 +87,8 @@ def test_a_danger_button_and_a_status_badge_have_readable_text(theme):
 
 def test_the_three_themes_define_the_same_tokens():
     found = themes()
-    names = set(found["light"])
-    assert names <= set(found["dark (chosen)"]) and set(found["dark (chosen)"]) == set(found["dark (system)"])
+    light = tokens(CSS.split(':root[data-theme="light"] {', 1)[1].split("}", 1)[0])
+    auto = tokens(CSS.split("@media (prefers-color-scheme: light) {", 1)[1].split("}", 1)[0])
+    assert set(light) == set(auto), "the chosen-light and the auto-light blocks must list the same tokens"
+    assert set(light) <= set(found["dark (default)"])
+    assert light == auto, "light looks the same whether it is chosen or comes from the system"

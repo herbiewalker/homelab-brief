@@ -55,3 +55,51 @@
 {% macro switch(name, label, checked=False, disabled=False, value='on') -%}
 <label class="switch"><input type="checkbox" name="{{ name }}" value="{{ value }}"{% if checked %} checked{% endif %}{% if disabled %} disabled{% endif %}><span class="track"></span><span>{{ label }}</span></label>
 {%- endmacro %}
+
+{# ---- console components (Task 38). All server-drawn: no JavaScript is needed to show them. ---- #}
+
+{# The overall state. kind: ok | warn | bad. The caller block holds the meta on the right (time, live dot). #}
+{% macro banner(kind, title, note='', glyph='') -%}
+<section class="banner banner--{{ kind }}" aria-label="Overall status">
+  <span class="banner-icon">{{ icon(glyph or {'ok': 'check-circle', 'warn': 'alert', 'bad': 'alert-circle'}.get(kind, 'info')) }}</span>
+  <div class="grow"><h2>{{ title }}</h2>{% if note %}<div class="banner-note">{{ note }}</div>{% endif %}</div>
+  {% if caller %}<div class="banner-meta">{{ caller() }}</div>{% endif %}
+</section>
+{%- endmacro %}
+
+{# A trend line. values is a list of numbers; kind colours it. Draws a dashed baseline when there is no history yet. #}
+{% macro sparkline(values, kind='', label='Last 24 hours') -%}
+{% set pts = spark(values) if values else none %}
+{% if pts %}<svg class="spark{% if kind %} spark--{{ kind }}{% endif %}" viewBox="0 0 120 32" preserveAspectRatio="none" role="img" aria-label="{{ label }}"><polygon points="{{ pts[1] }}"/><polyline points="{{ pts[0] }}"/></svg>
+{% else %}<div class="spark--empty" role="img" aria-label="No history yet"></div>{% endif %}
+{%- endmacro %}
+
+{# A KPI tile: label, big value, a line of detail, and an optional trend. #}
+{% macro kpi(label, value, sub='', kind='', href='', series=None, glyph='') -%}
+<{{ 'a' if href else 'div' }} class="kpi{% if kind %} kpi--{{ kind }}{% endif %}"{% if href %} href="{{ href }}"{% endif %}>
+  <span class="kpi-label">{% if glyph %}{{ icon(glyph) }}{% endif %}{{ label }}<span class="dot" title="{{ {'ok': 'Healthy', 'warn': 'Needs a look', 'bad': 'Failing'}.get(kind, '') }}"></span></span>
+  <span class="kpi-value">{{ value }}</span>
+  <span class="kpi-sub">{{ sub }}</span>
+  {% if series is not none %}{{ sparkline(series, kind) }}{% endif %}
+</{{ 'a' if href else 'div' }}>
+{%- endmacro %}
+
+{# A horizontal meter, percent 0 to 100. kind: ok | warn | bad. #}
+{% macro meter(pct, kind='', label='') -%}
+<svg class="meter{% if kind %} meter--{{ kind }}{% endif %}" viewBox="0 0 100 4" preserveAspectRatio="none" role="img" aria-label="{{ label }} {{ pct }}%"><rect class="track" width="100" height="4"/><rect class="fill" width="{{ pct }}" height="4"/></svg>
+{%- endmacro %}
+
+{# 30 daily cells, oldest first. Each is a coloured block with its date and state as the tooltip. #}
+{% macro statusbar(cells, label='Last 30 days') -%}
+<div class="bar" role="img" aria-label="{{ label }}">{% for c in cells %}<span class="cell cell--{{ c.kind }}" title="{{ c.day }}: {{ c.word }}"></span>{% endfor %}</div>
+{%- endmacro %}
+
+{# One system: name, 30-day bar, and its state today. #}
+{% macro component(name, sub, state_kind, state_text, cells, uptime=None, href='') -%}
+<li class="component">
+  <div class="component-name">{% if href %}<a href="{{ href }}">{{ name }}</a>{% else %}{{ name }}{% endif %}{% if sub %}<small>{{ sub }}</small>{% endif %}</div>
+  {{ statusbar(cells, name ~ ', last 30 days') }}
+  <div class="component-state">{{ chip(state_kind, state_text) }}{% if uptime is not none %}<span class="uptime">{{ uptime }}% up</span>{% endif %}</div>
+  <div class="bar-scale" aria-hidden="true"><span>30 days ago</span><span>today</span></div>
+</li>
+{%- endmacro %}

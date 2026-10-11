@@ -24,6 +24,7 @@ from brief import (
     proposals,
     registry,
     selfmon,
+    systemhistory,
     weekly,
 )
 from brief.alerts import drain_feedback
@@ -187,6 +188,10 @@ class Worker:
             state_dir=self.state,
         )
         write_status(status, self.out_dir)
+        try:  # the day's worst state per system, for the status bars
+            systemhistory.record(self.store, status, datetime.now(UTC))
+        except Exception as exc:  # history is decoration; never let it stop the status
+            log("system_history_failed", error=f"{type(exc).__name__}: {exc}")
         try:
             run_hourly_alerts(
                 self.store, self.systems, datetime.now(UTC), self.env, status, self.notifier, self.state

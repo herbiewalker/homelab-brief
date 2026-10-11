@@ -260,6 +260,16 @@ Spec: `docs/guide/11-admin-ui.md`. Started 2026-10-10 after the first real setup
 - [x] Error and empty states reviewed; keyboard shortcuts and a command palette for jumping between pages; documentation and the deploy guide updated.
 - Accept: the "Done when" list in the guide passes.
 
+## Task 38: Operations-console look (built 2026-10-11, version 0.0.55)
+Goal: the whole site (admin and public pages) reads like a large company's status and network-monitoring console: dark first, calm, dense, status first. Style reference: Datadog/Grafana-style NOC dashboards, with a little of Statuspage and Cloudflare/Ubiquiti.
+- [x] Design tokens and shell (`ui.css`): dark by default, 14 px type, tighter radii, tabular numbers, compact tables with a sticky header, slimmer sidebar, a top bar that always shows the overall state and a live indicator. Every existing page inherits it; class names stay.
+- [x] New components (`_ui.html`): status banner, KPI tile with a 24-hour trend line (server-drawn inline SVG), component rows with a 30-day state bar, incident timeline, meter. No JavaScript is needed to draw them.
+- [x] History for the bars: migration 0015 `system_day` (worst state per system per day, sampled hourly by the worker; a day with no record shows grey "no data", never green); `systemhistory.py`.
+- [x] Overview rebuilt as a console: banner, KPI strip, system components with bars, incident timeline, needs-attention list, setup checklist moved to the end once it is mostly done.
+- [x] Public pages rebuilt in the same system and still static (no JavaScript, meta refresh): `/` status page, `/brief.html`, board views, the sign-in page.
+- [x] Audit again at 360, 768 and 1280 px in both themes (contrast test, browser audit, screenshots); guide 11 and the screenshots README updated.
+- Accept: a stranger can say in five seconds whether everything is fine, which system is not, and for how long; no page lost a control or a link; contrast and responsive audits are clean.
+
 ## Later (not in the first build)
 - PDF/EPUB e-reader edition (Pandoc) once the e-reader model is known.
 - Network novelty extractors: DHCP leases, MACs, firewall destinations.

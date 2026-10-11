@@ -1,31 +1,66 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, chip, banner, kpi, component, empty %}
 {% block title %}homelab-brief status{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="60">{% endblock %}
 {% block body %}
-<h1>homelab-brief</h1>
-<p class="muted">Version {{ version }} &middot; up {{ uptime }}</p>
+{% set b = page.banner %}
+<div class="stack">
+{% call banner(b.kind, b.title, b.note) %}
+  <span>Updated {{ page.generated or 'just now' }}</span>
+  <span>Version {{ version }} &middot; up {{ uptime }}</span>
+{% endcall %}
 
 {% if learning.active %}
-<div class="card banner">Learning, day {{ learning.day }} of {{ learning.of }}: baselines are being collected and novelty findings stay quiet.</div>
+<div class="alert alert--info" role="status">{{ icon('info') }}<div class="grow">Learning, day {{ learning.day }} of {{ learning.of }}: baselines are being collected and novelty findings stay quiet.</div></div>
 {% endif %}
 
-<div class="card">
-<h2>Health</h2>
-<table><caption class="sr-only">Health checks</caption>
-  <tr><td>Overall</td><td class="{{ 'ok' if health.status == 'ok' else 'bad' }}">{{ health.status }}</td></tr>
-  {% for name, c in health.checks.items() %}
-  <tr><td>{{ name }}</td><td class="{{ 'ok' if c.ok else 'bad' }}">{{ c.state or ('ok' if c.ok else 'failed') }}{% if c.last_cycle_s is defined %} ({{ c.last_cycle_s }}s ago){% endif %}</td></tr>
-  {% endfor %}
-</table>
+<section class="panel" aria-labelledby="sys-h">
+  <div class="panel-head"><h2 id="sys-h">Systems</h2><span class="subtle">last 30 days</span></div>
+  {% if page.components %}
+  <ul class="components">
+    {% for t in page.components %}{{ component(t.name, t.summary, t.kind or 'off', t.word, t.cells, t.uptime) }}{% endfor %}
+  </ul>
+  {% else %}
+  {% call empty('server', 'No systems yet', 'Systems appear here once they are named in the setup.') %}{% endcall %}
+  {% endif %}
+</section>
+
+<div class="console console--even">
+  <section class="panel" aria-labelledby="tl-h">
+    <div class="panel-head"><h2 id="tl-h">Recent incidents</h2><span class="subtle">last 14 days</span></div>
+    {% if page.timeline %}
+    <ul class="timeline">
+      {% for e in page.timeline %}<li class="tl-{{ e.kind }}"><span class="tl-dot"></span><div class="tl-text"><span class="tl-word">{{ e.word }}</span>{{ e.title }}</div><time datetime="{{ e.ts }}">{{ e.ts[5:10] }} {{ e.ts[11:16] }}</time></li>{% endfor %}
+    </ul>
+    {% else %}
+    {% call empty('history', 'No incidents', 'Nothing was opened or resolved recently.') %}{% endcall %}
+    {% endif %}
+  </section>
+
+  <section class="panel" aria-labelledby="health-h">
+    <div class="panel-head"><h2 id="health-h">Health</h2><span class="subtle">{{ 'ok' if health.status == 'ok' else 'degraded' }}</span></div>
+    <table class="plain"><caption class="sr-only">Health checks</caption>
+      <tr><td>Overall</td><td class="num {{ 'ok' if health.status == 'ok' else 'bad' }}">{{ health.status }}</td></tr>
+      {% for name, c in health.checks.items() %}
+      <tr><td>{{ name }}</td><td class="num {{ 'ok' if c.ok else 'bad' }}">{{ c.state or ('ok' if c.ok else 'failed') }}{% if c.last_cycle_s is defined %} ({{ c.last_cycle_s }}s ago){% endif %}</td></tr>
+      {% endfor %}
+    </table>
+  </section>
 </div>
 
-<div class="card">
-<h2>Ingest, last 24 hours</h2>
-<table><caption class="sr-only">Ingest, last 24 hours</caption>
-  <tr><td>Events counted</td><td>{{ stats.counted }}</td></tr>
-  <tr><td>Events suppressed by ignore rules</td><td>{{ stats.suppressed }}</td></tr>
-  <tr><td>Signatures</td><td>{{ stats.signatures }}</td></tr>
-  <tr><td>Hosts (unknown)</td><td>{{ stats.hosts }} ({{ stats.unknown_hosts }})</td></tr>
-  {% if stats.last_cycle %}<tr><td>Last ingest cycle</td><td>{{ stats.last_cycle }}</td></tr>{% endif %}
-</table>
+<section class="panel" aria-labelledby="ing-h">
+  <div class="panel-head"><h2 id="ing-h">Ingest, last 24 hours</h2></div>
+  <div class="panel-body">
+    {% if page.events %}<div class="spark-wide">{% from "_ui.html" import sparkline %}{{ sparkline(page.events, '', 'Events per hour, last 24 hours') }}</div>{% endif %}
+    <table class="plain"><caption class="sr-only">Ingest, last 24 hours</caption>
+      <tr><td>Events counted</td><td class="num">{{ stats.counted }}</td></tr>
+      <tr><td>Events suppressed by ignore rules</td><td class="num">{{ stats.suppressed }}</td></tr>
+      <tr><td>Signatures</td><td class="num">{{ stats.signatures }}</td></tr>
+      <tr><td>Hosts (unknown)</td><td class="num">{{ stats.hosts }} ({{ stats.unknown_hosts }})</td></tr>
+      {% if stats.last_cycle %}<tr><td>Last ingest cycle</td><td class="num">{{ stats.last_cycle }}</td></tr>{% endif %}
+    </table>
+  </div>
+</section>
+<p class="muted">This page reloads every minute. Times are UTC.</p>
 </div>
 {% endblock %}

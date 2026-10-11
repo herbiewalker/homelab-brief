@@ -44,8 +44,10 @@ from brief import (
     mapview,
     mcpserver,
     mcptokens,
+    publicstatus,
     registry,
     selfmon,
+    sparkline,
 )
 from brief import admin as admin_pages
 from brief.auth import Auth, AuthError, BadCredentials, Session, Throttled
@@ -166,6 +168,8 @@ def create_app(
     auth = auth or Auth(store)
     templates = jinja2.Environment(loader=jinja2.FileSystemLoader(HERE / "templates"), autoescape=True)
     templates.globals["asset_v"] = __version__  # a new version is a new URL for the stylesheet and scripts
+    templates.globals["spark"] = sparkline.points
+    templates.globals["meter_pct"] = sparkline.meter_pct
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -321,7 +325,19 @@ def create_app(
     @app.get("/", response_class=HTMLResponse)
     def status_page(request: Request) -> HTMLResponse:
         data = status_data()
-        return render(request, "status.html", version=__version__, uptime=_uptime(data["uptime_s"]), **data)
+        now = datetime.now(UTC)
+        doc = current_status()[0]
+        page = publicstatus.build(store, doc, data["health"], now)
+        # No script runs on this page, so it follows the system's light or dark setting, not the saved choice.
+        return render(
+            request,
+            "status.html",
+            version=__version__,
+            uptime=_uptime(data["uptime_s"]),
+            page=page,
+            page_theme="auto",
+            **data,
+        )
 
     def static_view(name: str, media: str) -> None:
         """One generated file from /out/latest, by fixed name only (no path comes from the request)."""

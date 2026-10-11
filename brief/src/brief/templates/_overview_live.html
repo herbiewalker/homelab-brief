@@ -1,29 +1,11 @@
-{% from "_ui.html" import icon, chip, tile, alert, empty %}
+{% from "_ui.html" import icon, chip, alert, empty, banner, kpi, component, meter %}
 {% set s = data.status %}
 {% set h = data.hero %}
-<div class="stack">
-<section class="hero hero--{{ h.kind }}" aria-label="Headline">
-  <span class="hero-icon">{{ icon(h.glyph) }}</span>
-  <div class="grow">
-    <h2>{{ h.title }}</h2>
-    {% if h.note %}<div class="muted">{{ h.note }}</div>{% endif %}
-    {% if h.action %}<div class="muted">{{ h.action.why|capitalize }}.</div>{% endif %}
-  </div>
-  {% if h.action %}<a class="btn" href="{{ h.action.href }}"><span>{{ h.action.text }}</span>{{ icon('chevron-right') }}</a>{% endif %}
-</section>
-
-{% if data.config_errors %}
-{% call alert('bad') %}<strong>Configuration errors.</strong>
-{% for name, e in data.config_errors.items() %}<div><code>{{ name }}</code>: {{ e.error }} <span class="muted">(using {{ e.using }})</span> <a href="/admin/config/{{ name }}">Fix it</a></div>{% endfor %}{% endcall %}
-{% endif %}
-{% if data.unmapped_senders %}
-{% call alert('info') %}<strong>{{ data.unmapped_senders }} sender{{ '' if data.unmapped_senders == 1 else 's' }} not in a system yet.</strong> <a href="/admin/wizard">Name them in the setup wizard</a> so they get a tile, a sensor, and silence alerts.{% endcall %}
-{% endif %}
-
-{% if data.setup_open %}
-<section class="card" aria-labelledby="setup-h">
-  <div class="row row--between"><h2 id="setup-h">{{ 'Finish setting up' if data.setup_required_open else 'Optional extras' }}</h2>
+{% macro checklist_panel() %}
+<section class="panel" aria-labelledby="setup-h">
+  <div class="panel-head"><h2 id="setup-h">{{ 'Finish setting up' if data.setup_required_open else 'Optional extras' }}</h2>
     <span class="muted">{{ data.checklist|length - data.setup_open }} of {{ data.checklist|length }} done</span></div>
+  <div class="panel-body">
   <ol class="checklist">
     {% for step in data.checklist %}
     <li class="{{ 'done' if step.done }}">
@@ -33,78 +15,108 @@
     </li>
     {% endfor %}
   </ol>
+  </div>
 </section>
+{% endmacro %}
+<div class="stack">
+{% call banner(h.kind, h.title, ('Nothing below is a statement that the network is fine.' if h.note else (h.action.why|capitalize ~ '.' if h.action else '')), h.glyph) %}
+  <span class="live">Live</span>
+  <span>Updated {{ s.generated_at }}</span>
+  {% if h.action %}<a class="btn btn--sm" href="{{ h.action.href }}"><span>{{ h.action.text }}</span>{{ icon('chevron-right') }}</a>{% endif %}
+{% endcall %}
+
+{% if data.config_errors %}
+{% call alert('bad') %}<strong>Configuration errors.</strong>
+{% for name, e in data.config_errors.items() %}<div><code>{{ name }}</code>: {{ e.error }} <span class="muted">(using {{ e.using }})</span> <a href="/admin/config/{{ name }}">Fix it</a></div>{% endfor %}{% endcall %}
+{% endif %}
+{% if data.unmapped_senders %}
+{% call alert('info') %}<strong>{{ data.unmapped_senders }} sender{{ '' if data.unmapped_senders == 1 else 's' }} not in a system yet.</strong> <a href="/admin/wizard">Name them in the setup wizard</a> so they get a tile, a sensor, and silence alerts.{% endcall %}
 {% endif %}
 
+{% if data.setup_required_open %}{{ checklist_panel() }}{% endif %}
+
 <section aria-label="Health">
-  <div class="grid grid--tight">
-    {% for c in data.cards %}{{ tile(c.label, c.value, c.sub, c.kind, c.href, c.glyph) }}{% endfor %}
+  <div class="kpis">
+    {% for c in data.cards %}{{ kpi(c.label, c.value, c.sub, c.kind, c.href, c.series, c.glyph) }}{% endfor %}
   </div>
 </section>
 
-<section aria-labelledby="sys-h">
-  <div class="row row--between"><h2 id="sys-h">Systems</h2><a href="/admin/systems">Manage</a></div>
-  {% if data.systems %}
-  <div class="grid grid--tight">
-    {% for t in data.systems %}
-    <a class="tile tile--{{ t.kind or 'off' }}" href="/admin/findings"><span class="label">{{ t.name }}</span><span class="value">{{ chip(t.kind, t.state) }}</span><span class="sub">{{ t.summary }}</span></a>
-    {% endfor %}
+<div class="console">
+  <div class="stack">
+    <section class="panel" aria-labelledby="sys-h">
+      <div class="panel-head"><h2 id="sys-h">Systems</h2><a href="/admin/systems">Manage</a></div>
+      {% if data.components %}
+      <ul class="components">
+        {% for t in data.components %}{{ component(t.name, t.summary, t.kind or 'off', t.word, t.cells, t.uptime, '/admin/findings') }}{% endfor %}
+      </ul>
+      {% else %}
+      {% call empty('server', 'No systems yet', 'Systems group your devices so each gets a status row and silence alerts.') %}<a class="btn" href="/admin/wizard">Set up systems</a>{% endcall %}
+      {% endif %}
+    </section>
+
+    <section class="panel" aria-labelledby="al-h">
+      <div class="panel-head"><h2 id="al-h">Needs attention</h2><a href="/admin/findings">All {{ data.alerts_total }}</a></div>
+      {% if data.alerts %}
+      <ul class="list-plain">
+        {% for a in data.alerts %}{% include "_overview_alert.html" %}{% endfor %}
+      </ul>
+      {% else %}
+      {% call empty('check-circle', 'Nothing needs you', 'No open alerts. Findings still appear in the daily brief.') %}{% endcall %}
+      {% endif %}
+    </section>
   </div>
-  {% else %}
-  <div class="card">{% call empty('server', 'No systems yet', 'Systems group your devices so each gets a tile and silence alerts.') %}<a class="btn" href="/admin/wizard">Set up systems</a>{% endcall %}</div>
-  {% endif %}
-</section>
 
-<div class="grid grid--2">
-  <section class="card card--flush" aria-labelledby="al-h">
-    <div class="card-head card-body"><h2 id="al-h">Needs attention</h2><a href="/admin/findings">All {{ data.alerts_total }}</a></div>
-    {% if data.alerts %}
-    <ul class="list-plain">
-      {% for a in data.alerts %}{% include "_overview_alert.html" %}{% endfor %}
-    </ul>
-    {% else %}
-    {% call empty('check-circle', 'Nothing needs you', 'No open alerts. Findings still appear in the daily brief.') %}{% endcall %}
-    {% endif %}
-  </section>
+  <div class="stack">
+    <section class="panel" aria-labelledby="tl-h">
+      <div class="panel-head"><h2 id="tl-h">Incident timeline</h2><span class="subtle">last 14 days</span></div>
+      {% if data.timeline %}
+      <ul class="timeline">
+        {% for e in data.timeline %}<li class="tl-{{ e.kind }}"><span class="tl-dot"></span><div class="tl-text"><span class="tl-word">{{ e.word }}</span>{{ e.title }}</div><time datetime="{{ e.ts }}">{{ e.ts[5:10] }} {{ e.ts[11:16] }}</time></li>{% endfor %}
+      </ul>
+      {% else %}
+      {% call empty('history', 'No incidents', 'Opened and resolved alerts appear here.') %}{% endcall %}
+      {% endif %}
+    </section>
 
-  <section class="card" aria-labelledby="ch-h">
-    <h2 id="ch-h">What changed since yesterday</h2>
-    {% if data.changes %}
-    <ul class="list-plain">
-      {% for c in data.changes %}<li><span class="li-icon">{{ icon(c.glyph) }}</span><a class="grow" href="{{ c.href }}">{{ c.text }}</a></li>{% endfor %}
-    </ul>
-    {% else %}
-    <p class="muted">Nothing moved: no new alerts, patterns or senders.</p>
-    {% endif %}
-    {% if data.stories %}
-    <h3>In today's brief</h3>
-    <ul class="list-plain">
-      {% for st in data.stories %}<li><span class="grow">{{ st.title }}<div class="muted">{{ st.kind }}{% if st.count > 1 %} · {{ st.count }} findings{% endif %}</div></span></li>{% endfor %}
-    </ul>
-    {% endif %}
-  </section>
+    <section class="panel" aria-labelledby="ch-h">
+      <div class="panel-head"><h2 id="ch-h">What changed since yesterday</h2></div>
+      <div class="panel-body">
+      {% if data.changes %}
+      <ul class="list-plain">
+        {% for c in data.changes %}<li><span class="li-icon">{{ icon(c.glyph) }}</span><a class="grow" href="{{ c.href }}">{{ c.text }}</a></li>{% endfor %}
+      </ul>
+      {% else %}
+      <p class="muted">Nothing moved: no new alerts, patterns or senders.</p>
+      {% endif %}
+      {% if data.stories %}
+      <h3 class="spaced">In today's brief</h3>
+      <ul class="list-plain">
+        {% for st in data.stories %}<li><span class="grow">{{ st.title }}<div class="muted">{{ st.kind }}{% if st.count > 1 %} · {{ st.count }} findings{% endif %}</div></span></li>{% endfor %}
+      </ul>
+      {% endif %}
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="busy-h">
+      <div class="panel-head"><h2 id="busy-h">Busiest senders, last hour</h2><a href="/admin/sources">All sources</a></div>
+      {% if data.top_sources %}<table class="plain"><caption class="sr-only">Busiest senders in the last hour</caption>
+        {% for host, n in data.top_sources %}<tr><td><code>{{ host }}</code></td><td class="num">{{ '{:,}'.format(n) }}</td></tr>{% endfor %}
+      </table>
+      {% else %}<div class="panel-body"><p class="muted">Nothing received in the last hour.</p></div>{% endif %}
+    </section>
+
+    <section class="panel" aria-labelledby="runs-h">
+      <div class="panel-head"><h2 id="runs-h">Last runs</h2><span class="subtle">v{{ version }} · up {{ uptime }}</span></div>
+      <table class="plain"><caption class="sr-only">Last runs</caption>
+        {% for r in data.runs %}<tr><td>{{ r.job }}</td><td class="num {{ 'ok' if r.ok else ('bad' if r.ok is false else 'muted') }}">{{ r.when_text }}{% if r.note %} <span class="muted">{{ r.note }}</span>{% endif %}</td></tr>{% endfor %}
+      </table>
+      <table class="plain"><caption class="sr-only">Health checks</caption>
+        {% for name, c in data.health.checks.items() %}<tr><td>{{ name }}</td><td class="num {{ 'ok' if c.ok else 'bad' }}">{{ c.state or ('ok' if c.ok else 'failing') }}</td></tr>{% endfor %}
+      </table>
+    </section>
+  </div>
 </div>
 
-<div class="grid grid--2">
-  <section class="card" aria-labelledby="runs-h">
-    <h2 id="runs-h">Last runs</h2>
-    <table class="plain"><caption class="sr-only">Last runs</caption>
-      {% for r in data.runs %}<tr><td>{{ r.job }}</td><td class="{{ 'ok' if r.ok else ('bad' if r.ok is false else 'muted') }}">{{ r.when_text }}{% if r.note %} <span class="muted">{{ r.note }}</span>{% endif %}</td></tr>{% endfor %}
-      <tr><td>Version</td><td>{{ version }}</td></tr>
-      <tr><td>Up</td><td>{{ uptime }}</td></tr>
-    </table>
-    <h3>Health checks</h3>
-    <table class="plain"><caption class="sr-only">Health checks</caption>
-      {% for name, c in data.health.checks.items() %}<tr><td>{{ name }}</td><td class="{{ 'ok' if c.ok else 'bad' }}">{{ c.state or ('ok' if c.ok else 'failing') }}</td></tr>{% endfor %}
-    </table>
-  </section>
-  <section class="card" aria-labelledby="busy-h">
-    <h2 id="busy-h">Busiest senders, last hour</h2>
-    {% if data.top_sources %}<table class="plain"><caption class="sr-only">Busiest senders in the last hour</caption>
-      {% for host, n in data.top_sources %}<tr><td><code>{{ host }}</code></td><td class="num">{{ '{:,}'.format(n) }}</td></tr>{% endfor %}
-    </table><div class="muted"><a href="/admin/sources">All sources</a></div>
-    {% else %}<p class="muted">Nothing received in the last hour.</p>{% endif %}
-  </section>
-</div>
-<p class="muted">Updated {{ s.generated_at }} (UTC). This page refreshes every 30 seconds.</p>
+{% if data.setup_open and not data.setup_required_open %}{{ checklist_panel() }}{% endif %}
+<p class="muted">This page refreshes every 30 seconds. Times are UTC.</p>
 </div>

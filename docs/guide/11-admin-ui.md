@@ -58,6 +58,16 @@ The first screen answers "is everything fine, and if not, what do I do?":
 - Setup checklist for a new install (account, sources repointed, systems named, collectors, notifications), each step done or one click away.
 - Live refresh without flicker; empty states that say what to do next.
 
+## The console look (Task 38)
+
+The interface is meant to read like a large company's status and network-monitoring console: dark first, calm, dense, and status first.
+
+- **One stylesheet, three theme blocks.** `ui.css` holds the tokens. Dark is the default `:root`; `:root[data-theme="light"]` and the `auto` block (light only when the system asks for it) define the same names. `theme.js` sets the attribute before the page paints; with nothing saved the console is dark. The public status page runs no script, so it uses `auto`.
+- **Status colours mean one thing everywhere:** green operational, amber needs a look or degraded, red down or failing, grey off or no data. Colour is never the only signal: every state also has a word or an icon.
+- **Components** (all in `_ui.html`, all drawn on the server, none need JavaScript): `banner` (the overall state), `kpi` with `sparkline` (a number and its last 24 hours), `meter`, `statusbar` and `component` (a system with 30 daily cells), the `timeline` list, and the `panel` card.
+- **History behind the bars.** `system_day` (migration 0015) keeps the worst state per system per day, sampled hourly by the worker (`systemhistory.py`). A day nobody recorded is grey, never green, and a failed run records nothing.
+- **Public pages.** `/` is a status page (`publicstatus.py`): an overall banner that never says "operational" when the last run failed, the systems with their bars, recent incidents, health. `/brief.html` and `/board.html` keep their own inline stylesheet (one file, no script) in the same palette.
+
 ## Keyboard (Task 37)
 
 Everything is a native button, link, checkbox, or select, so Tab reaches it, with a visible focus ring. A "Skip to the page" link is the first thing a keyboard reaches. On top of that:

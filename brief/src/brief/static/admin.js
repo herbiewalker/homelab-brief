@@ -2,8 +2,7 @@
 // everything the templates use is a named property or method defined here.
 document.addEventListener("alpine:init", function () {
   function applyTheme(t) {
-    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
-    else document.documentElement.removeAttribute("data-theme");
+    document.documentElement.setAttribute("data-theme", t);
   }
   Alpine.data("shell", function () {
     return {

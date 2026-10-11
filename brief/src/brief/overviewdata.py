@@ -9,7 +9,7 @@ import os
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 
-from brief import admin_data, ai
+from brief import admin_data, ai, systemhistory
 from brief.collectors import framework
 from brief.config import ConfigError, config_file, load_mapping
 from brief.store import Store, iso
@@ -79,12 +79,21 @@ def hero(status: dict, action: dict | None) -> dict:
     }
 
 
-def _card(label, value, sub="", kind="", href="", glyph="") -> dict:
-    return {"label": label, "value": value, "sub": sub, "kind": kind, "href": href, "glyph": glyph}
+def _card(label, value, sub="", kind="", href="", glyph="", series=None) -> dict:
+    return {
+        "label": label,
+        "value": value,
+        "sub": sub,
+        "kind": kind,
+        "href": href,
+        "glyph": glyph,
+        "series": series,
+    }
 
 
-def cards(data: dict, counts: dict) -> list[dict]:
+def cards(data: dict, counts: dict, series: dict | None = None) -> list[dict]:
     p = data["status"].get("pipeline") or {}
+    series = series or {}
     out = []
     events = p.get("events_24h") or 0
     lag = p.get("ingest_lag_s")
@@ -97,6 +106,7 @@ def cards(data: dict, counts: dict) -> list[dict]:
             "bad" if not events else ("warn" if silent or (lag or 0) > 300 else "ok"),
             "/admin/sources",
             "activity",
+            series.get("events"),
         )
     )
     out.append(
@@ -123,6 +133,7 @@ def cards(data: dict, counts: dict) -> list[dict]:
             "warn" if days is not None and days < 30 else "",
             "/admin/backups",
             "database",
+            series.get("archive"),
         )
     )
     mem, limit = p.get("memory_mb"), p.get("memory_limit_mb")
@@ -134,6 +145,7 @@ def cards(data: dict, counts: dict) -> list[dict]:
             f"{pct}% of {limit} MB" if pct is not None else "container limit unknown",
             "bad" if pct is not None and pct >= 90 else ("warn" if pct is not None and pct >= 75 else ""),
             glyph="box",
+            series=series.get("memory"),
         )
     )
     collectors = data["status"].get("collectors") or {}
@@ -200,6 +212,39 @@ def system_tiles(status: dict) -> list[dict]:
         for s in status.get("systems") or []
     ]
     return sorted(tiles, key=lambda t: (STATE_RANK.get(t["state"], 2), t["name"] or ""))
+
+
+def kpi_series(store: Store, now: datetime) -> dict:
+    """The 24-hour trend behind each KPI tile that has one. A part that cannot be read just has no line."""
+    return {
+        "events": safe_db(lambda: systemhistory.events_by_hour(store, now), None),
+        "memory": safe_db(lambda: systemhistory.metric_series(store, "process.memory_mb", now), None),
+        "archive": safe_db(lambda: systemhistory.metric_series(store, "storage.archive_bytes", now), None),
+    }
+
+
+def components(store: Store, tiles: list[dict], now: datetime) -> list[dict]:
+    """Each system with its 30-day state bar and uptime. A system with no recorded history gets a grey bar."""
+    bars = safe_db(lambda: systemhistory.bars(store, now), {})
+    out = []
+    for t in tiles:
+        cells = bars.get(t["id"]) or systemhistory.empty_bar(now)
+        out.append(
+            {
+                **t,
+                "word": systemhistory.STATE_WORD.get(t["state"], t["state"]),
+                "cells": cells,
+                "uptime": systemhistory.uptime_pct(cells),
+            }
+        )
+    return out
+
+
+def safe_db(fn, default):
+    try:
+        return fn()
+    except Exception:  # noqa: BLE001 (history is decoration; the page keeps its other parts)
+        return default
 
 
 def changes(store: Store, status: dict, now: datetime) -> list[dict]:
@@ -319,8 +364,10 @@ def build(
     required_open = [s for s in steps if not s["done"] and not s.get("optional")]
     action = headline_action(status, health, data["config_errors"], bool(required_open))
     data["hero"] = hero(status, action)
-    data["cards"] = cards(data, counts)
+    data["cards"] = cards(data, counts, kpi_series(store, now))
     data["systems"] = system_tiles(status)
+    data["components"] = components(store, data["systems"], now)
+    data["timeline"] = safe_db(lambda: systemhistory.timeline(store, now), [])
     data["changes"] = changes(store, status, now)
     data["alerts"] = admin_data.alert_rows(store, now)[:TOP_ALERTS]
     data["alerts_total"] = data["open_alerts"]

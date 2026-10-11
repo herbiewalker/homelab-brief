@@ -101,3 +101,18 @@ def test_mqtt_is_off_without_a_host_and_a_bad_port_is_logged_not_fatal(tmp_path,
     assert w.Worker(tmp_path / "s1", env).publisher is None
     bad = w.Worker(tmp_path / "s2", {**env, "MQTT_HOST": "broker.example", "MQTT_PORT": "nope"})
     assert bad.publisher is None and "mqtt_config_error" in capsys.readouterr().out
+
+
+def test_the_hourly_job_notes_each_systems_state_for_the_status_bars(tmp_path, monkeypatch):
+    healthy(monkeypatch)
+    env, _ = make_env(tmp_path)
+    state = tmp_path / "state"
+    events_file(state, "one", "two")
+    worker = w.Worker(state, env)
+    worker.publisher = FakePublisher()
+    worker.run_once()
+    doc = worker.publish_status()
+    with worker.store.read() as db:
+        rows = db.execute("SELECT system_id FROM system_day").fetchall()
+    expected = {s["id"] for s in doc.get("systems") or []} if doc["run_ok"] else set()
+    assert {r["system_id"] for r in rows} == expected

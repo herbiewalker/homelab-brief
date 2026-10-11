@@ -5,6 +5,16 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.55
+
+- **The whole site has a new look: an operations console.** Dark by default (the theme button still picks light, dark, or follow-the-system), 14 px type, tighter spacing, tabular numbers, sticky table headers, and one panel style shared by every page. Every existing page picks it up; no page lost a control.
+- **Overview rebuilt as a console.** A status banner (with a live dot and the one action that fixes the biggest problem), KPI tiles with 24-hour trend lines drawn on the server (events, memory, archive size), a row per system with a 30-day state bar and uptime, an incident timeline from the alert log, then needs-attention, what changed, busiest senders, and last runs. On a phone the tiles go two across.
+- **New public status page at `/`.** One overall state ("All systems operational", "Some systems need a look", "A system is down", or "No data today: the status cannot be confirmed"; it never says operational when the last run failed), a row per system with its 30-day bar, recent incidents, health, and ingest numbers. Static HTML with no script, reloads every minute, follows the system's light or dark setting.
+- **The static brief and board views** (`/brief.html`, `/board.html`, used on tablets) use the same palette and card style. Still one self-contained file with no script or outside request.
+- **History for the bars.** Migration 0015 adds `system_day`: the worst state each system showed each day, sampled hourly by the worker. A day with no record shows grey "no data", never green, and a failed run records nothing. Bars start empty on an existing install and fill in over 30 days.
+- Sign-in page polished; small buttons are now at least 24 px tall (found by the audit).
+- Developer tool: `scripts/ui_preview.py` serves every page on synthetic data (with 30 days of history) for looking at the interface in a browser.
+
 ## 0.0.54
 
 - **The Overview says why a collector is failing.** The Collectors tile and the headline now show the collector's own error (for example "no server could be read: server-1: no answer within 10 s") instead of only its name.

@@ -4,6 +4,7 @@
 {% block body %}
 <form class="card" method="post" action="/admin/login">
   <h1>Sign in</h1>
+  <p class="lead">Network monitoring and settings.</p>
   {% if error %}<div class="alert alert--bad" role="alert">{{ icon('alert-circle') }}<div>{{ error }}</div></div>{% endif %}
   {% if notice %}<div class="alert alert--ok" role="status">{{ icon('check-circle') }}<div>{{ notice }}</div></div>{% endif %}
   <input type="hidden" name="csrf_token" value="{{ csrf }}">

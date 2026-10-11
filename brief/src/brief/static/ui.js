@@ -5,11 +5,11 @@
   "use strict";
   var root = document.documentElement;
 
-  // ---------------------------------------------------------------- theme: auto -> light -> dark
-  var ORDER = ["auto", "light", "dark"], ICON = { auto: "monitor", light: "sun", dark: "moon" };
-  function theme() { try { return localStorage.getItem("theme") || "auto"; } catch (e) { return "auto"; } }
+  // ---------------------------------------------------------------- theme: dark (default) -> light -> auto (follow the system)
+  var ORDER = ["dark", "light", "auto"], ICON = { auto: "monitor", light: "sun", dark: "moon" };
+  function theme() { try { var t = localStorage.getItem("theme"); return ORDER.indexOf(t) >= 0 ? t : "dark"; } catch (e) { return "dark"; } }
   function applyTheme(t) {
-    if (t === "light" || t === "dark") root.setAttribute("data-theme", t); else root.removeAttribute("data-theme");
+    root.setAttribute("data-theme", t);
     document.querySelectorAll("[data-theme-icon]").forEach(function (use) {
       use.setAttribute("href", "#i-" + ICON[t]);
     });

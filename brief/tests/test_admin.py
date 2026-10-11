@@ -258,12 +258,12 @@ def test_no_admin_page_uses_an_inline_style_the_policy_would_block(lab):
 def test_the_overview_leads_with_a_headline_and_the_one_fix_for_a_failed_run(lab, monkeypatch):
     monkeypatch.setattr(health, "receiver_ok", lambda port: False)
     html = lab.client.get("/admin").text
-    assert "hero--bad" in html and "Check the syslog port" in html and 'href="/admin/network"' in html
+    assert "banner--bad" in html and "Check the syslog port" in html and 'href="/admin/network"' in html
 
 
 def test_a_healthy_overview_has_no_fix_button(lab):
     html = lab.client.get("/admin").text
-    assert "hero--" in html and "Check the syslog port" not in html
+    assert "banner--" in html and "Check the syslog port" not in html
 
 
 def test_the_overview_has_health_tiles_system_tiles_and_a_checklist(lab):

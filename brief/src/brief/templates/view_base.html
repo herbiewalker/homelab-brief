@@ -6,26 +6,31 @@
 {% if refresh %}<meta http-equiv="refresh" content="{{ refresh }}">{% endif %}
 <title>{% block title %}Homelab brief{% endblock %}</title>
 <style>
-body { margin: 0; padding: 12px; background: #111; color: #e6e6e6; font: 16px/1.4 "DejaVu Sans Mono", Menlo, Consolas, monospace; }
-h1 { font-size: 1.25em; margin: 0 0 4px; }
-h2 { font-size: 1.05em; margin: 20px 0 6px; border-bottom: 1px solid #444; padding-bottom: 2px; }
-.meta { color: #9a9a9a; font-size: 0.85em; }
-.headline { font-size: 1.2em; font-weight: bold; margin: 10px 0; padding: 8px 10px; border-left: 8px solid #2e7d32; background: #1b1b1b; }
-.headline.yellow { border-color: #f9a825; }
-.headline.red, .headline.failed { border-color: #c62828; }
-.headline.unknown { border-color: #757575; }
-.tiles { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
-.tile { flex: 1 1 200px; padding: 10px; color: #fff; background: #2e7d32; }
-.tile.yellow { background: #f9a825; color: #111; }
-.tile.red { background: #c62828; }
-.tile.unknown { background: #616161; }
-.tile b { display: block; font-size: 1.1em; }
-.story { margin: 10px 0; padding-left: 10px; border-left: 4px solid #555; }
-.story.push_now { border-color: #c62828; }
-.story small { color: #9a9a9a; display: block; }
-.prose { background: #1b1b1b; padding: 4px 12px 10px; border: 1px solid #333; }
-.note { color: #9a9a9a; font-size: 0.85em; }
+/* The tablet and e-reader views: one self-contained file, no script, no request out. Same palette as the console. */
+:root { color-scheme: dark; --bg: #0a0d12; --surface: #10141b; --line: #1f2630; --fg: #e6eaf0; --muted: #a0abba; --ok: #36c47f; --warn: #f0b04a; --bad: #ff6b6b; --off: #6b7788; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 14px; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+main { max-width: 64rem; margin: 0 auto; }
+h1 { font-size: 1.3em; margin: 0 0 4px; font-weight: 650; letter-spacing: -0.01em; }
+h2 { font-size: 0.78em; margin: 22px 0 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 650; }
+.meta { color: var(--muted); font-size: 0.85em; font-variant-numeric: tabular-nums; }
+.headline { font-size: 1.35em; font-weight: 650; margin: 12px 0; padding: 16px 18px; border: 1px solid var(--line); border-left: 6px solid var(--ok); border-radius: 8px; background: var(--surface); }
+.headline.yellow { border-left-color: var(--warn); }
+.headline.red, .headline.failed { border-left-color: var(--bad); }
+.headline.unknown { border-left-color: var(--off); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin: 8px 0; }
+.tile { padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--ok); border-radius: 8px; color: var(--ok); font-weight: 650; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; }
+.tile.yellow { border-left-color: var(--warn); color: var(--warn); }
+.tile.red { border-left-color: var(--bad); color: var(--bad); }
+.tile.unknown { border-left-color: var(--off); color: var(--muted); }
+.tile b { display: block; color: var(--fg); font-size: 1.2em; text-transform: none; letter-spacing: 0; margin-bottom: 2px; }
+.story { margin: 8px 0; padding: 10px 14px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--off); border-radius: 8px; }
+.story.push_now { border-left-color: var(--bad); }
+.story small { color: var(--muted); display: block; }
+.prose { background: var(--surface); padding: 6px 16px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.note { color: var(--muted); font-size: 0.85em; }
 ul { margin: 4px 0; padding-left: 22px; }
+li { margin: 2px 0; }
 </style>
 </head>
 <body>
