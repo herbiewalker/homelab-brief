@@ -21,7 +21,7 @@
 ## Backups and code
 
 - Back up the appdata folder (`config`, `state`) and the archive. `brief backup create` (or the Backups page) produces a single file. Losing `drain3.bin` makes every message look new.
-- Keep the code and config templates in the private repository. Real `systems.yaml`, `devices.yaml`, and `topology.yaml` live only in appdata. Never commit secrets.
+- Keep your real `systems.yaml`, `devices.yaml`, and `topology.yaml` in appdata and in your own private instance folder, never in the public repository. Never commit secrets.
 
 ## Security
 

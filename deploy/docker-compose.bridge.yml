@@ -3,10 +3,10 @@
 # device then looks like one host. The Network page warns when it sees that. Prefer own IP or host mode
 # unless you have a reason; this mode exists for hosts where neither is possible.
 # Devices send syslog to <host-address>:<published syslog port>. Choose host ports that Unraid is not using.
-# Replace <owner>. The pool is Unraid's default, cache; change /mnt/cache if yours differs.
+# The pool is Unraid's default, cache; change /mnt/cache if yours differs.
 services:
   homelab-brief:
-    image: ghcr.io/<owner>/homelab-brief:stable  # follows releases; use an exact version to stay put
+    image: ghcr.io/herbiewalker/homelab-brief:stable  # follows releases; use an exact version to stay put
     container_name: homelab-brief
     restart: unless-stopped
     ports:

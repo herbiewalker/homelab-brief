@@ -27,6 +27,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.staticfiles import StaticFiles
 
 from brief import (
+    SOURCE_URL,
     __version__,
     admin_ai,
     admin_collectors,
@@ -168,6 +169,7 @@ def create_app(
     auth = auth or Auth(store)
     templates = jinja2.Environment(loader=jinja2.FileSystemLoader(HERE / "templates"), autoescape=True)
     templates.globals["asset_v"] = __version__  # a new version is a new URL for the stylesheet and scripts
+    templates.globals["source_url"] = SOURCE_URL
     templates.globals["spark"] = sparkline.points
     templates.globals["meter_pct"] = sparkline.meter_pct
 

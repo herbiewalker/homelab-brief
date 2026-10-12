@@ -8,7 +8,7 @@ import golden_day as g
 import pytest
 from test_web import Env, sign_in
 
-from brief import health
+from brief import SOURCE_URL, health
 from brief.store import iso
 
 
@@ -90,8 +90,12 @@ def test_admin_pages_allow_scripts_from_our_own_origin_only_and_are_never_cached
 
 def test_the_pages_load_only_our_own_files(lab):
     html = lab.client.get("/admin").text
-    sources = re.findall(r'(?:src|href)="([^"]+)"', html)
-    assert sources and all(s.startswith("/") for s in sources if not s.startswith("#")), sources
+    # what the page LOADS (scripts, images, stylesheets, icons) is always our own origin
+    sources = re.findall(r'<(?:script|img|link)\b[^>]*?(?:src|href)="([^"]+)"', html)
+    assert sources and all(s.startswith("/") for s in sources), sources
+    # the only link that leaves the site is the AGPL source offer
+    leaving = re.findall(r'<a\b[^>]*?href="(https?://[^"]+)"', html)
+    assert leaving == [SOURCE_URL] or not leaving, leaving
     assert "<script>" not in html and "javascript:" not in html and " onclick=" not in html
     for path in ("/static/admin.js", "/static/theme.js", "/static/app.css", "/static/vendor/htmx-2.0.11.min.js",
                  "/static/vendor/alpine-csp-3.17.4.min.js"):  # fmt: skip

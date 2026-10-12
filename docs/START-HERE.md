@@ -1,21 +1,18 @@
-# Start here: setting up a coding session
+# Start here
 
-This folder was prepared in chat. A coding agent does the building (Claude Code is the worked example below, but any agent that reads `AGENTS.md` works the same way); chat stays for planning, tuning, and reviewing real digests. Coding agents do not share chat memory, so the files in `docs/` are their memory.
+Two ways in, depending on what you want:
+
+- **Just run it:** read the [README](../README.md), then [`deploy/README.md`](../deploy/README.md). You do not need anything below.
+- **Work on it** (fix a bug, add a collector, change the console): the rest of this page sets up a development session. The building is done in small tested tasks, either by you or with a coding agent; Claude Code is the worked example below, but any agent that reads `AGENTS.md` works the same way. Agents do not share memory between sessions, so the files in `docs/` are their memory.
 
 ## One-time setup
 
-1. **The spec is already in the repo.** The plan is `docs/project-plan.md`; the technical guide is `docs/unraid-backend-guide.md` plus the parts in `docs/guide/`; agent instructions are `AGENTS.md` (`CLAUDE.md` only points to it).
-2. **Initialize git and make a private repo.** Check `.gitignore` first, then from this folder in PowerShell:
-   ```powershell
-   git init
-   git add .
-   git status        # confirm no secrets.env, samples/raw, .dev, docs/private, or real systems.yaml appear
-   git commit -m "Initial scaffold"
-   ```
-   Create a new **private** repository (not the public scripts repository) and push. With the GitHub CLI: `gh repo create homelab-brief --private --source=. --push`.
-3. **Check local tools.** Docker (Docker Desktop or Docker in WSL) on the machine where the agent runs. Tests run inside the container, so a local Python install is optional.
-4. **Create your local secrets file.** Copy `secrets.env.example` to `secrets.env` and fill in throwaway MQTT passwords (`MQTT_PASSWORD`, `MQTT_HA_PASSWORD`). It is gitignored. Task 0 runs `scripts/dev-init.ps1` to create the dev folders and Mosquitto users from it. On Unraid, the same values become template variables.
-5. **Create your instance folder.** Everything specific to your network (real `systems.yaml`, `devices.yaml`, `topology.yaml`, audit notes, raw and full sanitized logs, private word lists) lives outside this repository, normally in its own private repository. Copy `instance-template/` to a sibling folder named `homelab-brief-instance` (or set `BRIEF_INSTANCE_DIR`) and read `docs/INSTANCE.md`. Never put real names, MACs, or IPs in this repository.
+1. **Read the spec.** The plan is `docs/project-plan.md`; the technical guide is `docs/unraid-backend-guide.md` plus the parts in `docs/guide/`; the rules for contributors and agents are `AGENTS.md` (`CLAUDE.md` only points to it); the backlog is `docs/TASKS.md`; settled and open choices are `docs/DECISIONS.md`.
+2. **Get the code.** Fork or clone the repository. Install the commit checks with `scripts/setup-dev-tools.sh` (Linux or WSL): they run ruff, a secrets scan, and the private-name guard before every commit.
+3. **Check local tools.** Docker (Docker Desktop, or Docker in WSL). Tests run inside the container, so a local Python install is optional: `docker compose --profile test run --rm --build test pytest -q`.
+4. **Create your local secrets file.** Copy `secrets.env.example` to `secrets.env` and fill in throwaway MQTT passwords (`MQTT_PASSWORD`, `MQTT_HA_PASSWORD`). It is gitignored. `scripts/dev-init.ps1` creates the dev folders and Mosquitto users from it. On Unraid, the same values become template variables.
+5. **Create your instance folder.** Everything specific to your network (real `systems.yaml`, `devices.yaml`, `topology.yaml`, audit notes, raw and full sanitized logs, private word lists) lives outside this repository, normally in its own private repository. Copy `instance-template/` to a sibling folder named `homelab-brief-instance` (or set `BRIEF_INSTANCE_DIR`) and read `docs/INSTANCE.md`. Never put that material in this repository: the commit guard reads your instance's word lists to stop you.
+6. **Look at the interface without any data.** `scripts/ui_preview.py` serves every page on synthetic data (see its header for the one-line command).
 
 ## Starting a session
 

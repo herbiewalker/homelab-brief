@@ -3,11 +3,11 @@
 # Network: br0 is the default (Unraid already provides it). To use a dedicated network such as syslog-net, define it as an external or macvlan/ipvlan network and rename it below.
 # The Unraid template (deploy/unraid-template.xml) is the primary install path;
 # this compose file mirrors it for Compose Manager users.
-# Replace <owner> and <container-ip>. The pool is Unraid's default, cache; change /mnt/cache if yours is named differently. Secrets come from template variables or an
+# Replace <container-ip>. The pool is Unraid's default, cache; change /mnt/cache if yours is named differently. Secrets come from template variables or an
 # env file in appdata (mode 600), never from a Filesystem MCP folder.
 services:
   homelab-brief:
-    image: ghcr.io/<owner>/homelab-brief:stable  # follows releases; use an exact version to stay put
+    image: ghcr.io/herbiewalker/homelab-brief:stable  # follows releases; use an exact version to stay put
     container_name: homelab-brief
     restart: unless-stopped
     networks:

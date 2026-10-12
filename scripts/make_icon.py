@@ -1,82 +1,78 @@
-"""Draw the product icon (a pulse line on a dark rounded square) with Pillow, so it can be regenerated.
+"""Draw the product icon (a small newspaper front page with a pulse line) with Pillow, to regenerate it.
 
     python scripts/make_icon.py <output-folder>
 
-Writes icon.png (512 px, for the Unraid template and the Docker tab) and favicon.png (64 px). The drawing is
-supersampled 4x and downscaled, so edges are smooth. Colours match the console theme (blue to green).
+Writes icon.png (512 px, for the Unraid template and the Docker tab) and favicon.png (64 px). Needs the DejaVu
+fonts that the image ships. The drawing is supersampled 4x and downscaled, so edges are smooth.
 """
 
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
 
 SIZE = 512
 SS = 4  # supersampling factor
-BLUE, GREEN = (77, 163, 255), (54, 196, 127)
-PULSE = [(0.13, 0.55), (0.33, 0.55), (0.41, 0.31), (0.51, 0.77), (0.59, 0.46), (0.65, 0.55), (0.80, 0.55)]
+PAPER, PAPER_EDGE = (244, 237, 220), (214, 205, 184)
+INK, GREY, RED = (22, 19, 17), (150, 143, 128), (214, 52, 43)
+SERIF_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 
 
-def lerp(a, b, t):
-    return tuple(round(x + (y - x) * t) for x, y in zip(a, b, strict=True))
-
-
-def gradient(size: int, top, bottom, horizontal=False) -> Image.Image:
-    strip = Image.new("RGB", (size, 1) if horizontal else (1, size))
-    for i in range(size):
-        strip.putpixel((i, 0) if horizontal else (0, i), lerp(top, bottom, i / (size - 1)))
-    return strip.resize((size, size))
+def font(size: int) -> ImageFont.ImageFont:
+    try:
+        return ImageFont.truetype(SERIF_BOLD, size)
+    except OSError:
+        return ImageFont.load_default()
 
 
 def draw() -> Image.Image:
     n = SIZE * SS
-    canvas = Image.new("RGBA", (n, n), (0, 0, 0, 0))
 
-    # the rounded square, with a faint edge
+    def p(v: float) -> int:  # a fraction of the icon to pixels
+        return int(v * n)
+
+    body = Image.new("RGBA", (n, n), (0, 0, 0, 0))
     mask = Image.new("L", (n, n), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, n - 1, n - 1), radius=int(n * 0.22), fill=255)
-    body = gradient(n, (19, 27, 41), (7, 10, 16)).convert("RGBA")
-    canvas.paste(body, (0, 0), mask)
-    edge = Image.new("L", (n, n), 0)
-    d = ImageDraw.Draw(edge)
-    d.rounded_rectangle((0, 0, n - 1, n - 1), radius=int(n * 0.22), outline=255, width=int(n * 0.012))
-    canvas.paste(Image.new("RGBA", (n, n), (44, 53, 66, 255)), (0, 0), edge)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, n - 1, n - 1), radius=p(0.2), fill=255)
+    page = Image.new("RGBA", (n, n), PAPER + (255,))
+    body.paste(page, (0, 0), mask)
+    d = ImageDraw.Draw(body)
+    d.rounded_rectangle((0, 0, n - 1, n - 1), radius=p(0.2), outline=PAPER_EDGE + (255,), width=p(0.012))
 
-    # a faint grid, like a monitoring graph
-    grid = Image.new("L", (n, n), 0)
-    g = ImageDraw.Draw(grid)
-    for i in range(1, 5):
-        g.line((int(n * 0.1), int(n * i / 5), int(n * 0.9), int(n * i / 5)), fill=26, width=max(1, SS))
-    canvas.paste(Image.new("RGBA", (n, n), (160, 171, 186, 255)), (0, 0), ImageChops.multiply(grid, mask))
+    left, right = p(0.1), p(0.9)
+    # masthead: a thick rule, a thin rule, the name, a thin rule, a thick red rule
+    d.rectangle((left, p(0.105), right, p(0.125)), fill=INK)
+    d.rectangle((left, p(0.14), right, p(0.147)), fill=INK)
+    title = "Brief"
+    f = font(p(0.235))
+    box = d.textbbox((0, 0), title, font=f)
+    tw = box[2] - box[0]
+    d.text(((n - tw) // 2 - box[0], p(0.165) - box[1]), title, font=f, fill=INK)
+    d.rectangle((left, p(0.425), right, p(0.432)), fill=INK)
+    d.rectangle((left, p(0.447), right, p(0.465)), fill=RED)
 
-    # the pulse line as a mask, drawn with round joins
-    pts = [(int(x * n), int(y * n)) for x, y in PULSE]
-    width = int(n * 0.058)
-    line = Image.new("L", (n, n), 0)
-    ld = ImageDraw.Draw(line)
-    ld.line(pts, fill=255, width=width, joint="curve")
+    # the picture: a dark box with a pulse line
+    pic = (left, p(0.51), p(0.47), p(0.87))
+    d.rectangle(pic, fill=INK)
+    px0, py0, px1, py1 = pic
+    w, h = px1 - px0, py1 - py0
+    pulse = [(0.08, 0.55), (0.30, 0.55), (0.40, 0.24), (0.52, 0.80), (0.62, 0.42), (0.70, 0.55), (0.92, 0.55)]
+    pts = [(px0 + int(x * w), py0 + int(y * h)) for x, y in pulse]
+    lw = p(0.024)
+    d.line(pts, fill=RED, width=lw, joint="curve")
     for x, y in (pts[0], pts[-1]):
-        ld.ellipse((x - width // 2, y - width // 2, x + width // 2, y + width // 2), fill=255)
+        d.ellipse((x - lw // 2, y - lw // 2, x + lw // 2, y + lw // 2), fill=RED)
 
-    colour = gradient(n, BLUE, GREEN, horizontal=True).convert("RGBA")
-    glow = line.filter(ImageFilter.GaussianBlur(n * 0.03))
-    canvas.paste(colour, (0, 0), glow.point(lambda v: int(v * 0.55)))
-    canvas.paste(colour, (0, 0), line)
-
-    # the status dot at the end of the line
-    ex, ey = pts[-1]
-    r = int(n * 0.062)
-    dot_glow = Image.new("L", (n, n), 0)
-    ImageDraw.Draw(dot_glow).ellipse((ex - r * 2, ey - r * 2, ex + r * 2, ey + r * 2), fill=120)
-    canvas.paste(
-        Image.new("RGBA", (n, n), GREEN + (255,)), (0, 0), dot_glow.filter(ImageFilter.GaussianBlur(r * 0.8))
-    )
-    ImageDraw.Draw(canvas).ellipse(
-        (ex - r, ey - r, ex + r, ey + r), fill=GREEN + (255,), outline=(231, 255, 240, 255), width=SS
-    )
+    # the story: two heavy headline bars and lines of text
+    x0 = p(0.51)
+    d.rectangle((x0, p(0.51), right, p(0.545)), fill=INK)
+    d.rectangle((x0, p(0.565), p(0.80), p(0.60)), fill=INK)
+    for i in range(5):
+        y = p(0.635 + i * 0.047)
+        d.rectangle((x0, y, right - (p(0.05) if i % 2 else 0), y + p(0.016)), fill=GREY)
 
     final = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    final.paste(canvas, (0, 0), mask)
+    final.paste(body, (0, 0), mask)
     return final.resize((SIZE, SIZE), Image.LANCZOS)
 
 

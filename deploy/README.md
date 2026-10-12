@@ -21,18 +21,20 @@ Files in this folder:
 
 ## Get the image
 
-From the registry. The release workflow pushes `ghcr.io/<owner>/homelab-brief:<version>` and moves `ghcr.io/<owner>/homelab-brief:stable` when a version tag is created.
+From the registry. The release workflow pushes `ghcr.io/herbiewalker/homelab-brief:<version>` and moves `ghcr.io/herbiewalker/homelab-brief:stable` when a version tag is created.
 
-**Make the package public if you want Unraid's update check to work.** Unraid asks the registry anonymously whether a newer image exists, so a private package always shows "not available" and cannot be updated from the Docker tab. The image is the generic product with nothing personal in it, so public is safe: on GitHub open your profile, Packages, `homelab-brief`, Package settings, and change the visibility to public (the repository itself can stay private). If you keep the package private, log in once with a personal access token that can read packages, and expect to pull by hand (the login is kept in `/root/.docker`, which Unraid empties at reboot):
+The image is public, so no login is needed:
 
 ```bash
-docker login ghcr.io -u <github-user>
-docker pull ghcr.io/<owner>/homelab-brief:<version>
+docker pull ghcr.io/herbiewalker/homelab-brief:stable      # follows releases
+docker pull ghcr.io/herbiewalker/homelab-brief:<version>   # one exact release
 ```
 
-In the template, replace `<owner>` in the Repository field (`ghcr.io/<owner>/homelab-brief:stable`, or an exact version to stay put). Compose Manager uses the same `docker login` credentials.
+Being public is also what lets Unraid's update check work: Unraid asks the registry anonymously whether a newer image exists. If you fork this project and publish your own image, make your package public (GitHub profile, Packages, `homelab-brief`, Package settings, visibility) or the Docker tab will always say "not available". A private package needs `docker login ghcr.io` with a token that can read packages, and Unraid empties that login at reboot.
 
-**The icon.** The template points at `deploy/icon.png` through a raw GitHub address, which only works when the repository is public. For a private repository, set the `net.unraid.docker.icon` label in the compose file to the container's own address (`http://<container-ip>/static/icon.png`): the container serves its own icon. Unraid caches icons, so it only needs to reach it once.
+The template's Repository field is `ghcr.io/herbiewalker/homelab-brief:stable` (replace `stable` with an exact version to stay put).
+
+**The icon.** The template points at `deploy/icon.png` through its raw GitHub address. For a compose stack, set the `net.unraid.docker.icon` label to the container's own address (`http://<container-ip>/static/icon.png`): the container serves its own icon. Unraid caches icons, so it only needs to reach it once.
 
 Without a registry (or before the first release), build on a machine with Docker and copy it over; then use the local name `homelab-brief:<version>` as the repository:
 

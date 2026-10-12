@@ -34,7 +34,7 @@ HA ──MQTT statestream─▶ │ worker: signatures, baselines, detectors, di
 - **One image, one container, one appdata folder, one Unraid template.** Vector, the worker, and the web server run under a process supervisor; Docker's health check shows status in Unraid.
 - **Own LAN IP** on `br0`, so devices send syslog straight to it and standard ports are free. This removes the dependency on the host server's syslog service, which can stop silently.
 - **The broker stays outside:** a temporary Mosquitto container now, HA's Mosquitto add-on later.
-- **Repeatable:** versioned images from the private repo, config schema migrations, backup and restore of one folder, excluded from nightly auto-updates.
+- **Repeatable:** versioned public images (an exact tag per release and a moving `stable` tag for one-click updates), config schema migrations with a database copy before each, and backup and restore of one folder.
 
 ## Data sources
 
