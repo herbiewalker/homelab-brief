@@ -33,7 +33,7 @@ def test_a_day_nobody_recorded_is_no_data_not_green(store):
     assert len(cells) == sh.DAYS
     assert cells[-4]["state"] == "green"
     assert [c["state"] for c in cells[-3:]] == ["none", "none", "none"]
-    assert sh.uptime_pct(cells) == 100.0
+    assert sh.uptime_pct(cells) is None  # one recorded day is not enough to quote an uptime
 
 
 def test_a_failed_run_records_nothing(store):

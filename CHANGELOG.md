@@ -5,6 +5,10 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.56
+
+- **Uptime is only quoted once there is something to quote.** A system with one recorded day showed "100% up" or "0% up". The percentage now appears after three recorded days; until then the bar alone shows what has been seen.
+
 ## 0.0.55
 
 - **The whole site has a new look: an operations console.** Dark by default (the theme button still picks light, dark, or follow-the-system), 14 px type, tighter spacing, tabular numbers, sticky table headers, and one panel style shared by every page. Every existing page picks it up; no page lost a control.

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from brief.store import Store, iso
 
 DAYS = 30
+MIN_DAYS_FOR_UPTIME = 3  # one recorded day says "100% up" or "0% up", which means nothing yet
 RANK = {"unknown": 0, "green": 1, "yellow": 2, "red": 3}
 STATE_WORD = {
     "green": "operational",
@@ -86,9 +87,9 @@ def _cell(day: str, state: str) -> dict:
 
 
 def uptime_pct(cells: list[dict]) -> float | None:
-    """Share of recorded days that were fully green. None when nothing was recorded."""
+    """Share of recorded days that were fully green. None until a few days are recorded."""
     seen = [c for c in cells if c["state"] != "none"]
-    if not seen:
+    if len(seen) < MIN_DAYS_FOR_UPTIME:
         return None
     return round(100.0 * sum(1 for c in seen if c["state"] == "green") / len(seen), 1)
 
