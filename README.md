@@ -30,11 +30,13 @@ Treat it as a homelab tool to try next to your real setup, not as something your
 
 You need Docker, a place to keep four folders, and (for the best result) a spare IP address on your LAN so devices can send syslog to the container directly.
 
-**On Unraid (Docker tab, one-click updates):** add the template from this address (Docker tab, Add Container, Template URL), set a fixed IP on `br0`, and apply:
+**On Unraid (Docker tab, one-click updates):** run this once in the Unraid terminal, then open the Docker tab, click Add Container, pick `homelab-brief` from the Template dropdown, set a fixed IP on `br0`, and apply:
 
+```bash
+wget -O /boot/config/plugins/dockerMan/templates-user/my-homelab-brief.xml   https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/unraid-template.xml
 ```
-https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/unraid-template.xml
-```
+
+(No terminal? Download that file and save it as `my-homelab-brief.xml` in the `config/plugins/dockerMan/templates-user` folder of the flash share, from any computer.) A Community Applications listing, which would make it a search-and-click install, is planned; see `docs/DECISIONS.md`.
 
 The image follows the `stable` tag, so the Docker tab offers **Update** when a release is out. Each start keeps a copy of the database before it migrates.
 
