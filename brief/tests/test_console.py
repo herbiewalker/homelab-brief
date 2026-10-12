@@ -91,3 +91,9 @@ def test_dark_is_the_default_theme_and_the_script_agrees():
     assert 'var t = "dark"' in (static / "theme.js").read_text(encoding="utf-8")
     css = (static / "ui.css").read_text(encoding="utf-8")
     assert css.split(":root {", 1)[1].split("}", 1)[0].count("color-scheme: dark") == 1
+
+
+def test_the_container_serves_its_own_icon_and_the_pages_link_a_favicon(lab):  # noqa: F811
+    icon = lab.http().get("/static/icon.png")
+    assert icon.status_code == 200 and icon.content.startswith(b"\x89PNG") and len(icon.content) > 5000
+    assert 'rel="icon"' in lab.http().get("/").text

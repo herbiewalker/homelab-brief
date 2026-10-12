@@ -1,6 +1,7 @@
 name: release
 # A version tag (for example 0.1.0) runs every check, then builds the image once and pushes it to the
-# container registry under that exact version. There is no `latest` tag, by design.
+# container registry under that exact version, and moves the `stable` tag to it so that Unraid's "check for
+# updates" and "update" (and Compose Manager) can follow releases. There is no `latest` tag, by design.
 on:
   push:
     tags: ["[0-9]+.[0-9]+.[0-9]+"]
@@ -56,8 +57,10 @@ jobs:
           else
             echo "no published previous release to upgrade from; skipping"
           fi
-      - name: Push (version tag only, never latest)
+      - name: Push (the version tag, and the moving stable tag; never latest)
         run: |
           docker tag "homelab-brief:${GITHUB_REF_NAME}" "${IMAGE}:${GITHUB_REF_NAME}"
           docker push "${IMAGE}:${GITHUB_REF_NAME}"
-          echo "Published ${IMAGE}:${GITHUB_REF_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          docker tag "homelab-brief:${GITHUB_REF_NAME}" "${IMAGE}:stable"
+          docker push "${IMAGE}:stable"
+          echo "Published ${IMAGE}:${GITHUB_REF_NAME} (and moved :stable to it)" >> "$GITHUB_STEP_SUMMARY"

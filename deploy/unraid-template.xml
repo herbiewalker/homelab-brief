@@ -1,13 +1,15 @@
 <?xml version="1.0"?>
 <!--
   Unraid template for Homelab Brief. Default network: own IP on br0 (recommended).
-  Before installing: replace <owner> in Repository, set the Fixed IP address, and set the Repository tag
-  to an exact release (never latest). Settings for host and bridge mode are in deploy/README.md.
-  Leave this container out of automatic Docker updates (an upgrade is a deliberate step).
+  Before installing: replace <owner> in Repository and set the Fixed IP address. The Repository follows the
+  :stable tag, which every release moves, so the Docker tab's "check for updates" and "update" work like
+  any other container (the package must be public for Unraid to check it; see deploy/README.md). To stay on
+  one version, replace stable with an exact release such as 0.0.57. There is no latest tag. Each update keeps
+  a copy of the database first. Settings for host and bridge mode are in deploy/README.md.
 -->
 <Container version="2">
   <Name>homelab-brief</Name>
-  <Repository>ghcr.io/&lt;owner&gt;/homelab-brief:&lt;pin&gt;</Repository>
+  <Repository>ghcr.io/&lt;owner&gt;/homelab-brief:stable</Repository>
   <Registry>https://github.com/&lt;owner&gt;/homelab-brief/pkgs/container/homelab-brief</Registry>
   <Network>br0</Network>
   <MyIP/>
@@ -19,7 +21,7 @@
   <Category>Network:Other Tools:</Category>
   <WebUI>https://[IP]:[PORT:443]/admin</WebUI>
   <TemplateURL/>
-  <Icon/>
+  <Icon>https://raw.githubusercontent.com/&lt;owner&gt;/homelab-brief/main/deploy/icon.png</Icon>
   <ExtraParams>--memory=768m</ExtraParams>
   <PostArgs/>
   <CPUset/>

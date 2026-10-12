@@ -24,9 +24,11 @@ def configs(kind):
     return [c for c in template().iter("Config") if c.get("Type") == kind]
 
 
-def test_template_is_pinned_and_has_no_latest():
+def test_template_follows_stable_or_a_pin_and_has_no_latest():
     repo = template().findtext("Repository")
     assert repo and ":" in repo and not repo.endswith(":latest")
+    assert repo.endswith(":stable"), "the template follows the stable tag so Unraid can offer updates"
+    assert template().findtext("Icon"), "the template carries an icon"
 
 
 def test_template_runs_on_br0_with_the_web_page_and_memory_limit():
@@ -90,10 +92,11 @@ def test_compose_network_settings_differ_the_way_the_modes_say():
     assert "HTTPS_PUBLIC_PORT" in bridge["environment"]
 
 
-def test_release_workflow_never_pushes_latest():
+def test_release_workflow_never_pushes_latest_but_moves_stable():
     text = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     commands = [ln for ln in text.splitlines() if re.search(r"docker (tag|push|build)", ln)]
     assert commands and not any("latest" in ln for ln in commands)
+    assert any(":stable" in ln and "docker push" in ln for ln in commands)
     assert "uses: ./.github/workflows/checks.yml" in text
 
 

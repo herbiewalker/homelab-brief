@@ -3,10 +3,10 @@
 # ports first. Set them in config/brief/network.yaml (ports: syslog / http / https) or with the
 # variables below; the Network page in the admin GUI suggests 5514 / 8480 / 8443.
 # Devices then send syslog to <host-address>:<syslog port>. Host access to custom networks is not needed.
-# Replace <pin> with the exact release tag. The pool is Unraid's default, cache; change /mnt/cache if yours differs.
+# Replace <owner>. The pool is Unraid's default, cache; change /mnt/cache if yours differs.
 services:
   homelab-brief:
-    image: ghcr.io/<owner>/homelab-brief:<pin>
+    image: ghcr.io/<owner>/homelab-brief:stable  # follows releases; use an exact version to stay put
     container_name: homelab-brief
     restart: unless-stopped
     network_mode: host
@@ -23,5 +23,6 @@ services:
     labels:
       net.unraid.docker.webui: https://[IP]:8443/admin
       net.unraid.docker.managed: 'composeman'
+      net.unraid.docker.icon: http://<server-ip>:<http-port>/static/icon.png  # the container serves its own icon
     mem_limit: 768m
     logging: { driver: json-file, options: { max-size: 10m, max-file: "2" } }

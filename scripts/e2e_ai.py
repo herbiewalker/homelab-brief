@@ -176,7 +176,7 @@ def main(argv):
             "You explain one finding briefly." in shown.stdout,
             "the saved prompt is not what the pipeline would read",
         )
-        _, _, after = client.get(f"{https}/admin/ai")
+        _, _, after = client.get(f"{https}/admin/ai/activity")  # the call log moved to its own tab in Task 36
         check(
             "provider_test" in after and "e2e-model" not in after.split("Call log")[-1],
             "the call log shows tests without content",

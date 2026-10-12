@@ -13,22 +13,26 @@ Files in this folder:
 
 ## Before you start
 
-- A release tag exists in the registry (see "Get the image" below). Always use an exact version such as `0.1.0`; the project publishes no `latest`.
+- A release exists in the registry (see "Get the image" below). The image has an exact tag per release (for example `0.1.0`) and a moving `stable` tag that points at the newest release. The project publishes no `latest`.
 - Pick a network mode (own IP on `br0` is recommended; host and bridge also work, see the Network page table in `docs/guide/08-admin-and-access.md`). For own IP, pick a free LAN IP on the host server's network. The default is `br0`, which Unraid already provides. A dedicated network (for example named `syslog-net`) is an option later: it needs its own subnet, gateway, and parent interface in the compose file, and "host access to custom networks" applies to it too.
 - In own-IP mode, decide on **host access to custom networks** (Settings, Docker, advanced view). It must be enabled for the host server itself to send syslog to the container. Host and bridge modes do not need it.
 - A broker is reachable if you want MQTT: the temporary Mosquitto container (`mosquitto/` in the repo has its config and ACL) or Home Assistant's Mosquitto add-on. Create its `brief` user first (see `docs/guide/04-publish.md`, section 4a). MQTT is optional; leave `MQTT_HOST` empty to run without it.
-- **Exclude `homelab-brief` (and Mosquitto) from automatic Docker updates** (for example in the CA Auto Update plugin's per-container list). An upgrade is a deliberate step with a backup, see "Upgrade" below.
+- **Updates are one click, on your terms.** With the `stable` tag, the Docker tab shows "update ready" when a new release is out and its right-click "Update" (or Compose Manager's "Update stack") pulls and restarts it, like any other container. Each start keeps a copy of the database first (see "Upgrade"). If you would rather never update without looking, leave `homelab-brief` out of any automatic-update plugin, or pin an exact version instead of `stable`.
 
 ## Get the image
 
-From the registry (the release workflow pushes `ghcr.io/<owner>/homelab-brief:<version>` when a version tag is created; the package is private, so log in once with a personal access token that can read packages):
+From the registry. The release workflow pushes `ghcr.io/<owner>/homelab-brief:<version>` and moves `ghcr.io/<owner>/homelab-brief:stable` when a version tag is created.
+
+**Make the package public if you want Unraid's update check to work.** Unraid asks the registry anonymously whether a newer image exists, so a private package always shows "not available" and cannot be updated from the Docker tab. The image is the generic product with nothing personal in it, so public is safe: on GitHub open your profile, Packages, `homelab-brief`, Package settings, and change the visibility to public (the repository itself can stay private). If you keep the package private, log in once with a personal access token that can read packages, and expect to pull by hand (the login is kept in `/root/.docker`, which Unraid empties at reboot):
 
 ```bash
 docker login ghcr.io -u <github-user>
 docker pull ghcr.io/<owner>/homelab-brief:<version>
 ```
 
-In the template, replace `<owner>` and `<pin>` in the Repository field (`ghcr.io/<owner>/homelab-brief:<version>`). Compose Manager uses the same `docker login` credentials.
+In the template, replace `<owner>` in the Repository field (`ghcr.io/<owner>/homelab-brief:stable`, or an exact version to stay put). Compose Manager uses the same `docker login` credentials.
+
+**The icon.** The template points at `deploy/icon.png` through a raw GitHub address, which only works when the repository is public. For a private repository, set the `net.unraid.docker.icon` label in the compose file to the container's own address (`http://<container-ip>/static/icon.png`): the container serves its own icon. Unraid caches icons, so it only needs to reach it once.
 
 Without a registry (or before the first release), build on a machine with Docker and copy it over; then use the local name `homelab-brief:<version>` as the repository:
 
@@ -67,11 +71,11 @@ docker save homelab-brief:<version> | ssh root@<host> docker load
 
 ## Upgrade
 
-An upgrade replaces the image and keeps `config`, `state`, `archive`, and `out` as they are. Do it when you can watch it, not from auto-update.
+An upgrade replaces the image and keeps `config`, `state`, `archive`, and `out` as they are. The Docker tab's right-click "Update" (tag `stable`) does steps 3 and 4 for you; read the changelog first and, for anything that matters, download a backup first.
 
 1. **Read the changelog** (`CHANGELOG.md`) for the versions between yours and the new one. A change that needs your attention is listed there.
 2. **Back up first.** In the admin GUI use Backups, "Download backup" (config, a snapshot of the database, signature state), or run `docker exec homelab-brief brief backup create --out /out/backup.tar.gz`. Keep the file somewhere safe; it is as sensitive as the admin login.
-3. **Change the version** in the template (or the compose file) to the new exact tag, then apply and let the container restart. Nothing else changes.
+3. **Update.** On the `stable` tag, right-click the container in the Docker tab and choose Update (Compose Manager: "Update stack"). On an exact tag, change the version in the template or compose file and apply. The container restarts; nothing else changes.
 4. **What happens at start.** The database applies its numbered migrations (a copy is kept as `state/baseline.db.pre-v<N>` first), and your config files are brought to the new schema if a release changed one (a copy of the config folder is saved in `state/config-backups/` first). A broken or newer file is never rewritten; the config guard keeps the last good copy and raises a finding.
 5. **Verify.** `docker logs homelab-brief` shows `version_changed` and no `config_migration_failed`; `http://<container-ip>/healthz` says `"status": "ok"`; `/healthz` and the status page at `http://<container-ip>/` show the new version, and the 24-hour event count carries on from before.
 
