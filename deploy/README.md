@@ -7,6 +7,7 @@ Files in this folder:
 | File | Use |
 |---|---|
 | `unraid-template.xml` | The Unraid template (own IP on `br0` by default). Primary install path. |
+| `docker-compose.quickstart.yml` | One command on any Docker host (published ports, data in one folder). Tested in CI on every release. |
 | `docker-compose.own-ip.yml` | Same thing for Compose Manager, mode 1: own IP on `br0` (recommended). |
 | `docker-compose.host.yml` | Mode 2: host network, ports moved away from Unraid's own. |
 | `docker-compose.bridge.yml` | Mode 3: Docker bridge with published ports (can hide sender addresses; read the warning inside). |

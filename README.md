@@ -28,32 +28,36 @@ Treat it as a homelab tool to try next to your real setup, not as something your
 
 ## Install
 
-You need Docker, a place to keep four folders, and (for the best result) a spare IP address on your LAN so devices can send syslog to the container directly.
+You need Docker with the compose plugin and a machine to run it on. For the best result give the container its own spare IP address on your LAN (see "Better setup" below); the quick start works without that.
+
+**Quick start, any Docker host, one command:**
+
+```bash
+mkdir homelab-brief && cd homelab-brief
+curl -fsSLo compose.yaml https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/docker-compose.quickstart.yml && docker compose up -d
+```
+
+Then read the one-time admin link from the log and open it (the certificate is self-signed, so your browser will warn once):
+
+```bash
+docker compose logs homelab-brief | grep setup_token
+```
+
+It points at `https://<this-host>:8443/admin/setup`. Create the admin account and follow the setup wizard. Point one device's syslog at `<this-host>:514` (UDP or TCP) and it shows up on the Sources page within a minute. Everything is kept in `./homelab-brief-data`. If port 514, 8080, or 8443 is taken, put `HB_SYSLOG_PORT`, `HB_HTTP_PORT`, or `HB_HTTPS_PORT` in a `.env` file next to `compose.yaml` first; the header of the compose file lists every setting.
+
+**Update:** `docker compose pull && docker compose up -d`. Each start keeps a copy of the database before it migrates. To stay on one version, set `HB_IMAGE=ghcr.io/herbiewalker/homelab-brief:0.0.57` (an exact tag); there is no `latest`.
 
 **On Unraid (Docker tab, one-click updates):** run this once in the Unraid terminal, then open the Docker tab, click Add Container, pick `homelab-brief` from the Template dropdown, set a fixed IP on `br0`, and apply:
 
 ```bash
-wget -O /boot/config/plugins/dockerMan/templates-user/my-homelab-brief.xml   https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/unraid-template.xml
+wget -O /boot/config/plugins/dockerMan/templates-user/my-homelab-brief.xml https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/unraid-template.xml
 ```
 
-(No terminal? Download that file and save it as `my-homelab-brief.xml` in the `config/plugins/dockerMan/templates-user` folder of the flash share, from any computer.) A Community Applications listing, which would make it a search-and-click install, is planned; see `docs/DECISIONS.md`.
+(No terminal? Download that file and save it as `my-homelab-brief.xml` in the `config/plugins/dockerMan/templates-user` folder of the flash share, from any computer.) The image follows the `stable` tag, so the Docker tab offers **Update** when a release is out. A Community Applications listing, which would make it a search-and-click install, is planned; see `docs/DECISIONS.md`.
 
-The image follows the `stable` tag, so the Docker tab offers **Update** when a release is out. Each start keeps a copy of the database before it migrates.
+**Better setup:** the quick start publishes ports on the host. On Docker Desktop, or for traffic from the Docker host itself, Docker can replace every sender's address with the bridge gateway, so all devices look like one; the console's Network page warns when it sees that. Giving the container its own LAN address avoids it and frees the standard ports: [`deploy/`](deploy/) has reference files for an own-IP macvlan network, host networking, and bridge, and [`deploy/README.md`](deploy/README.md) has the full step-by-step guide (MQTT, Home Assistant, collectors).
 
-**With Docker Compose or `docker run`:** the three reference files in [`deploy/`](deploy/) cover an own-IP macvlan network, host networking, and a plain bridge with published ports. The quickest way to look around (bridge mode, ports moved off the standard ones):
-
-```bash
-docker run -d --name homelab-brief --restart unless-stopped \
-  -p 5514:514/udp -p 5514:514/tcp -p 8480:80 -p 8443:443 \
-  -e HTTPS_PUBLIC_PORT=8443 \
-  -v $PWD/hb/config:/config -v $PWD/hb/state:/state \
-  -v $PWD/hb/archive:/archive -v $PWD/hb/out:/out \
-  ghcr.io/herbiewalker/homelab-brief:stable
-```
-
-Then open `https://<host>:8443/admin` (the certificate is self-signed), read the one-time setup token from `docker logs homelab-brief`, create the admin account, and follow the setup wizard. Point one device's syslog at `<host>:5514` and watch it appear. Bridge mode can hide each sender's address (Docker's proxy replaces it), and the Network page tells you when it sees that; an own IP is the better setup. Full step-by-step instructions, including MQTT and Home Assistant, are in [`deploy/README.md`](deploy/README.md).
-
-The image is public: `ghcr.io/herbiewalker/homelab-brief:stable` (follows releases) or an exact version such as `ghcr.io/herbiewalker/homelab-brief:0.0.57`. There is no `latest` tag.
+The image is public: `ghcr.io/herbiewalker/homelab-brief:stable` (follows releases) or an exact version. It is built for `amd64`.
 
 ## Documentation
 

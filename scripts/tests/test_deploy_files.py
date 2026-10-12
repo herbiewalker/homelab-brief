@@ -107,3 +107,26 @@ def test_changelog_has_an_entry_for_the_program_version():
     assert re.search(
         rf"^## {re.escape(version)}$", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), re.MULTILINE
     )
+
+
+def test_the_quickstart_compose_is_self_contained_and_consistent():
+    text = (DEPLOY / "docker-compose.quickstart.yml").read_text(encoding="utf-8")
+    data = yaml.safe_load(text)
+    service = data["services"]["homelab-brief"]
+    assert (
+        service["image"].startswith("${HB_IMAGE:-ghcr.io/herbiewalker/homelab-brief:")
+        and "latest" not in service["image"]
+    )
+    assert service["mem_limit"] == "768m" and service["restart"] == "unless-stopped"
+    targets = {v.rsplit(":", 1)[1] for v in service["volumes"]}  # the source has its own ":-" default
+    assert targets == {"/config", "/state", "/archive", "/out"}
+    ports = service["ports"]
+    assert any(p.endswith("514/udp") for p in ports) and any(p.endswith("514/tcp") for p in ports)
+    # the port a browser uses must be the one that is published, or the setup link and certificate are wrong
+    https = next(p for p in ports if p.endswith(":443"))
+    assert "HB_HTTPS_PORT" in https and "HB_HTTPS_PORT" in service["environment"]["HTTPS_PUBLIC_PORT"]
+    for var in ("HB_SYSLOG_PORT", "HB_HTTP_PORT", "HB_HTTPS_PORT", "HB_DATA", "HB_IMAGE"):
+        assert f"#   {var}" in text, f"{var} is not described in the file header"
+    assert "env_file" not in service, "the quick start must work with no file other than itself"
+    # every variable it passes on is one the program reads
+    assert {"MQTT_HOST", "MQTT_PORT", "MQTT_USER", "MQTT_PASSWORD", "APPRISE_URLS"} <= ENV_NAMES

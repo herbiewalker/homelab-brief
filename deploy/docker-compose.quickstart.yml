@@ -1,0 +1,53 @@
+# Homelab Brief on any Docker host, in one command:
+#
+#   curl -fsSLo compose.yaml https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/docker-compose.quickstart.yml && docker compose up -d
+#
+# then read the one-time admin setup link from the log:
+#
+#   docker compose logs homelab-brief | grep setup_token
+#
+# and open https://<this-host>:8443/admin/setup (the certificate is self-signed). Point a device's syslog at
+# <this-host>:514 (UDP or TCP) and it appears on the Sources page within a minute.
+#
+# Everything is optional to change; each setting can be put in a `.env` file next to this one:
+#   HB_SYSLOG_PORT  host port for syslog (default 514; use e.g. 5514 if something else listens on 514)
+#   HB_HTTP_PORT    host port for the read-only pages: status, brief, API, metrics (default 8080)
+#   HB_HTTPS_PORT   host port for the admin console (default 8443)
+#   HB_DATA         folder for config, state, archive and reports (default ./homelab-brief-data)
+#   HB_IMAGE        image to run (default: the newest release; set an exact version such as
+#                   ghcr.io/herbiewalker/homelab-brief:0.0.57 to stay put)
+#
+# Update:  docker compose pull && docker compose up -d      (the database is copied before it migrates)
+# Back up: the HB_DATA folder (or the Backups page in the console).
+#
+# This is bridge networking with published ports. On a Linux host, devices on your LAN keep their own
+# addresses. On Docker Desktop (and for traffic from the Docker host itself) Docker can replace every
+# sender's address with the bridge gateway; the console's Network page warns when it sees that. For the
+# best setup give the container its own LAN address: see docker-compose.own-ip.yml (macvlan) and deploy/README.md.
+name: homelab-brief
+
+services:
+  homelab-brief:
+    image: ${HB_IMAGE:-ghcr.io/herbiewalker/homelab-brief:stable}
+    container_name: homelab-brief
+    restart: unless-stopped
+    ports:
+      - "${HB_SYSLOG_PORT:-514}:514/udp"
+      - "${HB_SYSLOG_PORT:-514}:514/tcp"
+      - "${HB_HTTP_PORT:-8080}:80"
+      - "${HB_HTTPS_PORT:-8443}:443"
+    environment:
+      HTTPS_PUBLIC_PORT: "${HB_HTTPS_PORT:-8443}"   # the port a browser uses, so the setup link matches
+      # Optional: a broker for Home Assistant sensors, and notification URLs (Apprise). Leave empty to skip.
+      MQTT_HOST: "${MQTT_HOST:-}"
+      MQTT_PORT: "${MQTT_PORT:-1883}"
+      MQTT_USER: "${MQTT_USER:-}"
+      MQTT_PASSWORD: "${MQTT_PASSWORD:-}"
+      APPRISE_URLS: "${APPRISE_URLS:-}"
+    volumes:
+      - ${HB_DATA:-./homelab-brief-data}/config:/config
+      - ${HB_DATA:-./homelab-brief-data}/state:/state
+      - ${HB_DATA:-./homelab-brief-data}/archive:/archive
+      - ${HB_DATA:-./homelab-brief-data}/out:/out
+    mem_limit: 768m
+    logging: { driver: json-file, options: { max-size: 10m, max-file: "2" } }
