@@ -7,6 +7,7 @@ container was off.
 Read-only apart from `record`, which writes one tiny row per system per day.
 """
 
+import re
 from datetime import datetime, timedelta
 
 from brief.store import Store, iso
@@ -127,13 +128,19 @@ def metric_series(
     return [sum(c) / len(c) for c in chunks]
 
 
+def _plain_title(title: str) -> str:
+    """Notification titles start with their own state ("Resolved: ..."); the feed shows the state itself."""
+    return re.sub(r"^(Resolved|New|Escalated|Still open):\s*", "", title)
+
+
 def timeline(store: Store, now: datetime, limit: int = 12, days: int = 14) -> list[dict]:
-    """Recent notification events as an incident feed: opened, got worse, repeated, or resolved."""
+    """Recent notification events as an incident feed: opened, got worse, or resolved. Repeat reminders for
+    a finding that is still open are left out: they say nothing new and crowd out the real events."""
     low = iso(now - timedelta(days=days))
     with store.read() as db:
         rows = db.execute(
             "SELECT ts, finding_id, state, level, title FROM push WHERE ts >= ? AND channel = 'alert' "
-            "ORDER BY ts DESC LIMIT ?",
+            "AND state != 'repeat' ORDER BY ts DESC LIMIT ?",
             (low, limit),
         ).fetchall()
     words = {"new": "Opened", "repeat": "Still open", "escalated": "Got worse", "resolved": "Resolved"}
@@ -145,7 +152,7 @@ def timeline(store: Store, now: datetime, limit: int = 12, days: int = 14) -> li
             "state": r["state"],
             "word": words.get(r["state"], r["state"]),
             "kind": kinds.get(r["state"], "off"),
-            "title": r["title"] or r["finding_id"],
+            "title": _plain_title(r["title"] or r["finding_id"]),
         }
         for r in rows
     ]

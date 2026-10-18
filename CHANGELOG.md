@@ -5,6 +5,11 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.59
+
+- **Fixed: the Docker tab icon was blank for an own-IP container.** The compose files pointed the icon label at the container's own address, but Unraid downloads icons from the host, and a host cannot reach a macvlan container of its own unless "Host access to custom networks" is on. They use the raw GitHub address now (and `deploy/README.md` explains the trap). The container still serves its own copy at `/static/icon.png`.
+- **The Overview's incident timeline is quieter.** Reminders for a finding that is still open are left out (a long-open alert filled the feed with "Still open"), and a "Resolved" entry no longer reads "Resolved Resolved: ...".
+
 ## 0.0.58
 
 - **Fixed: most syslog lines from real devices were stored as parse failures.** Some devices (UniFi gateways, switches, and access points) end every datagram with a newline, and the header pattern could not match before it, so the line was kept raw with its event time guessed from when it arrived. On one real network that was about 70% of all lines. Line endings are now trimmed before parsing (the archive still keeps each line exactly as received). Two tests cover the newline and CR LF cases. Lines already stored keep their guessed times; new lines get their real ones.

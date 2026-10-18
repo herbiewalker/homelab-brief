@@ -73,3 +73,15 @@ def test_timeline_lists_recent_notifications_newest_first(store):
         tx.add_push("h", "new", "headline", None, "Headline", False, NOW)
     rows = sh.timeline(store, NOW)
     assert [r["word"] for r in rows] == ["Resolved", "Opened"] and rows[0]["kind"] == "ok"
+
+
+def test_timeline_drops_reminders_and_the_title_prefix_that_repeats_the_state(store):
+    with store.write() as tx:
+        tx.add_push("f1", "new", "alert", "warn", "Host silent", False, NOW - timedelta(hours=9))
+        tx.add_push("f1", "repeat", "alert", "warn", "Host silent", False, NOW - timedelta(hours=5))
+        tx.add_push(
+            "f1", "resolved", "alert", "warn", "Resolved: Host silent", False, NOW - timedelta(hours=1)
+        )
+    rows = sh.timeline(store, NOW)
+    assert [r["word"] for r in rows] == ["Resolved", "Opened"]
+    assert [r["title"] for r in rows] == ["Host silent", "Host silent"]

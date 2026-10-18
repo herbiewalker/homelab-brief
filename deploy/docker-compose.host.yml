@@ -23,6 +23,6 @@ services:
     labels:
       net.unraid.docker.webui: https://[IP]:8443/admin
       net.unraid.docker.managed: 'composeman'
-      net.unraid.docker.icon: http://<server-ip>:<http-port>/static/icon.png  # the container serves its own icon
+      net.unraid.docker.icon: https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/icon.png
     mem_limit: 768m
     logging: { driver: json-file, options: { max-size: 10m, max-file: "2" } }

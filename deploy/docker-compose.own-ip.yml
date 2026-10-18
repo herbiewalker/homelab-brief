@@ -24,7 +24,7 @@ services:
     labels:
       net.unraid.docker.webui: https://[IP]:[PORT:443]/admin  # the Unraid UI opens the admin page
       net.unraid.docker.managed: 'composeman'
-      net.unraid.docker.icon: http://<container-ip>/static/icon.png  # the container serves its own icon
+      net.unraid.docker.icon: https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/icon.png
     mem_limit: 768m
     logging: { driver: json-file, options: { max-size: 10m, max-file: "2" } }
     # Ports 514/udp, 514/tcp, 80, 443 (and 22 if SSH_ENABLED) are reachable on <container-ip>.
