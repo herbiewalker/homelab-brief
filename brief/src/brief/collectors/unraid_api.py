@@ -55,11 +55,11 @@ class UnraidApi:
         self.url, self._key, self.timeout = url, key, timeout
         self._context = tls_context(url, verify_tls)  # an Unraid server usually has a self-signed certificate
 
-    def raw(self, query: str) -> dict:
+    def raw(self, query: str, timeout: float | None = None) -> dict:
         data = request_json(
             self.url,
             {"content-type": "application/json", "x-api-key": self._key},
-            self.timeout,
+            self.timeout if timeout is None else timeout,
             self._context,
             body=json.dumps({"query": query}).encode(),
             error_json=True,
@@ -68,12 +68,23 @@ class UnraidApi:
             raise ApiError("bad_response", "the reply was not a GraphQL response")
         return data
 
-    def section(self, selection: Selection) -> tuple[dict, list[str]]:
-        """(data, dropped): run one section, dropping fields the server does not know. Raises ApiError."""
+    def section(
+        self, selection: Selection, timeout: float | None = None, label: str = ""
+    ) -> tuple[dict, list[str]]:
+        """(data, dropped): run one section, dropping fields the server does not know. Raises ApiError.
+        `timeout` overrides the client's for this section; `label` names the section in a timeout message."""
+        try:
+            return self._section(selection, timeout)
+        except ApiError as exc:
+            if label and exc.kind == "unreachable":
+                raise ApiError(exc.kind, f"{exc.message} [while reading {label}]") from None
+            raise
+
+    def _section(self, selection: Selection, timeout: float | None) -> tuple[dict, list[str]]:
         wanted = deepcopy(selection)
         dropped: list[str] = []
         for _ in range(MAX_RETRIES + 1):
-            reply = self.raw(document(wanted))
+            reply = self.raw(document(wanted), timeout)
             errors = reply.get("errors") or []
             if errors:
                 message = str(

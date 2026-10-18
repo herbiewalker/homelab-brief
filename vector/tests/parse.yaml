@@ -428,3 +428,41 @@ tests:
               assert!(!exists(.device_mac))
               assert!(!exists(.cef))
               assert!(!exists(.dns))
+
+  # Some devices end every datagram with a newline (or CR LF). Without trimming it, the header pattern never
+  # matched and 70% of a real network's lines were stored as parse failures with the time guessed.
+  - name: a trailing newline does not stop a classic line from parsing
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: "<30>Oct 17 20:42:01 host-01 host-01 ubnt-dpkg-restore[16564]: Need to get 0 B/233 MB of archives.\n"
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert!(!exists(.parse_failed))
+              assert_eq!(.format, "bsd")
+              assert_eq!(.ts, "Oct 17 20:42:01")
+              assert_eq!(.header_host, "host-01")
+              assert_eq!(.app, "ubnt-dpkg-restore")
+              assert_eq!(.msg, "Need to get 0 B/233 MB of archives.")
+
+  - name: a trailing newline does not stop a device-header line from parsing
+    inputs:
+      - insert_at: parse
+        type: log
+        log_fields:
+          source_ip: 198.51.100.9
+          message: "<27>Oct 17 20:42:01 USW-Pro-Max-24-PoE 00005e005301,USW-Pro-Max-24-PoE-7.5.15+17146: mcad: mcad[948]: ace_reporter.reporter_fail(): Unreachable (http://controller.example:8080/inform)\r\n"
+    outputs:
+      - extract_from: parse
+        conditions:
+          - type: vrl
+            source: |
+              assert!(!exists(.parse_failed))
+              assert_eq!(.device_mac, "00005e005301")
+              assert_eq!(.app, "mcad")
+              assert_eq!(.msg, "ace_reporter.reporter_fail(): Unreachable (http://controller.example:8080/inform)")

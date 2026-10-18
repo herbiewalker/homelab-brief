@@ -5,7 +5,9 @@
 # Event time stays as the header text in .ts (it has no year or timezone); Python normalizes it
 # and buckets by event time. Lines that do not parse are kept with .parse_failed and the raw text.
 
-raw = string!(.message)
+# Some devices end each datagram with a newline (or CR LF); "$" would not match before it, so every such line
+# failed the header pattern. Trim line endings first. (The archive keeps the line exactly as received.)
+raw = replace(string!(.message), r'[\r\n]+$', "")
 del(.message)
 del(.source_type)
 

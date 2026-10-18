@@ -6,8 +6,12 @@ collectors:
   unraid:
     enabled: false
     interval: hourly
-    timeout_s: 90               # for all servers together; each request also stops after request_timeout_s
+    timeout_s: 180              # for all servers together; each request also stops after its own limit
     request_timeout_s: 10
+    # Reading disk health can wake sleeping drives (one server took 45 s the first time after they spun down),
+    # so that one request gets this longer limit. Each hourly run can spin drives up: if that matters to you,
+    # set interval to daily.
+    slow_request_timeout_s: 60
     # One entry per Unraid server. id: lowercase letters, digits and hyphens (it names the sensors).
     # key_var names the template variable holding that server's read-only API key. A server with a
     # self-signed certificate (the usual case on a LAN address) needs verify_tls: false.

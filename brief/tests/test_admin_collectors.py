@@ -34,7 +34,7 @@ def page(lab, monkeypatch):  # noqa: F811
 def unraid_form(**extra):
     form = {
         "f.enabled": "on", "f.interval": "hourly", "f.smart_source": "api", "f.smart_files_path": "/import-smart",
-        "f.timeout_s": "90", "f.request_timeout_s": "10", "r.servers.count": "1", "r.servers.0.id": "vault",
+        "f.timeout_s": "90", "f.request_timeout_s": "10", "f.slow_request_timeout_s": "60", "r.servers.count": "1", "r.servers.0.id": "vault",
         "r.servers.0.url": "https://198.51.100.5/graphql", "r.servers.0.key_var": "UNRAID_ONE_KEY", "r.servers.0.verify_tls": "",
         "r.servers.0.orig": "",
     }  # fmt: skip

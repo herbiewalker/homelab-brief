@@ -121,9 +121,11 @@ class FakeApi:
         self.sections, self.dropped, self.asked = sections, dropped or {}, []
         FakeApi.instances.append(self)
 
-    def section(self, selection):
+    def section(self, selection, timeout=None, label=""):
         name = next(n for n, s in unraid.SECTIONS.items() if next(iter(s)) == next(iter(selection)))
         self.asked.append(name)
+        self.timeouts = getattr(self, "timeouts", {})
+        self.timeouts[name] = timeout
         if isinstance(self.sections, ApiError):
             raise self.sections
         reply = self.sections[name]

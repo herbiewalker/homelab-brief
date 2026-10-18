@@ -78,6 +78,10 @@ SECTIONS: dict[str, dict] = {
     },
     "plugins": {"plugins": {"name": None, "version": None}},
 }
+# Reading the disks can wake sleeping drives (one real server took 45 s the first time after they spun
+# down), so this section gets a longer limit than the rest; see `slow_request_timeout_s`.
+SLOW_SECTIONS = {"disks"}
+DEFAULT_SLOW_TIMEOUT_S = 60.0
 OPTIONAL_SECTIONS = {"docker", "vms", "notices", "plugins", "parity"}  # a server may not have them
 
 METRICS = (
@@ -268,6 +272,15 @@ def parse_versions(info: dict, plugins: dict) -> list[dict]:
 # ---------------------------------------------------------------- the collector
 
 
+def _slow_timeout(ctx: Context) -> float:
+    """The limit for sections that can wake sleeping drives (never shorter than the normal one)."""
+    normal = float(ctx.config.get("request_timeout_s", 10))
+    try:
+        return max(normal, float(ctx.config.get("slow_request_timeout_s", DEFAULT_SLOW_TIMEOUT_S)))
+    except (TypeError, ValueError):
+        return max(normal, DEFAULT_SLOW_TIMEOUT_S)
+
+
 def _servers(config: dict) -> list[dict]:
     return [s for s in config.get("servers") or [] if isinstance(s, dict)]
 
@@ -332,7 +345,7 @@ class UnraidCollector(Collector):
                 lines.append(f"{sid}: {api}")
                 continue
             try:
-                notes = self._probe(api)
+                notes = self._probe(api, _slow_timeout(ctx))
             except ApiError as exc:
                 lines.append(f"{sid}: {exc.message}")
                 continue
@@ -344,11 +357,13 @@ class UnraidCollector(Collector):
             raise CollectorError("no server could be read:\n" + "\n".join(lines))
         return f"{reached} of {len(lines)} servers answered\n" + "\n".join(lines)
 
-    def _probe(self, api: UnraidApi) -> list[str]:
+    def _probe(self, api: UnraidApi, slow: float) -> list[str]:
         notes = []
         for name, selection in SECTIONS.items():
             try:
-                _, dropped = api.section(selection)
+                _, dropped = api.section(
+                    selection, timeout=slow if name in SLOW_SECTIONS else None, label=name
+                )
             except ApiError as exc:
                 if name in OPTIONAL_SECTIONS and exc.kind == "graphql":
                     notes.append(f"{name}: not available ({exc.message[:60]})")
@@ -384,7 +399,7 @@ class UnraidCollector(Collector):
                 reasons.append(f"{sid}: {api}")
                 continue
             try:
-                snapshot = self._fetch(api)
+                snapshot = self._fetch(api, _slow_timeout(ctx))
             except ApiError as exc:
                 log("unraid_server_failed", server=sid, kind=exc.kind, reason=exc.message)
                 reasons.append(f"{sid}: {exc.message}")
@@ -401,11 +416,13 @@ class UnraidCollector(Collector):
             raise CollectorError("no Unraid server could be read: " + "; ".join(reasons))
         return numbers
 
-    def _fetch(self, api: UnraidApi) -> dict:
+    def _fetch(self, api: UnraidApi, slow: float) -> dict:
         raw: dict[str, dict] = {}
         for name, selection in SECTIONS.items():
             try:
-                raw[name], dropped = api.section(selection)
+                raw[name], dropped = api.section(
+                    selection, timeout=slow if name in SLOW_SECTIONS else None, label=name
+                )
             except ApiError as exc:
                 if name in OPTIONAL_SECTIONS and exc.kind == "graphql":
                     raw[name] = {}  # for example "VMs are not available" on a server without them

@@ -102,6 +102,17 @@ UNRAID = Section(
             minimum=2,
             maximum=300,
         ),
+        Field(
+            "slow_request_timeout_s",
+            "Time limit, disk health request",
+            "number",
+            "Reading disk health can wake sleeping drives, which takes a while. A server that times out here only "
+            "when its drives are asleep needs a longer limit. Each run can spin drives up: set the interval to daily "
+            "if that matters.",
+            unit="seconds",
+            minimum=2,
+            maximum=300,
+        ),
     ),
     blurb="Array state, disks, SMART, parity checks, containers, VMs, and notifications, read from each server's API.",
     icon="server",

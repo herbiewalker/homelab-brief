@@ -417,3 +417,42 @@ def test_the_run_error_for_a_collector_without_servers_is_clear(tmp_path):
     assert framework.run_due(store, env, NOW)["unraid"]["error"].startswith("no Unraid server could be read")
     with pytest.raises(CollectorError):
         unraid.UnraidCollector().test(framework.Context("unraid", {"servers": []}, {}, store, NOW))
+
+
+# ---------------------------------------------------------------- slow sections (drives that are asleep)
+
+
+def test_only_the_disks_section_gets_the_longer_limit(tmp_path, servers):
+    env, store, _ = setup(tmp_path)
+    framework.run_due(store, env, NOW)
+    asked = [i for i in fx.FakeApi.instances if "disks" in getattr(i, "timeouts", {})]
+    assert asked
+    for api in asked:
+        assert api.timeouts["disks"] == 60.0  # the default slow limit
+        assert all(t is None for name, t in api.timeouts.items() if name != "disks")
+
+
+def test_a_timeout_names_the_section_that_was_slow():
+    from brief.collectors.httpjson import ApiError as Err
+    from brief.collectors.unraid_api import UnraidApi
+
+    class Slow(UnraidApi):
+        def raw(self, query, timeout=None):
+            raise Err("unreachable", f"no answer within {timeout or self.timeout:g} s")
+
+    api = Slow("https://198.51.100.5/graphql", "k", timeout=10, verify_tls=False)
+    with pytest.raises(Err) as caught:
+        api.section({"disks": {"id": None}}, timeout=60, label="disks")
+    assert "no answer within 60 s" in caught.value.message and "while reading disks" in caught.value.message
+    with pytest.raises(Err) as plain:  # without a label the message is unchanged
+        api.section({"disks": {"id": None}})
+    assert "while reading" not in plain.value.message
+
+
+def test_the_slow_limit_is_never_shorter_than_the_normal_one():
+    class Ctx:
+        config = {"request_timeout_s": 120, "slow_request_timeout_s": 30}
+
+    assert unraid._slow_timeout(Ctx) == 120.0
+    Ctx.config = {"request_timeout_s": 10, "slow_request_timeout_s": "soon"}
+    assert unraid._slow_timeout(Ctx) == 60.0

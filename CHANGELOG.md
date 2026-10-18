@@ -5,6 +5,11 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.58
+
+- **Fixed: most syslog lines from real devices were stored as parse failures.** Some devices (UniFi gateways, switches, and access points) end every datagram with a newline, and the header pattern could not match before it, so the line was kept raw with its event time guessed from when it arrived. On one real network that was about 70% of all lines. Line endings are now trimmed before parsing (the archive still keeps each line exactly as received). Two tests cover the newline and CR LF cases. Lines already stored keep their guessed times; new lines get their real ones.
+- **Fixed: the Unraid collector failed every hour on a server whose drives were asleep.** Reading disk health woke the drives and took 45 seconds, and the 10-second request limit gave up each time. The disk request now has its own longer limit (`slow_request_timeout_s`, 60 seconds by default, a field on the Collectors page); the others keep 10. A timeout now says which request was slow ("no answer within 10 s [while reading disks]"). Reading disk health can wake sleeping drives, so the setting's help suggests a daily interval if you care about spin-down.
+
 ## 0.0.57
 
 - **One-click updates from the Unraid Docker tab.** The release workflow now also moves a `stable` tag to each release (there is still no `latest`), and the Unraid template and the three compose files follow `stable`, so "check for updates" and right-click "Update" (or Compose Manager's "Update stack") work like any other container. The package must be public for Unraid's anonymous check; `deploy/README.md` explains this, the exact-tag alternative, and the private-registry fallback. Every start still copies the database before it migrates.
