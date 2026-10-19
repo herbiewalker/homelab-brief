@@ -68,6 +68,7 @@ class _Acc:
     latest_event: datetime | None = None
     skew: dict[str, list[float]] = field(default_factory=dict)  # host -> event minus receive, seconds
     devices: dict[str, tuple] = field(default_factory=dict)  # host -> (stamp, mac, model, firmware), newest
+    names: dict[str, tuple] = field(default_factory=dict)  # host -> (stamp, header hostname), newest
     activity: clients.Activity = field(default_factory=clients.Activity)  # client events, filtered by profile
 
 
@@ -194,6 +195,10 @@ class Pipeline:
             entry[0], entry[1] = min(entry[0], stamp), max(entry[1], stamp)
         if acc.latest_event is None or when > acc.latest_event:
             acc.latest_event = when
+        if isinstance(header_host, str) and header_host and header_host != host:
+            named = acc.names.get(host)
+            if named is None or stamp >= named[0]:
+                acc.names[host] = (stamp, header_host[:80])
         mac, model, firmware = event.get("device_mac"), event.get("model"), event.get("firmware")
         if isinstance(mac, str) and isinstance(model, str) and isinstance(firmware, str):
             seen = acc.devices.get(host)
@@ -303,6 +308,8 @@ class Pipeline:
                 tx.set_clock_skew(host, statistics.median(samples), now)
             for host, (stamp, mac, model, firmware) in acc.devices.items():
                 tx.set_device_header(host, mac, model, firmware, stamp)
+            for host, (stamp, name) in acc.names.items():
+                tx.set_host_name(host, name, stamp)
             if acc.activity:
                 clients.flush(tx.db, acc.activity)
             if acc.live_since is not None:

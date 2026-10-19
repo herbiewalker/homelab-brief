@@ -97,3 +97,41 @@ def test_the_container_serves_its_own_icon_and_the_pages_link_a_favicon(lab):  #
     icon = lab.http().get("/static/icon.png")
     assert icon.status_code == 200 and icon.content.startswith(b"\x89PNG") and len(icon.content) > 5000
     assert 'rel="icon"' in lab.http().get("/").text
+
+
+# ---------------------------------------------------------------- drill-down cards (Task 39)
+
+
+def test_a_settings_page_with_many_cards_starts_them_closed_and_a_short_one_open(lab):  # noqa: F811
+    import re
+
+    from brief import settingspages
+
+    many = few = 0
+    for page in settingspages.PAGES.values():
+        html = lab.client.get(f"/admin/{page.key}").text
+        bars = re.findall(r'<details class="drill" id="drill-[^"]+" data-remember([^>]*)>', html)
+        assert len(bars) == len(page.sections), page.key
+        opened = [" open" in b for b in bars]
+        if len(page.sections) > 2:
+            many += 1
+            assert not any(opened), f"{page.key}: cards of a long page start closed"
+        else:
+            few += 1
+            assert all(opened), f"{page.key}: a short page shows its cards"
+    assert many and few
+
+
+def test_a_card_with_an_error_opens_itself_and_says_it_was_opened_on_purpose(lab):  # noqa: F811
+    import re
+
+    html = lab.client.get("/admin/schedule").text
+    assert re.search(r'id="drill-[^"]+" data-remember open>', html)  # no error: a short page, open by default
+    assert "data-open-now" not in html
+
+
+def test_the_overview_secondary_panels_are_drill_downs_with_a_remembered_state(lab):  # noqa: F811
+    html = lab.client.get("/admin").text
+    for panel_id in ("ov-changes", "ov-busy", "ov-runs"):
+        assert f'id="{panel_id}" data-remember' in html, panel_id
+    assert html.count('class="panel drill"') == 3

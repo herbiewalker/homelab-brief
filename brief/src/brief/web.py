@@ -38,6 +38,7 @@ from brief import (
     admin_network,
     admin_settings,
     admin_setup,
+    admin_system,
     admin_tools,
     ai,
     api,
@@ -613,6 +614,7 @@ def create_app(
     admin_tools.register(admin, deps)
     admin_manage.register(admin, deps)
     admin_setup.register(admin, deps)
+    admin_system.register(admin, deps)
 
     @admin.get("/account", response_class=HTMLResponse)
     def account_form(request: Request):

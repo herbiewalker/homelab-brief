@@ -41,6 +41,7 @@ def render_card(
     status: int = 200,
     toast: dict | None = None,
     extra_hidden: dict | None = None,
+    collapsed: bool = False,
 ) -> HTMLResponse:
     text = configedit.current(section.file)[0]
     loaded = state or settingsui.load(
@@ -59,6 +60,7 @@ def render_card(
         vars_set=vars_set(loaded),
         action=f"/admin/settings/{section.id}",
         extra_hidden=extra_hidden or {},
+        collapsed=collapsed,
     )
     if toast:
         response.headers["HX-Trigger"] = json.dumps({"toast": toast})
@@ -67,8 +69,13 @@ def render_card(
 
 def cards_html(d: Deps, request: Request, ids, states: dict | None = None) -> list[str]:
     """The cards of several sections as HTML, for a page that embeds them."""
+    ids = list(ids)
+    many = len(ids) > 2  # a page of several cards starts with them closed: title and status only
     return [
-        render_card(d, request, settingspages.SECTIONS[i], (states or {}).get(i)).body.decode() for i in ids
+        render_card(
+            d, request, settingspages.SECTIONS[i], (states or {}).get(i), collapsed=many
+        ).body.decode()
+        for i in ids
     ]
 
 

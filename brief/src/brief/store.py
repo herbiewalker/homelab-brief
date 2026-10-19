@@ -214,6 +214,26 @@ class Tx:
             rows,
         )
 
+    def set_host_name(self, host: str, name: str, seen: datetime | str) -> None:
+        """The name a sender calls itself in its header; an older line never replaces a newer name."""
+        stamp = iso(seen)
+        self.db.execute(
+            "UPDATE host SET name = ?, name_seen = ? WHERE host = ? "
+            "AND (name_seen IS NULL OR ? >= name_seen)",
+            (name, stamp, host, stamp),
+        )
+
+    def set_host_alias(self, host: str, alias: str | None, ts: datetime | str) -> None:
+        """A name the admin gave a sender; an empty alias removes it."""
+        if alias:
+            self.db.execute(
+                "INSERT INTO host_alias (host, alias, updated) VALUES (?, ?, ?) "
+                "ON CONFLICT (host) DO UPDATE SET alias = excluded.alias, updated = excluded.updated",
+                (host, alias, iso(ts)),
+            )
+        else:
+            self.db.execute("DELETE FROM host_alias WHERE host = ?", (host,))
+
     def set_device_header(self, host: str, mac: str, model: str, firmware: str, seen: datetime | str) -> None:
         """The newest "<mac>,<model>-<firmware>" token seen from a sender; an older one never replaces it."""
         self.db.execute(

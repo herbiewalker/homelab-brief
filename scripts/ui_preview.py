@@ -62,6 +62,7 @@ def seed_history(store: Store, doc: dict) -> None:
                     (when, "storage.archive_bytes", (300 + (24 - back) * 0.8) * 1_000_000),
                 ]
             )
+        seed_devices(tx, doc, now, rng, sig)
         tx.add_push(
             "f-disk",
             "new",
@@ -98,6 +99,42 @@ def seed_history(store: Store, doc: dict) -> None:
             False,
             now - timedelta(hours=3),
         )
+
+
+def seed_devices(tx, doc: dict, now: datetime, rng: random.Random, sig: int) -> None:
+    """Two devices per system, with the names, models, and MACs a syslog header and a UniFi controller give,
+    so the system pages have something to list. Synthetic: documentation addresses and MACs only."""
+    models = ["USW-Pro-24-PoE", "U6-Pro", "USW-Aggregation", "UDM-Pro", "USP-PDU-Pro"]
+    for i, system in enumerate(doc.get("systems") or [], start=1):
+        for k in (1, 2):
+            host = f"198.51.100.{10 * i + k}"
+            mac = f"00005e0053{i * 16 + k:02x}"
+            name = f"{system['name'].split()[0]}-{k:02d}"
+            model = models[(i + k) % len(models)]
+            tx.touch_host(
+                host, now - timedelta(days=9), now - timedelta(minutes=k * 3), system_id=system["id"]
+            )
+            tx.set_host_name(host, name, now)
+            tx.set_device_header(host, mac, model, "7.1.26+15650", now)
+            tx.db.execute(
+                "INSERT OR REPLACE INTO topo_node (node_id, kind, label, parent, system_id, source, "
+                "attrs_json, first_seen, last_seen) VALUES (?, ?, ?, NULL, ?, 'unifi', ?, ?, ?)",
+                (
+                    f"unifi:{mac}",
+                    "switch" if k == 1 else "ap",
+                    f"{system['name']} {'Switch' if k == 1 else 'AP'} {k}",
+                    system["id"],
+                    json.dumps({"model": model, "firmware": "7.1.26", "online": True}),
+                    iso(now),
+                    iso(now),
+                ),
+            )
+            for back in range(24):
+                when = now - timedelta(hours=back)
+                n = int(60 + 140 * rng.random()) if k == 1 or back > 20 else 0
+                tx.add_hourly([(f"{when:%Y-%m-%d}", when.hour, host, sig, "info", n)] if n else [])
+        # the second device of the last system went quiet two days ago: a silent one to look at
+    tx.set_host_alias("198.51.100.11", "Rack switch (garage)", now)
 
 
 def main() -> None:

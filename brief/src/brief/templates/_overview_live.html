@@ -47,7 +47,7 @@
       <div class="panel-head"><h2 id="sys-h">Systems</h2><a href="/admin/systems">Manage</a></div>
       {% if data.components %}
       <ul class="components">
-        {% for t in data.components %}{{ component(t.name, t.summary, t.kind or 'off', t.word, t.cells, t.uptime, '/admin/findings') }}{% endfor %}
+        {% for t in data.components %}{{ component(t.name, t.summary, t.kind or 'off', t.word, t.cells, t.uptime, '/admin/system/' ~ t.id) }}{% endfor %}
       </ul>
       {% else %}
       {% call empty('server', 'No systems yet', 'Systems group your devices so each gets a status row and silence alerts.') %}<a class="btn" href="/admin/wizard">Set up systems</a>{% endcall %}
@@ -78,8 +78,8 @@
       {% endif %}
     </section>
 
-    <section class="panel" aria-labelledby="ch-h">
-      <div class="panel-head"><h2 id="ch-h">What changed since yesterday</h2></div>
+    <details class="panel drill" id="ov-changes" data-remember>
+      <summary class="panel-head"><span class="chev">{{ icon('chevron-right') }}</span><h2>What changed since yesterday</h2><span class="drill-hint">{{ data.changes|length }} change{{ '' if data.changes|length == 1 else 's' }}</span></summary>
       <div class="panel-body">
       {% if data.changes %}
       <ul class="list-plain">
@@ -95,25 +95,26 @@
       </ul>
       {% endif %}
       </div>
-    </section>
+    </details>
 
-    <section class="panel" aria-labelledby="busy-h">
-      <div class="panel-head"><h2 id="busy-h">Busiest senders, last hour</h2><a href="/admin/sources">All sources</a></div>
+    <details class="panel drill" id="ov-busy" data-remember>
+      <summary class="panel-head"><span class="chev">{{ icon('chevron-right') }}</span><h2>Busiest senders, last hour</h2><span class="drill-hint">{{ data.top_sources|length }} senders</span></summary>
       {% if data.top_sources %}<table class="plain"><caption class="sr-only">Busiest senders in the last hour</caption>
         {% for host, n in data.top_sources %}<tr><td><code>{{ host }}</code></td><td class="num">{{ '{:,}'.format(n) }}</td></tr>{% endfor %}
       </table>
       {% else %}<div class="panel-body"><p class="muted">Nothing received in the last hour.</p></div>{% endif %}
-    </section>
+      <div class="panel-body"><a href="/admin/sources">All sources</a></div>
+    </details>
 
-    <section class="panel" aria-labelledby="runs-h">
-      <div class="panel-head"><h2 id="runs-h">Last runs</h2><span class="subtle">v{{ version }} · up {{ uptime }}</span></div>
+    <details class="panel drill" id="ov-runs" data-remember>
+      <summary class="panel-head"><span class="chev">{{ icon('chevron-right') }}</span><h2>Last runs</h2><span class="drill-hint">v{{ version }} · up {{ uptime }}</span></summary>
       <table class="plain"><caption class="sr-only">Last runs</caption>
         {% for r in data.runs %}<tr><td>{{ r.job }}</td><td class="num {{ 'ok' if r.ok else ('bad' if r.ok is false else 'muted') }}">{{ r.when_text }}{% if r.note %} <span class="muted">{{ r.note }}</span>{% endif %}</td></tr>{% endfor %}
       </table>
       <table class="plain"><caption class="sr-only">Health checks</caption>
         {% for name, c in data.health.checks.items() %}<tr><td>{{ name }}</td><td class="num {{ 'ok' if c.ok else 'bad' }}">{{ c.state or ('ok' if c.ok else 'failing') }}</td></tr>{% endfor %}
       </table>
-    </section>
+    </details>
   </div>
 </div>
 

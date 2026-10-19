@@ -1,0 +1,33 @@
+{% from "_ui.html" import icon, chip %}
+<li class="device" id="dev-{{ dev.host|replace('.', '-')|replace(':', '-') }}">
+  <details class="drill" id="drill-dev-{{ dev.host|replace('.', '-')|replace(':', '-') }}" data-remember{% if open_now %} open data-open-now{% endif %}>
+    <summary>
+      <span class="chev">{{ icon('chevron-right') }}</span>
+      <span class="device-name">{{ dev.name }}{% if dev.kind_word %} <span class="subtle">{{ dev.kind_word }}</span>{% endif %}</span>
+      <span class="device-facts">{% if dev.model %}<span class="chip">{{ dev.model }}</span>{% endif %}{% if dev.firmware %}<span class="chip">{{ dev.firmware }}</span>{% endif %}</span>
+      <span class="drill-hint">{{ chip('bad', 'silent') if dev.silent else (chip('ok', 'online') if dev.online else chip('ok', 'sending')) }} <span class="num">{{ '{:,}'.format(dev.events_24h) }}</span> lines / 24 h</span>
+    </summary>
+    <div class="device-body">
+      <dl class="kv">
+        <dt>Address</dt><dd><code>{{ dev.host }}</code></dd>
+        {% if dev.mac %}<dt>MAC</dt><dd><code>{{ dev.mac }}</code></dd>{% endif %}
+        {% if dev.model %}<dt>Model</dt><dd>{{ dev.model }}</dd>{% endif %}
+        {% if dev.firmware %}<dt>Firmware</dt><dd>{{ dev.firmware }}{% if dev.update_to %} <span class="chip chip--warn">{{ dev.update_to }} available</span>{% endif %}</dd>{% endif %}
+        {% if dev.uplink %}<dt>Uplink</dt><dd>{{ dev.uplink }}</dd>{% endif %}
+        <dt>Last line</dt><dd>{{ dev.last_seen_text }}</dd>
+        <dt>Last hour</dt><dd>{{ '{:,}'.format(dev.events_hour) }} lines</dd>
+        {% if dev.gap_min %}<dt>Normal gap</dt><dd>{{ dev.gap_min }} min</dd>{% endif %}
+        {% if dev.skew_s is not none %}<dt>Clock</dt><dd>{{ '%+.0f'|format(dev.skew_s) }} s from this container</dd>{% endif %}
+        <dt>Name from</dt><dd>{{ dev.name_source }}</dd>
+      </dl>
+      <form class="row" method="post" action="/admin/system/{{ s.id }}/alias" hx-post="/admin/system/{{ s.id }}/alias" hx-target="closest li.device" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <input type="hidden" name="host" value="{{ dev.host }}">
+        <label class="sr-only" for="alias-{{ dev.host }}">Name for {{ dev.host }}</label>
+        <input id="alias-{{ dev.host }}" name="alias" type="text" maxlength="60" value="{{ dev.alias }}" placeholder="{{ dev.header_name or dev.host }}">
+        <button type="submit" class="btn btn--secondary btn--sm">Save name</button>
+        {% if dev.alias %}<span class="muted">Clear it to go back to {{ dev.header_name or 'the address' }}.</span>{% endif %}
+      </form>
+    </div>
+  </details>
+</li>

@@ -465,3 +465,26 @@ def test_a_cycle_that_finds_nothing_new_does_not_rewrite_the_state(rig, monkeypa
     rig.add("a.ndjson", [ev("same line again")])
     rig.pipe.run_cycle()
     assert (rig.tmp / "state" / "drain3.bin").stat().st_mtime_ns == before
+
+
+def test_the_name_a_device_calls_itself_is_kept_for_the_system_pages(rig):
+    rig.add(
+        "a.ndjson",
+        [
+            ev("x", ts="Sep 26 13:00:00", header_host="Switch-A"),
+            ev("y", ts="Sep 26 13:05:00", header_host="Switch-B"),
+        ],
+    )
+    rig.pipe.run_cycle()
+    assert rig.rows("SELECT name FROM host WHERE host = '198.51.100.1'") == [
+        {"name": "Switch-B"}
+    ]  # the newest wins
+    rig.add("b.ndjson", [ev("z", ts="Sep 26 12:00:00", header_host="Older")])
+    rig.pipe.run_cycle()
+    assert rig.rows("SELECT name FROM host")[0]["name"] == "Switch-B"  # an older line never renames it
+
+
+def test_a_header_that_is_just_the_address_is_not_a_name(rig):
+    rig.add("a.ndjson", [ev("x", header_host="198.51.100.1")])
+    rig.pipe.run_cycle()
+    assert rig.rows("SELECT name FROM host")[0]["name"] is None

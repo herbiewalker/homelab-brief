@@ -270,6 +270,16 @@ Goal: the whole site (admin and public pages) reads like a large company's statu
 - [x] Audit again at 360, 768 and 1280 px in both themes (contrast test, browser audit, screenshots); guide 11 and the screenshots README updated.
 - Accept: a stranger can say in five seconds whether everything is fine, which system is not, and for how long; no page lost a control or a link; contrast and responsive audits are clean.
 
+## Task 39: Calmer pages and a page for every system (built 2026-10-19, version 0.0.60)
+- [x] Drill-down cards (native `<details>`, remembered per page): collector and settings cards, the Overview's secondary panels.
+- [x] `/admin/system/<id>`: the system's state and 30-day bar, its open alerts, and every device by name (alias, UniFi, header name, address), with model, firmware, MAC, uplink, update, rate, gap, clock; naming a device from the page (audited).
+- Accept: from the Overview, one click reaches the devices of a system with their real names.
+
+## Task 40: The network map as an editor (next)
+- [ ] Edit the map where it is shown: add, move, link, rename, and remove nodes and links on the map page itself, saved with an undo.
+- [ ] A modern look: device-type icons, live status colours from the same state as the Overview, link labels with traffic from the interface counters the collectors read, search, filters, layouts, a minimap, export.
+- [ ] NetFlow/IPFIX (who talks to whom) is a separate, later step: a receiver in the container, with a memory budget.
+
 ## Later (not in the first build)
 - PDF/EPUB e-reader edition (Pandoc) once the e-reader model is known.
 - Network novelty extractors: DHCP leases, MACs, firewall destinations.

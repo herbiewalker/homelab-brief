@@ -72,22 +72,26 @@ def test_top_signatures_are_the_hosts_busiest(month):
     assert ids[0] == sig_for(month, "DROP IN") and len(ids) == 2
 
 
+# The golden month is fixed in the past, so a window measured from today would one day stop reaching it.
+WINDOW = 3650
+
+
 def test_the_export_command_checks_its_arguments_and_writes(month, tmp_path, monkeypatch, capsys):
     month.close()
     state = tmp_path / "work"
     ns = cli.argparse.Namespace
-    assert cli.run_export(ns(host=g.GW, sig=None, top=None, days=30), state, out_dir=tmp_path / "o") == 2
-    assert cli.run_export(ns(host=g.GW, sig=1, top=2, days=30), state, out_dir=tmp_path / "o") == 2
+    assert cli.run_export(ns(host=g.GW, sig=None, top=None, days=WINDOW), state, out_dir=tmp_path / "o") == 2
+    assert cli.run_export(ns(host=g.GW, sig=1, top=2, days=WINDOW), state, out_dir=tmp_path / "o") == 2
     printed = []
     assert (
         cli.run_export(
-            ns(host=g.GW, sig=None, top=2, days=30), state, out=printed.append, out_dir=tmp_path / "o"
+            ns(host=g.GW, sig=None, top=2, days=WINDOW), state, out=printed.append, out_dir=tmp_path / "o"
         )
         == 0
     )
     assert len(printed) == 2 and all(p.endswith(".csv") for p in printed)
     assert (
-        cli.run_export(ns(host="198.51.100.250", sig=None, top=3, days=30), state, out_dir=tmp_path / "o")
+        cli.run_export(ns(host="198.51.100.250", sig=None, top=3, days=WINDOW), state, out_dir=tmp_path / "o")
         == 1
     )
     assert "No signatures" in capsys.readouterr().err

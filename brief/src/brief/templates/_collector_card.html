@@ -15,6 +15,8 @@
     </div>
   </div>
   {% if section %}
+  <details class="drill" id="drill-{{ cname }}" data-remember{% if errors or general %} open data-open-now{% endif %}>
+    <summary><span class="chev">{{ icon('chevron-right') }}</span><span>Settings</span><span class="drill-hint"><span class="when-closed">Show</span><span class="when-open">Hide</span></span></summary>
   <form data-file="{{ section.file }}" method="post" action="{{ action }}/save" hx-post="{{ action }}/save" hx-target="#card-{{ cname }}" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
     <input type="hidden" name="csrf_token" value="{{ csrf }}">
     <input type="hidden" name="base" value="{{ base }}">
@@ -32,6 +34,7 @@
       <button type="submit" class="btn">Save {{ section.title }}<span class="spinner htmx-indicator" aria-hidden="true"></span></button>
     </div>
   </form>
+  </details>
   {% else %}
   <div class="card-body"><p class="muted">This collector has no form yet. <a href="/admin/config/collectors.yaml">Edit it as text</a>.</p></div>
   {% endif %}

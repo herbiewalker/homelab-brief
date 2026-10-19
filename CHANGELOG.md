@@ -5,6 +5,12 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.60
+
+- **Calmer pages.** Cards fold up. Each collector shows its name, status, and last run, and a "Settings" bar opens the form; a settings page with more than two cards starts them closed; the Overview's secondary panels (what changed, busiest senders, last runs) fold up. Open or closed is remembered per page, and a card with an error opens itself.
+- **A page for every system.** Click a system (on the Overview or the Sources page) to see each device in it by name, with its model, firmware, MAC, last line, rate, normal gap, clock, uplink, and whether a firmware update is waiting. Names come, in this order, from a name you give the device (type it on the page), from the UniFi collector (matched by the MAC in the device's syslog header), from the hostname the device sends, or else the address. With the UniFi collector on, the page mirrors UniFi's names, kinds, uplinks, and updates; without it, the headers already give a name, model, firmware, and MAC. Migration 0016 adds the device names and the alias table.
+- **A test that would have failed on its own:** the weekly-export test measured 30 days from today against data fixed in September, so it began failing on 2026-10-19. Its window is now wide enough to always reach the data.
+
 ## 0.0.59
 
 - **Fixed: the Docker tab icon was blank for an own-IP container.** The compose files pointed the icon label at the container's own address, but Unraid downloads icons from the host, and a host cannot reach a macvlan container of its own unless "Host access to custom networks" is on. They use the raw GitHub address now (and `deploy/README.md` explains the trap). The container still serves its own copy at `/static/icon.png`.

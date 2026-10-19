@@ -307,3 +307,26 @@ document.body.addEventListener("htmx:beforeRequest", function (ev) {
     if (e.key === "g") { pending = true; timer = setTimeout(function () { pending = null; }, 1200); }
   });
 })();
+
+// ---------------------------------------------------------------- drill-down cards: open or closed, remembered per page
+(function () {
+  "use strict";
+  function key(el) { return "drill:" + location.pathname + ":" + el.id; }
+  function restore(scope) {
+    (scope || document).querySelectorAll("details[data-remember][id]").forEach(function (el) {
+      if (el.hasAttribute("data-open-now")) return; // the server opened it on purpose (an error to show)
+      try {
+        var v = localStorage.getItem(key(el));
+        if (v === "1") el.open = true; else if (v === "0") el.open = false;
+      } catch (e) {}
+    });
+  }
+  document.addEventListener("toggle", function (e) {
+    var el = e.target;
+    if (el && el.matches && el.matches("details[data-remember][id]")) {
+      try { localStorage.setItem(key(el), el.open ? "1" : "0"); } catch (x) {}
+    }
+  }, true);
+  restore();
+  document.body.addEventListener("htmx:afterSettle", function (ev) { restore(ev.target); });
+})();

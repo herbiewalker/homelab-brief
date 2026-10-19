@@ -1,0 +1,41 @@
+{% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, chip, statusbar, page_head, empty, alert %}
+{% block title %}{{ s.label }}{% endblock %}
+{% block body %}
+{% call page_head(s.label, s.summary or 'Every device in this system, by name.', [('/admin/systems', 'Systems')]) %}
+{{ chip(s.kind_class, s.state_word) }}
+<a class="btn btn--secondary" href="/admin/systems">{{ icon('sliders') }}<span>Edit systems</span></a>
+{% endcall %}
+
+<section class="panel" aria-labelledby="bar-h">
+  <div class="panel-head"><h2 id="bar-h">Last 30 days</h2><span class="subtle">{% if s.uptime is not none %}{{ s.uptime }}% of recorded days fully green{% else %}history builds up day by day{% endif %}</span></div>
+  <div class="panel-body">
+    {{ statusbar(s.cells, s.label ~ ', last 30 days') }}
+    <div class="bar-scale bar-scale--inline" aria-hidden="true"><span>30 days ago</span><span>today</span></div>
+    <div class="stat-strip spaced"><span><b>{{ s.devices|length }}</b> device{{ '' if s.devices|length == 1 else 's' }}</span><span><b>{{ s.silent }}</b> silent</span><span><b>{{ '{:,}'.format(s.events_24h) }}</b> log lines in 24 h</span>{% if s.unifi %}<span><b>{{ s.unifi }}</b> matched to UniFi</span>{% endif %}</div>
+  </div>
+</section>
+
+{% if s.alerts %}
+<section class="panel" aria-labelledby="al-h">
+  <div class="panel-head"><h2 id="al-h">Open alerts here</h2><a href="/admin/findings">All findings</a></div>
+  <ul class="list-plain">
+    {% for a in s.alerts %}<li><div class="grow"><strong>{{ a.title }}</strong><div class="muted">{{ a.kind }} · {{ a.level }} · opened {{ a.opened_text }} · {{ a.state }}</div></div></li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="panel" aria-labelledby="dev-h">
+  <div class="panel-head"><h2 id="dev-h">Devices</h2><span class="subtle">click one for its details and to name it</span></div>
+  {% if s.devices %}
+  <ul class="devices">
+    {% for dev in s.devices %}{% include "_system_device.html" %}{% endfor %}
+  </ul>
+  {% else %}
+  {% call empty('server', 'No device has sent anything yet', 'Point a device at this container and it appears here, then name it. Which devices belong to this system is set on the Systems page.') %}<a class="btn" href="/admin/systems">Edit systems</a>{% endcall %}
+  {% endif %}
+  {% if s.devices and not s.unifi %}
+  <div class="panel-body"><p class="muted">Names here come from each device's own syslog header. To mirror the names and details from the UniFi application (device names, uplinks, firmware updates), turn on the <a href="/admin/collectors">UniFi collector</a>.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

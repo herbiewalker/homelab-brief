@@ -516,3 +516,36 @@ a.kpi:hover { border-color: var(--line-strong); background: var(--surface-2); }
   .kpi-value { font-size: 1.35rem; }
   .kpi-label { letter-spacing: 0.03em; }
 }
+
+/* ---------------------------------------------------------------- drill-down cards (Task 39) */
+/* A native <details>: the bar shows what is inside, a chevron turns, and the page remembers the choice. */
+details.drill > summary { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; cursor: pointer; list-style: none; color: var(--muted); font-weight: 600; font-size: 0.9rem; border-top: 1px solid var(--line); user-select: none; }
+details.drill > summary::-webkit-details-marker { display: none; }
+details.drill > summary::marker { content: ""; }
+details.drill > summary:hover { background: var(--surface-2); color: var(--fg); }
+details.drill > summary:focus-visible { box-shadow: inset var(--focus); border-radius: 0; }
+details.drill > summary .chev { display: inline-flex; transition: transform 0.15s; }
+details.drill[open] > summary .chev { transform: rotate(90deg); }
+details.drill > summary .drill-hint { margin-left: auto; font-weight: 400; color: var(--subtle); font-size: 0.82rem; }
+details.drill[open] > summary .when-closed, details.drill:not([open]) > summary .when-open { display: none; }
+details.drill:not([open]) > summary { border-top-color: transparent; }
+/* a panel whose whole header is the summary (the Overview's secondary panels) */
+details.panel.drill > summary.panel-head { border-top: 0; color: var(--muted); }
+details.panel.drill > summary.panel-head h2 { flex: 1; }
+details.panel.drill[open] > summary.panel-head { border-bottom: 1px solid var(--line); }
+details.panel.drill:not([open]) > summary.panel-head { border-bottom: 0; }
+details.panel.drill > summary.panel-head .drill-hint { margin-left: 0; }
+@media (prefers-reduced-motion: reduce) { details.drill > summary .chev { transition: none; } }
+
+/* ---------------------------------------------------------------- a system's devices (Task 39) */
+.devices { list-style: none; margin: 0; padding: 0; }
+.device > details.drill > summary { border-top: 1px solid var(--line); padding: 0.7rem 1rem; color: var(--fg); font-weight: 500; font-size: 1rem; flex-wrap: wrap; }
+.device:first-child > details.drill > summary { border-top: 0; }
+.device-name { font-weight: 650; }
+.device-facts { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
+.device > details.drill > summary .drill-hint { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--muted); }
+.device-body { padding: 0.4rem 1rem 1rem 2.4rem; display: grid; gap: 0.9rem; }
+.device-body .kv { max-width: 34rem; }
+.device-body input[type=text] { max-width: 20rem; }
+.bar-scale--inline { grid-column: auto; margin-top: 0.25rem; }
+@media (max-width: 640px) { .device-body { padding-left: 1rem; } }

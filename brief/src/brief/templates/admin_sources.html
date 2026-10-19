@@ -35,7 +35,7 @@
     {% for h in page.rows %}
     <tr>
       <td data-label="Sender"><code>{{ h.host }}</code></td>
-      <td data-label="System">{% if h.known %}{{ h.system }}{% else %}<span class="badge warn">unknown</span> <a href="/admin/systems?add={{ h.host|urlencode }}">Name it</a>{% endif %}</td>
+      <td data-label="System">{% if h.known %}<a href="/admin/system/{{ h.system }}">{{ h.system }}</a>{% else %}<span class="badge warn">unknown</span> <a href="/admin/systems?add={{ h.host|urlencode }}">Name it</a>{% endif %}</td>
       <td data-label="Last line" title="{{ h.last_seen }}">{{ h.last_seen_text }}</td>
       <td data-label="24 h" class="num">{{ '{:,}'.format(h.events_24h) }}</td>
       <td data-label="1 h" class="num">{{ '{:,}'.format(h.events_hour) }}</td>

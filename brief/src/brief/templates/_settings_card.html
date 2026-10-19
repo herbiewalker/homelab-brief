@@ -12,6 +12,8 @@
     <div class="row"><button type="button" class="btn btn--secondary btn--sm" hx-post="{{ action }}/test" hx-target="#result-{{ section.id }}" hx-swap="innerHTML" hx-disabled-elt="this">{{ icon('play') }}<span>{{ section.test_label }}</span><span class="spinner htmx-indicator" aria-hidden="true"></span></button></div>
     {% endif %}
   </div>
+  <details class="drill" id="drill-{{ section.id }}" data-remember{% if not collapsed or errors or general %} open{% endif %}{% if errors or general %} data-open-now{% endif %}>
+    <summary><span class="chev">{{ icon('chevron-right') }}</span><span>Settings</span><span class="drill-hint"><span class="when-closed">Show</span><span class="when-open">Hide</span></span></summary>
   <form data-file="{{ section.file }}" method="post" action="{{ action }}/save" hx-post="{{ action }}/save" hx-target="#card-{{ section.id }}" hx-swap="outerHTML" hx-disabled-elt="find button[type=submit]">
     <input type="hidden" name="csrf_token" value="{{ csrf }}">
     <input type="hidden" name="base" value="{{ base }}">
@@ -31,5 +33,6 @@
       <button type="submit" class="btn">Save {{ section.title }}<span class="spinner htmx-indicator" aria-hidden="true"></span></button>
     </div>
   </form>
+  </details>
   <div id="result-{{ section.id }}" class="card-body result"></div>
 </section>
