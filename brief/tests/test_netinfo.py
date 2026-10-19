@@ -88,3 +88,17 @@ def test_status_json_carries_the_network_block(tmp_path, monkeypatch):
         assert doc["network"]["send_syslog_to"] == "192.0.2.9"
     finally:
         store.close()
+
+
+def test_the_advertised_address_can_come_from_the_environment_and_beats_the_file(tmp_path):
+    import pytest
+
+    folder = tmp_path / "c" / "brief"
+    folder.mkdir(parents=True)
+    (folder / "network.yaml").write_text('advertised_address: "from-file.example"\n', encoding="utf-8")
+    env = {"BRIEF_CONFIG_DIR": str(tmp_path / "c"), "BRIEF_DEFAULTS_DIR": str(tmp_path / "d")}
+    assert Settings.from_env(env).advertised == "from-file.example"
+    assert Settings.from_env({**env, "ADVERTISED_ADDRESS": " 192.0.2.10 "}).advertised == "192.0.2.10"
+    assert Settings.from_env({**env, "ADVERTISED_ADDRESS": ""}).advertised == "from-file.example"
+    with pytest.raises(ValueError, match="ADVERTISED_ADDRESS"):
+        Settings.from_env({**env, "ADVERTISED_ADDRESS": "192.0.2.10:8443"})  # a port does not belong in it

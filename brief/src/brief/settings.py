@@ -2,7 +2,7 @@
 
 Ports come from brief/network.yaml, and an environment variable overrides each one (so the first
 start can be tuned before the file exists), which lets the same image run in own-IP, host, and
-bridge modes.
+bridge modes. ADVERTISED_ADDRESS does the same for the address devices and browsers use.
 """
 
 import os
@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from brief.config import config_file, load_mapping
+from brief.netconfig import valid_address
 from brief.vectorcfg import syslog_port
 
 
@@ -46,6 +47,13 @@ class Settings:
         network = load_mapping(config_file("network.yaml", env))
         ports = network.get("ports") or {}
         https = _port(env, "HTTPS_PORT", ports.get("https"), 443)
+        advertised = (env.get("ADVERTISED_ADDRESS") or "").strip() or str(
+            network.get("advertised_address") or ""
+        ).strip()
+        if advertised and not valid_address(advertised):
+            raise ValueError(
+                f"ADVERTISED_ADDRESS must be an IP address or host name with no port, got {advertised!r}"
+            )
         return cls(
             state_dir=Path(env.get("BRIEF_STATE", "/state")),
             http_port=_port(env, "HTTP_PORT", ports.get("http"), 80),
@@ -53,7 +61,7 @@ class Settings:
             https_public_port=_port(env, "HTTPS_PUBLIC_PORT", None, https),
             syslog_port=syslog_port(network, env),
             interval=float(env.get("BRIEF_INGEST_INTERVAL", "60")),
-            advertised=str(network.get("advertised_address") or "").strip(),
+            advertised=advertised,
             network_mode=str(network.get("mode") or "auto").strip().lower(),
             out_dir=Path(env.get("BRIEF_OUT", "/out")),
             archive_dir=Path(env.get("BRIEF_ARCHIVE", "/archive")),

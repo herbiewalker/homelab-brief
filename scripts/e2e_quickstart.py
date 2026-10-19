@@ -45,6 +45,7 @@ def main(argv):
         "HB_SYSLOG_PORT": str(args.syslog_port),
         "HB_HTTP_PORT": str(args.http_port),
         "HB_HTTPS_PORT": str(args.https_port),
+        "HB_ADDRESS": "192.0.2.77",
     }
     base = f"http://127.0.0.1:{args.http_port}"
     problems: list[str] = []
@@ -90,8 +91,8 @@ def main(argv):
         check(token_lines, "no setup_token line in the log")
         if token_lines:
             check(
-                f":{args.https_port}/admin/setup" in token_lines[0],
-                "the setup link does not carry the HTTPS port",
+                f"https://192.0.2.77:{args.https_port}/admin/setup" in token_lines[0],
+                "the setup link does not carry the address and the HTTPS port",
             )
         status, _ = get(f"https://127.0.0.1:{args.https_port}/admin/login", tls=True)
         check(status == 200, f"the console login page answered {status}")

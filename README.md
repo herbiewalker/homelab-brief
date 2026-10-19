@@ -72,11 +72,12 @@ curl -fsSLo compose.yaml https://raw.githubusercontent.com/herbiewalker/homelab-
 docker compose logs homelab-brief | grep setup_token
 ```
 
-The last command prints the one-time admin link (`https://<this-host>:8443/admin/setup`; the certificate is
+The last command (give it a few seconds after the start) prints the one-time admin link (`https://<this-host>:8443/admin/setup`; the certificate is
 self-signed, so your browser warns once). Create the admin account and follow the setup wizard. Then point
 one device's syslog at `<this-host>:514` and it appears on the Sources page within a minute. Data lives in
 `./homelab-brief-data`. If port 514, 8080, or 8443 is taken, put `HB_SYSLOG_PORT`, `HB_HTTP_PORT`, or
-`HB_HTTPS_PORT` in a `.env` file first; the header of the compose file lists every setting.
+`HB_HTTPS_PORT` in a `.env` file first, and add `HB_ADDRESS=<this machine's address>` so the setup link names it;
+the header of the compose file lists every setting.
 
 **On Unraid** (Docker tab, with one-click updates): run this once in the Unraid terminal, then Add Container,
 pick `homelab-brief` from the Template dropdown, set a fixed IP on `br0`, and apply:

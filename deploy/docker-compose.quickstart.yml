@@ -2,7 +2,7 @@
 #
 #   curl -fsSLo compose.yaml https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/docker-compose.quickstart.yml && docker compose up -d
 #
-# then read the one-time admin setup link from the log:
+# then read the one-time admin setup link from the log (give it a few seconds after starting):
 #
 #   docker compose logs homelab-brief | grep setup_token
 #
@@ -14,6 +14,8 @@
 #   HB_HTTP_PORT    host port for the read-only pages: status, brief, API, metrics (default 8080)
 #   HB_HTTPS_PORT   host port for the admin console (default 8443)
 #   HB_DATA         folder for config, state, archive and reports (default ./homelab-brief-data)
+#   HB_ADDRESS      this machine's address as devices and browsers reach it (for example 192.0.2.10);
+#                   the setup link and the certificate use it. Leave empty and the link says <this-host>.
 #   HB_IMAGE        image to run (default: the newest release; set an exact version such as
 #                   ghcr.io/herbiewalker/homelab-brief:0.0.57 to stay put)
 #
@@ -38,6 +40,7 @@ services:
       - "${HB_HTTPS_PORT:-8443}:443"
     environment:
       HTTPS_PUBLIC_PORT: "${HB_HTTPS_PORT:-8443}"   # the port a browser uses, so the setup link matches
+      ADVERTISED_ADDRESS: "${HB_ADDRESS:-}"        # the address it uses in links and the certificate
       # Optional: a broker for Home Assistant sensors, and notification URLs (Apprise). Leave empty to skip.
       MQTT_HOST: "${MQTT_HOST:-}"
       MQTT_PORT: "${MQTT_PORT:-1883}"
