@@ -13,6 +13,8 @@ tag that has no entry here. Images are tagged with the exact version; there is n
 
 ## 0.0.59
 
+*Not published as its own image: its release check failed on a date-dependent test that is fixed in 0.0.60, so this version ships as part of 0.0.60.*
+
 - **Fixed: the Docker tab icon was blank for an own-IP container.** The compose files pointed the icon label at the container's own address, but Unraid downloads icons from the host, and a host cannot reach a macvlan container of its own unless "Host access to custom networks" is on. They use the raw GitHub address now (and `deploy/README.md` explains the trap). The container still serves its own copy at `/static/icon.png`.
 - **The Overview's incident timeline is quieter.** Reminders for a finding that is still open are left out (a long-open alert filled the feed with "Still open"), and a "Resolved" entry no longer reads "Resolved Resolved: ...".
 
