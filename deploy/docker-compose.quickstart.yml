@@ -52,5 +52,9 @@ services:
       - ${HB_DATA:-./homelab-brief-data}/state:/state
       - ${HB_DATA:-./homelab-brief-data}/archive:/archive
       - ${HB_DATA:-./homelab-brief-data}/out:/out
+    labels:  # ignored away from Unraid; on Unraid they give the Docker tab an icon and a WebUI entry
+      net.unraid.docker.managed: composeman
+      net.unraid.docker.webui: https://[IP]:[PORT:443]/admin
+      net.unraid.docker.icon: https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/icon.png
     mem_limit: 768m
     logging: { driver: json-file, options: { max-size: 10m, max-file: "2" } }

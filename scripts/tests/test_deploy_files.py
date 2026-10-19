@@ -128,5 +128,8 @@ def test_the_quickstart_compose_is_self_contained_and_consistent():
     for var in ("HB_SYSLOG_PORT", "HB_HTTP_PORT", "HB_HTTPS_PORT", "HB_DATA", "HB_IMAGE"):
         assert f"#   {var}" in text, f"{var} is not described in the file header"
     assert "env_file" not in service, "the quick start must work with no file other than itself"
+    labels = service["labels"]
+    assert labels["net.unraid.docker.webui"].endswith("[PORT:443]/admin")
+    assert labels["net.unraid.docker.icon"].startswith("https://raw.githubusercontent.com/")
     # every variable it passes on is one the program reads
     assert {"MQTT_HOST", "MQTT_PORT", "MQTT_USER", "MQTT_PASSWORD", "APPRISE_URLS"} <= ENV_NAMES

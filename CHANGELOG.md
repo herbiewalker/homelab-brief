@@ -8,6 +8,7 @@ tag that has no entry here. Images are tagged with the exact version; there is n
 ## 0.0.61
 
 - **The quick start can name its own address.** `ADVERTISED_ADDRESS` (the compose file's `HB_ADDRESS`, and an "Advertised address" field in the Unraid template) sets the address devices and browsers use, so the setup link in the log reads `https://<your-address>:8444/admin/setup` instead of `<this-host>`, and the certificate carries it. It beats `network.yaml` when both are set, and a value with a port in it is refused. Found by installing the quick start on a real Unraid host in bridge mode: the container started healthy, UDP syslog from another machine arrived with the sender's own address (bridge mode keeps it there), and `docker compose pull && docker compose up -d` moved it from 0.0.58 to 0.0.60.
+- The quick-start compose file carries the `net.unraid.docker.*` labels (icon and WebUI link), so on Unraid the container gets an icon and a WebUI entry. `deploy/README.md` now says what each install route shows in the Docker tab: the template gives the full right-click menu (WebUI, Console, Logs, Edit, Project Page, Support, More Info, Donate, up-to-date check); a compose file gives Console, Logs, Stop, Restart, Remove, the icon and the WebUI entry, and shows as "3rd Party".
 - The README and compose header now say the setup link appears a few seconds after the start (the first `grep` came back empty because it ran too soon).
 
 ## 0.0.60

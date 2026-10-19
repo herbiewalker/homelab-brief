@@ -35,6 +35,8 @@ Being public is also what lets Unraid's update check work: Unraid asks the regis
 
 The template's Repository field is `ghcr.io/herbiewalker/homelab-brief:stable` (replace `stable` with an exact version to stay put).
 
+**What the Docker tab shows depends on how you install.** A container made from the **template** (Add Container) gets the full right-click menu: WebUI, Console, Logs, Edit, Project Page, Support, More Info, and Donate, an icon, and an "up-to-date" check. A container started from a **compose file** (Compose Manager or `docker compose`) has no template, so Unraid shows it as "3rd Party": it gets Console, Logs, Stop, Restart, and Remove, and, from the `net.unraid.docker.*` labels in the compose files, an icon and a WebUI entry, but no Edit, Project Page, Support, or More Info. For the full menu, install from the template.
+
 **The icon.** The template and the compose files point at `deploy/icon.png` through its raw GitHub address. Unraid downloads the icon from the host itself, so do not point the `net.unraid.docker.icon` label at the container's own address when the container is on an own-IP network and "Host access to custom networks" is off: the host cannot reach it, and the Docker tab shows a blank icon. (The container does serve its own copy at `/static/icon.png`, for setups that cannot reach GitHub.) Unraid caches icons; after a change, recreate the container.
 
 Without a registry (or before the first release), build on a machine with Docker and copy it over; then use the local name `homelab-brief:<version>` as the repository:
