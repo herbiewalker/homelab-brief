@@ -280,6 +280,16 @@ Goal: the whole site (admin and public pages) reads like a large company's statu
 - [ ] A modern look: device-type icons, live status colours from the same state as the Overview, link labels with traffic from the interface counters the collectors read, search, filters, layouts, a minimap, export.
 - [ ] NetFlow/IPFIX (who talks to whom) is a separate, later step: a receiver in the container, with a memory budget.
 
+## Proposed next (not started; awaiting selection)
+Goal: a powerful product that is very simple to use, easy to add information sources to, and writes a news-style brief of what is happening and what is concerning.
+- [ ] **Task 41: Simple and Advanced.** The default menu shows about six pages; the rest sit behind "Advanced" and the command palette. Tooltips and a one-sentence plain explanation for every product term, from a single source.
+- [ ] **Task 42: A configurable Overview.** Edit mode: show or hide, reorder, and size each card; presets (calm, operator, everything); stored per admin on the server.
+- [ ] **Task 43: The Brief page.** A newspaper layout (headline, top stories with why it matters, worth watching, all quiet), editions (morning, weekly, since I last looked), plain-language controls, sources shown, a preview with AI, and an Ask box. Facts first, AI prose second.
+- [ ] **Task 44: One "+ Add".** Guided forms with a Test button for each kind of source, discovery cards for senders and devices it notices, and a generic HTTP JSON source.
+- [ ] **Task 45: Monitoring the host the container runs on** without any non-default Docker network setting: read-only mounts of the host's own log and state, a clear diagnosis when the host cannot be reached, and pulling remote servers' logs through the API.
+- [ ] **Task 46: An installer** that scans a host, proposes the best settings, and installs through the template, Compose Manager, or plain compose; and a launcher page behind the Docker tab's WebUI entry.
+- [ ] **Task 47 (was 40): The network map as an editor**, then NetFlow.
+
 ## Later (not in the first build)
 - PDF/EPUB e-reader edition (Pandoc) once the e-reader model is known.
 - Network novelty extractors: DHCP leases, MACs, firewall destinations.
