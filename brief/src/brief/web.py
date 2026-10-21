@@ -42,6 +42,7 @@ from brief import (
     admin_tools,
     ai,
     api,
+    glossary,
     health,
     mapview,
     mcpserver,
@@ -171,6 +172,9 @@ def create_app(
     templates = jinja2.Environment(loader=jinja2.FileSystemLoader(HERE / "templates"), autoescape=True)
     templates.globals["asset_v"] = __version__  # a new version is a new URL for the stylesheet and scripts
     templates.globals["source_url"] = SOURCE_URL
+    templates.globals["glossary"] = glossary.TERMS
+    templates.globals["page_help"] = glossary.PAGES
+    templates.globals["kpi_tip"] = glossary.kpi_tip
     templates.globals["spark"] = sparkline.points
     templates.globals["meter_pct"] = sparkline.meter_pct
 
@@ -200,6 +204,8 @@ def create_app(
         session = getattr(request.state, "session", None)
         ctx.setdefault("nav", admin_pages.NAV)
         ctx.setdefault("nav_groups", admin_pages.NAV_GROUPS)
+        ctx.setdefault("nav_simple", admin_pages.NAV_SIMPLE)
+        ctx.setdefault("simple_keys", admin_pages.SIMPLE_KEYS)
         if session is not None:
             ctx["topbar"], ctx["topbar_counts"] = admin_data.shell_status(store, settings.out_dir)
         ctx.setdefault("active", "")

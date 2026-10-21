@@ -5,6 +5,11 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.62
+
+- **A simpler menu by default.** The side menu shows six pages (Overview, Findings and alerts, Systems, Today's brief, Sources, Settings). "Show all pages" at the bottom switches to the full list; the choice is remembered in the browser and applied before the page paints. The new **Settings** page lists every other page, grouped, with one line on what each is for, and stays highlighted while you are on any of them. Same pages and addresses; Ctrl K still reaches all of them.
+- **Tips in plain language.** A small `?` (and a tooltip on the Overview tiles) explains a word on hover, keyboard focus, or tap, and is read by screen readers. The words live in one table (`glossary.py`) that also feeds the new **Help and glossary** page and the menu tooltips, so they cannot disagree.
+
 ## 0.0.61
 
 - **The quick start can name its own address.** `ADVERTISED_ADDRESS` (the compose file's `HB_ADDRESS`, and an "Advertised address" field in the Unraid template) sets the address devices and browsers use, so the setup link in the log reads `https://<your-address>:8444/admin/setup` instead of `<this-host>`, and the certificate carries it. It beats `network.yaml` when both are set, and a value with a port in it is refused. Found by installing the quick start on a real Unraid host in bridge mode: the container started healthy, UDP syslog from another machine arrived with the sender's own address (bridge mode keeps it there), and `docker compose pull && docker compose up -d` moved it from 0.0.58 to 0.0.60.

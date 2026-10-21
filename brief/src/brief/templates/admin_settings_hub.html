@@ -1,0 +1,20 @@
+{% extends "admin_layout.html" %}
+{% from "_ui.html" import icon, page_head %}
+{% block title %}Settings{% endblock %}
+{% block body %}
+{% call page_head('Settings', 'Every other page, grouped by what it does, with a line on what each is for.') %}
+<a class="btn btn--secondary btn--sm" href="/admin/help">{{ icon('info') }}<span>Help and glossary</span></a>
+{% endcall %}
+<div class="stack">
+{% for group, pages in groups %}
+  <section class="panel" aria-labelledby="hub-{{ loop.index }}">
+    <div class="panel-head"><h2 id="hub-{{ loop.index }}">{{ group }}</h2></div>
+    <ul class="hub">
+      {% for href, label, glyph, text in pages %}
+      <li><a class="hub-link" href="{{ href }}">{{ icon(glyph) }}<span class="grow"><strong>{{ label }}</strong>{% if text %}<span class="muted">{{ text }}</span>{% endif %}</span>{{ icon('chevron-right') }}</a></li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endfor %}
+</div>
+{% endblock %}

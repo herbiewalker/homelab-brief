@@ -7,4 +7,8 @@
     if (saved === "light" || saved === "dark" || saved === "auto") t = saved;
   } catch (e) {}
   document.documentElement.setAttribute("data-theme", t);
+  // The side menu: "simple" (the default) or "advanced" (every page). Set here so the menu never jumps.
+  var nav = "simple";
+  try { if (localStorage.getItem("nav") === "advanced") nav = "advanced"; } catch (e) {}
+  document.documentElement.setAttribute("data-nav", nav);
 })();

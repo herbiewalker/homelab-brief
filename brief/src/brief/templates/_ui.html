@@ -9,6 +9,11 @@
 <span class="chip{% if kind %} chip--{{ kind }}{% endif %}">{% if dot %}<span class="dot"></span>{% endif %}{{ text }}</span>
 {%- endmacro %}
 
+{# A small "?" that explains a word of the product on hover, keyboard focus, or tap. The words live in glossary.py. #}
+{% macro tip(key) -%}
+{% set g = glossary[key] %}<button type="button" class="tip" data-tip="{{ g[1] }}" aria-label="What is {{ g[0]|lower }}?">?</button>
+{%- endmacro %}
+
 {# A number with a label. kind sets the left edge colour; href makes the whole tile a link. #}
 {% macro tile(label, value, sub='', kind='', href='', glyph='') -%}
 <{{ 'a' if href else 'div' }} class="tile{% if kind %} tile--{{ kind }}{% endif %}"{% if href %} href="{{ href }}"{% endif %}>
@@ -77,7 +82,8 @@
 {# A KPI tile: label, big value, a line of detail, and an optional trend. #}
 {% macro kpi(label, value, sub='', kind='', href='', series=None, glyph='') -%}
 <{{ 'a' if href else 'div' }} class="kpi{% if kind %} kpi--{{ kind }}{% endif %}"{% if href %} href="{{ href }}"{% endif %}>
-  <span class="kpi-label">{% if glyph %}{{ icon(glyph) }}{% endif %}{{ label }}<span class="dot" title="{{ {'ok': 'Healthy', 'warn': 'Needs a look', 'bad': 'Failing'}.get(kind, '') }}"></span></span>
+  {% set help = kpi_tip(label) %}
+  <span class="kpi-label"{% if help %} data-tip="{{ help }}"{% endif %}>{% if glyph %}{{ icon(glyph) }}{% endif %}{{ label }}<span class="dot" title="{{ {'ok': 'Healthy', 'warn': 'Needs a look', 'bad': 'Failing'}.get(kind, '') }}"></span></span>
   <span class="kpi-value">{{ value }}</span>
   <span class="kpi-sub">{{ sub }}</span>
   {% if series is not none %}{{ sparkline(series, kind) }}{% endif %}

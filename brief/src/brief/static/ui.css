@@ -91,6 +91,27 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 1.2rem 0; }
 .nav-link:hover { background: var(--surface-2); color: var(--fg); }
 .nav-link[aria-current="page"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 2px 0 0 var(--accent); }
 .nav-link .badge-dot { margin-left: auto; }
+html[data-nav="advanced"] .nav-simple, html:not([data-nav="advanced"]) .nav-full { display: none; }
+.nav-simple { margin-top: 0.5rem; }
+
+/* tips: a small "?" or any [data-tip] element; the note itself is one floating box (ui.js) */
+.tip { display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem; margin-left: 0.3rem; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface-2); color: var(--muted); font: inherit; font-size: 0.72rem; font-weight: 650; line-height: 1; vertical-align: middle; cursor: help; }
+.tip:hover, .tip:focus-visible { color: var(--accent); border-color: var(--accent); }
+[data-tip]:not(.tip) { cursor: help; }
+.tip-box { position: fixed; z-index: 60; max-width: min(20rem, calc(100vw - 16px)); padding: 0.5rem 0.7rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--fg); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); font-size: 0.86rem; font-weight: 450; line-height: 1.4; text-transform: none; letter-spacing: normal; pointer-events: none; }
+.tip-box[hidden] { display: none; }
+
+/* settings hub and help page */
+.hub { list-style: none; margin: 0; padding: 0; }
+.hub li + li { border-top: 1px solid var(--line); }
+.hub-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.7rem 1rem; color: var(--fg); text-decoration: none; }
+.hub-link:hover { background: var(--surface-2); }
+.hub-link .grow { display: flex; flex-direction: column; gap: 0.1rem; }
+.glossary { margin: 0; padding: 0 1rem; }
+.glossary > div { padding: 0.7rem 0; }
+.glossary > div + div { border-top: 1px solid var(--line); }
+.glossary dt { font-weight: 650; }
+.glossary dd { margin: 0.15rem 0 0; color: var(--muted); }
 .sidebar-foot { margin-top: auto; padding-top: 0.9rem; border-top: 1px solid var(--line); }
 .workspace { min-width: 0; display: flex; flex-direction: column; }
 .topbar { position: sticky; top: 0; z-index: 20; height: var(--topbar); display: flex; align-items: center; gap: 0.75rem; padding: 0 1.25rem; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }

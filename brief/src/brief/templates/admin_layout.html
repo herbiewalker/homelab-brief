@@ -21,11 +21,18 @@
 <div class="app">
   <aside class="sidebar" id="sidebar" aria-label="Main">
     <a class="brandmark" href="/admin"><span class="logo">{{ icon('activity') }}</span><span>homelab-brief</span></a>
+    {#- The full menu comes first in the page so the Ctrl K list keeps each page's group name. The simple menu is the default; a script-free page shows it too. -#}
+    <div class="nav-full">
     {% for group, links in nav_groups %}
     <div class="nav-group">{{ group }}</div>
-    {% for key, href, label, glyph in links %}<a class="nav-link" href="{{ href }}"{% if key == active %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ label }}</span>{% if key == 'collectors' and topbar_counts.collectors_failing %}<span class="badge-dot bad" title="{{ topbar_counts.collectors_failing }} failing"></span>{% elif key == 'findings' and topbar_counts.alerts %}<span class="chip chip--warn">{{ topbar_counts.alerts }}</span>{% elif key == 'ai' and topbar_counts.proposals %}<span class="chip chip--info">{{ topbar_counts.proposals }}</span>{% endif %}</a>{% endfor %}
+    {% for key, href, label, glyph in links %}<a class="nav-link" href="{{ href }}"{% if page_help.get(key) %} title="{{ page_help[key] }}"{% endif %}{% if key == active %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ label }}</span>{% if key == 'collectors' and topbar_counts.collectors_failing %}<span class="badge-dot bad" title="{{ topbar_counts.collectors_failing }} failing"></span>{% elif key == 'findings' and topbar_counts.alerts %}<span class="chip chip--warn">{{ topbar_counts.alerts }}</span>{% elif key == 'ai' and topbar_counts.proposals %}<span class="chip chip--info">{{ topbar_counts.proposals }}</span>{% endif %}</a>{% endfor %}
     {% endfor %}
+    </div>
+    <div class="nav-simple">
+    {% for key, href, label, glyph in nav_simple %}<a class="nav-link" href="{{ href }}"{% if key == active or (key == 'settings' and active not in simple_keys) %} aria-current="page"{% endif %}>{{ icon(glyph) }}<span>{{ label }}</span>{% if key == 'findings' and topbar_counts.alerts %}<span class="chip chip--warn">{{ topbar_counts.alerts }}</span>{% elif key == 'settings' and (topbar_counts.collectors_failing or topbar_counts.proposals) %}<span class="badge-dot bad" title="Something in Settings needs a look"></span>{% endif %}</a>{% endfor %}
+    </div>
     <div class="sidebar-foot">
+      <button type="button" class="nav-link nav-btn" data-action="nav-level" aria-pressed="false">{{ icon('list') }}<span data-nav-label>Show all pages</span></button>
       <a class="nav-link" href="/">{{ icon('external') }}<span>Public status page</span></a>
       <a class="nav-link" href="{{ source_url }}" rel="noopener">{{ icon('file-text') }}<span>Source code (AGPL-3.0)</span></a>
       <button type="button" class="nav-link nav-btn" data-action="theme">{{ icon('monitor') }}<span data-theme-label>Theme</span></button>

@@ -17,6 +17,50 @@
   }
   applyTheme(theme());
 
+  // ---------------------------------------------------------------- side menu: simple (default) or every page
+  function applyNav(level) {
+    root.setAttribute("data-nav", level);
+    document.querySelectorAll("[data-nav-label]").forEach(function (el) { el.textContent = level === "advanced" ? "Show fewer pages" : "Show all pages"; });
+    document.querySelectorAll('[data-action="nav-level"]').forEach(function (b) { b.setAttribute("aria-pressed", level === "advanced" ? "true" : "false"); });
+  }
+  applyNav(root.getAttribute("data-nav") === "advanced" ? "advanced" : "simple");
+
+  // ---------------------------------------------------------------- tips: a "?" or any [data-tip] explains itself
+  // One floating note for the whole page. It shows on hover, on keyboard focus, and on tap, and the trigger points at it
+  // with aria-describedby so a screen reader reads it too. Escape or moving away hides it.
+  var tipBox = null, tipFor = null;
+  function tipEl() {
+    if (!tipBox) {
+      tipBox = document.createElement("div"); tipBox.id = "tip-box"; tipBox.className = "tip-box"; tipBox.setAttribute("role", "tooltip"); tipBox.hidden = true;
+      document.body.appendChild(tipBox);
+    }
+    return tipBox;
+  }
+  function showTip(el) {
+    var text = el.getAttribute("data-tip"); if (!text) return;
+    var box = tipEl(); box.textContent = text; box.hidden = false; tipFor = el; el.setAttribute("aria-describedby", "tip-box");
+    var r = el.getBoundingClientRect(), w = box.offsetWidth, h = box.offsetHeight;
+    var left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+    var top = r.bottom + 8; if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 8);
+    box.style.left = left + "px"; box.style.top = top + "px";
+  }
+  function hideTip() {
+    if (tipBox) tipBox.hidden = true;
+    if (tipFor) { tipFor.removeAttribute("aria-describedby"); tipFor = null; }
+  }
+  function tipTarget(ev) { return ev.target.closest ? ev.target.closest("[data-tip]") : null; }
+  document.addEventListener("mouseover", function (ev) { var t = tipTarget(ev); if (t) showTip(t); });
+  document.addEventListener("mouseout", function (ev) { if (tipTarget(ev)) hideTip(); });
+  document.addEventListener("focusin", function (ev) { var t = tipTarget(ev); if (t) showTip(t); });
+  document.addEventListener("focusout", function (ev) { if (tipTarget(ev)) hideTip(); });
+  document.addEventListener("click", function (ev) {
+    var t = tipTarget(ev);
+    if (t && t.classList.contains("tip")) { ev.preventDefault(); ev.stopPropagation(); if (tipFor === t && !tipBox.hidden) hideTip(); else showTip(t); }
+    else if (tipFor) hideTip();
+  }, true);
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") hideTip(); });
+  window.addEventListener("scroll", hideTip, true);
+
   // ---------------------------------------------------------------- toasts
   function toasts() {
     var box = document.getElementById("toasts");
@@ -119,6 +163,11 @@
     var a = t.getAttribute("data-action");
     if (a === "menu") { document.body.classList.toggle("menu-open"); t.setAttribute("aria-expanded", document.body.classList.contains("menu-open")); }
     else if (a === "menu-close") { document.body.classList.remove("menu-open"); }
+    else if (a === "nav-level") {
+      var lvl = root.getAttribute("data-nav") === "advanced" ? "simple" : "advanced";
+      try { localStorage.setItem("nav", lvl); } catch (e) {}
+      applyNav(lvl);
+    }
     else if (a === "theme") {
       var next = ORDER[(ORDER.indexOf(theme()) + 1) % ORDER.length];
       try { localStorage.setItem("theme", next); } catch (e) {}
@@ -239,13 +288,16 @@ document.body.addEventListener("htmx:beforeRequest", function (ev) {
   var items = [], shown = [], at = 0, lastFocus = null;
 
   function collect() {
-    items = [];
+    items = []; var seen = {};
+    // Both menus are in the page (one is hidden), and the palette reaches every page: list each address once.
     document.querySelectorAll(".sidebar a.nav-link[href]").forEach(function (a) {
+      if (seen[a.getAttribute("href")]) return; seen[a.getAttribute("href")] = true;
       var label = (a.querySelector("span") || a).textContent.trim();
       var group = "", g = a.previousElementSibling; while (g && !g.classList.contains("nav-group")) g = g.previousElementSibling;
       if (g) group = g.textContent.trim();
       items.push({ label: label, group: group, href: a.getAttribute("href") });
     });
+    items.push({ label: "Show all pages or fewer", group: "Action", run: function () { var b = document.querySelector('[data-action="nav-level"]'); if (b) b.click(); } });
     items.push({ label: "Change theme", group: "Action", run: function () { var b = document.querySelector('[data-action="theme"]'); if (b) b.click(); } });
     items.push({ label: "Keyboard shortcuts", group: "Action", run: function () { openHelp(); } });
   }

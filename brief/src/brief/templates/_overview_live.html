@@ -1,4 +1,4 @@
-{% from "_ui.html" import icon, chip, alert, empty, banner, kpi, component, meter %}
+{% from "_ui.html" import icon, chip, alert, empty, banner, kpi, component, meter, tip %}
 {% set s = data.status %}
 {% set h = data.hero %}
 {% macro checklist_panel() %}
@@ -44,7 +44,7 @@
 <div class="console">
   <div class="stack">
     <section class="panel" aria-labelledby="sys-h">
-      <div class="panel-head"><h2 id="sys-h">Systems</h2><a href="/admin/systems">Manage</a></div>
+      <div class="panel-head"><h2 id="sys-h">Systems {{ tip('system') }}</h2><a href="/admin/systems">Manage</a></div>
       {% if data.components %}
       <ul class="components">
         {% for t in data.components %}{{ component(t.name, t.summary, t.kind or 'off', t.word, t.cells, t.uptime, '/admin/system/' ~ t.id) }}{% endfor %}
@@ -55,7 +55,7 @@
     </section>
 
     <section class="panel" aria-labelledby="al-h">
-      <div class="panel-head"><h2 id="al-h">Needs attention</h2><a href="/admin/findings">All {{ data.alerts_total }}</a></div>
+      <div class="panel-head"><h2 id="al-h">Needs attention {{ tip('alert') }}</h2><a href="/admin/findings">All {{ data.alerts_total }}</a></div>
       {% if data.alerts %}
       <ul class="list-plain">
         {% for a in data.alerts %}{% include "_overview_alert.html" %}{% endfor %}

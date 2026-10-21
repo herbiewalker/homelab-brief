@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from brief import __version__, admin_data, agentnotes, alerts, health, overviewdata
+from brief import __version__, admin_data, agentnotes, alerts, glossary, health, overviewdata
 from brief.settings import Settings
 from brief.store import Store
 
@@ -53,9 +53,22 @@ NAV_GROUPS = [
         ("replay", "/admin/replay", "Replay and tuning", "history"),
         ("audit", "/admin/audit", "Audit log", "clock"),
         ("account", "/admin/account", "Account", "user"),
+        ("help", "/admin/help", "Help and glossary", "info"),
     ]),
 ]  # fmt: skip
 NAV = [(key, href, label) for _, links in NAV_GROUPS for key, href, label, _ in links]
+
+# The simple menu (the default): the pages most people use. Everything else sits one click away on the
+# Settings page, in the full menu ("Show all pages"), and in the Ctrl K palette. Same pages, same addresses.
+NAV_SIMPLE = [
+    ("overview", "/admin", "Overview", "activity"),
+    ("findings", "/admin/findings", "Findings and alerts", "alert"),
+    ("systems", "/admin/systems", "Systems", "server"),
+    ("brief", "/brief.html", "Today's brief", "file-text"),
+    ("sources", "/admin/sources", "Sources", "radio"),
+    ("settings", "/admin/settings", "Settings", "sliders"),
+]
+SIMPLE_KEYS = frozenset(key for key, _, _, _ in NAV_SIMPLE)
 
 ALERT_ACTIONS = ("ack", "snooze_24h", "snooze_7d")
 BULK_MAX = 200
@@ -105,6 +118,29 @@ def register(admin: APIRouter, d: Deps) -> None:
     def overview(request: Request):
         return d.render(
             request, "dashboard.html", csrf=d.session(request).csrf, active="overview", **overview_context()
+        )
+
+    @admin.get("/settings", response_class=HTMLResponse)
+    def settings_hub(request: Request):
+        """Every page that is not in the simple menu, grouped, with one line saying what it is for."""
+        groups = [
+            (group, [(href, label, glyph, glossary.PAGES.get(key, "")) for key, href, label, glyph in links])
+            for group, links in NAV_GROUPS
+            for links in [[link for link in links if link[0] not in SIMPLE_KEYS and link[0] != "help"]]
+            if links
+        ]
+        return d.render(
+            request, "admin_settings_hub.html", csrf=d.session(request).csrf, active="settings", groups=groups
+        )
+
+    @admin.get("/help", response_class=HTMLResponse)
+    def help_page(request: Request):
+        return d.render(
+            request,
+            "admin_help.html",
+            csrf=d.session(request).csrf,
+            active="help",
+            terms=glossary.help_terms(),
         )
 
     @admin.get("/overview/live", response_class=HTMLResponse)
