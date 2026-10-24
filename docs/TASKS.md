@@ -282,13 +282,15 @@ Goal: the whole site (admin and public pages) reads like a large company's statu
 
 ## Proposed next (not started; awaiting selection)
 Goal: a powerful product that is very simple to use, easy to add information sources to, and writes a news-style brief of what is happening and what is concerning.
-- [ ] **Task 41: Simple and Advanced.** The default menu shows about six pages; the rest sit behind "Advanced" and the command palette. Tooltips and a one-sentence plain explanation for every product term, from a single source.
+- [x] **Task 41: Simple and Advanced** (built 2026-10-21, version 0.0.62). Six-page default menu, "Show all pages", a Settings page, a Help and glossary page, and `?` tips from one table (`glossary.py`). Still to do: `?` tips on the Sources, Findings, and Signatures pages and on table headings.
 - [ ] **Task 42: A configurable Overview.** Edit mode: show or hide, reorder, and size each card; presets (calm, operator, everything); stored per admin on the server.
 - [ ] **Task 43: The Brief page.** A newspaper layout (headline, top stories with why it matters, worth watching, all quiet), editions (morning, weekly, since I last looked), plain-language controls, sources shown, a preview with AI, and an Ask box. Facts first, AI prose second.
 - [ ] **Task 44: One "+ Add".** Guided forms with a Test button for each kind of source, discovery cards for senders and devices it notices, and a generic HTTP JSON source.
 - [ ] **Task 45: Monitoring the host the container runs on** without any non-default Docker network setting: read-only mounts of the host's own log and state, a clear diagnosis when the host cannot be reached, and pulling remote servers' logs through the API.
 - [ ] **Task 46: An installer** that scans a host, proposes the best settings, and installs through the template, Compose Manager, or plain compose; and a launcher page behind the Docker tab's WebUI entry.
 - [ ] **Task 47 (was 40): The network map as an editor**, then NetFlow.
+- [ ] **Task 48: The WebUI opens the public overview.** The Docker tab's WebUI entry (template and compose labels) points at the public page that needs no sign-in (`http://[IP]:[PORT:80]/`), and that page carries a clear "Admin sign in" button to `/admin`. Unraid shows one WebUI entry per container, so this replaces the direct-to-admin link; check whether the installed Unraid version supports several entries and, if it does, offer both (public overview and admin). Accept: one click from the container's icon shows status without a login, one more reaches the sign-in page.
+- [ ] **Task 49: Secrets managed in the GUI.** Add, replace, and remove API keys and passwords on the Collectors and Notifications pages instead of editing template variables. Values are encrypted at rest in the state folder, never written to `/config`, config history, backups, support bundles, or the audit log, and shown only as set or not set. Backups exclude secrets unless the backup is encrypted with a passphrase. The template-variable route keeps working. Open design question: where the encryption key comes from (it cannot sit next to the data it protects).
 
 ## Later (not in the first build)
 - PDF/EPUB e-reader edition (Pandoc) once the e-reader model is known.
