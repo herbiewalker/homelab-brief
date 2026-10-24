@@ -570,3 +570,63 @@ details.panel.drill > summary.panel-head .drill-hint { margin-left: 0; }
 .device-body input[type=text] { max-width: 20rem; }
 .bar-scale--inline { grid-column: auto; margin-top: 0.25rem; }
 @media (max-width: 640px) { .device-body { padding-left: 1rem; } }
+
+/* ---------------------------------------------------------------- polish (0.0.63)
+   Depth, rhythm, and motion on top of the components above. No new colours: everything uses the tokens, so both themes
+   and the contrast test are unaffected. */
+body { background: var(--bg) radial-gradient(70rem 28rem at 88% -8%, color-mix(in srgb, var(--accent) 8%, transparent), transparent) no-repeat fixed; }
+:root[data-theme="light"] body { background: var(--bg) radial-gradient(70rem 28rem at 88% -8%, color-mix(in srgb, var(--accent) 6%, transparent), transparent) no-repeat fixed; }
+.page { padding-bottom: 3rem; }
+.page-head h1 { font-size: 1.6rem; font-weight: 680; letter-spacing: -0.02em; }
+.page-head .lead { font-size: 0.95rem; }
+
+/* surfaces: a hairline highlight on top and a softer lift when something can be clicked */
+.panel, .kpi, .tile { background-image: linear-gradient(180deg, color-mix(in srgb, var(--fg) 2.5%, transparent), transparent 40%); }
+.panel-head { background-image: none; }
+:root[data-theme="light"] .panel, :root[data-theme="light"] .kpi, :root[data-theme="light"] .tile { background-image: none; }
+@media (prefers-color-scheme: light) { :root[data-theme="auto"] .panel, :root[data-theme="auto"] .kpi, :root[data-theme="auto"] .tile { background-image: none; } }
+a.kpi, .tile[href] { transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease; }
+a.kpi:hover, .tile[href]:hover { transform: translateY(-1px); border-color: var(--accent); box-shadow: var(--shadow-2); }
+a.kpi:focus-visible { transform: translateY(-1px); }
+.kpi-value { font-size: 1.85rem; font-weight: 680; }
+.kpi--bad .kpi-value { color: var(--bad); } .kpi--warn .kpi-value { color: var(--warn); }
+.kpi::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--line-strong); opacity: 0.7; }
+.kpi--ok::before { background: var(--ok); } .kpi--warn::before { background: var(--warn); } .kpi--bad::before { background: var(--bad); }
+.spark polygon { opacity: 0.16; }
+
+/* four tiles across on a wide screen, two on a tablet, one on a small phone: no half-empty last row of three */
+.kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .kpis { grid-template-columns: minmax(0, 1fr); } }
+.kpis > .kpi:last-child:nth-child(odd) { grid-column: span 2; }
+@media (min-width: 1101px) { .kpis > .kpi:last-child:nth-child(odd) { grid-column: auto; } }
+@media (max-width: 420px) { .kpis > .kpi:last-child:nth-child(odd) { grid-column: auto; } }
+
+/* buttons: a little depth on the primary one, quieter focus transition everywhere */
+.btn:not(.btn--secondary):not(.btn--ghost):not(.btn--danger), button:not(.quiet):not(.link):not(.danger):not(.nav-link):not(.btn--secondary):not(.btn--ghost):not(.tip) { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset, 0 1px 2px rgba(0, 0, 0, 0.3); }
+.btn:active { transform: translateY(1px); }
+
+/* menu: icons dim until hovered, the current page glows a little */
+.nav-link { transition: background 0.12s ease, color 0.12s ease; }
+.nav-link .icon { opacity: 0.8; }
+.nav-link:hover .icon, .nav-link[aria-current="page"] .icon { opacity: 1; }
+.nav-link[aria-current="page"] { font-weight: 620; }
+.brandmark .logo { box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 35%, transparent); }
+
+/* the setup checklist becomes a slim card: a progress bar, and only what is left to do, in two columns */
+.setup-progress { height: 0.3rem; border-radius: 999px; background: var(--line); overflow: hidden; margin-bottom: 0.2rem; }
+.setup-progress > span { display: block; height: 100%; background: var(--ok); border-radius: inherit; }
+.setup-progress--w0 > span { width: 0; } .setup-progress--w1 > span { width: 17%; } .setup-progress--w2 > span { width: 33%; }
+.setup-progress--w3 > span { width: 50%; } .setup-progress--w4 > span { width: 67%; } .setup-progress--w5 > span { width: 83%; } .setup-progress--w6 > span { width: 100%; }
+.checklist--todo { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem 1.4rem; margin-top: 0.7rem; }
+@media (max-width: 760px) { .checklist--todo { grid-template-columns: minmax(0, 1fr); } }
+.setup-done { margin-top: 0.8rem; color: var(--muted); font-size: 0.86rem; display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; }
+.setup-done .icon { color: var(--ok); width: 1em; height: 1em; }
+
+/* timeline and lists breathe a little more */
+.list-plain > li { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.component { padding-top: 0.8rem; padding-bottom: 0.8rem; }
+
+/* pages fade in once; nothing moves for people who ask for less motion (the rule at the top zeroes durations) */
+@keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.page > .stack, .page > .page-head, .page > .panel, .page > section { animation: rise 0.25s ease both; }

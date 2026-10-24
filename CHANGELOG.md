@@ -5,6 +5,11 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.63
+
+- **A polish pass over the whole console** (CSS only, plus the Overview checklist; the tokens and both themes are unchanged). Soft depth on panels and tiles, a faint accent glow behind the page, tiles that lift and light their edge on hover, a coloured top edge and a coloured number on warning and failing tiles, calmer menu icons, a slightly raised primary button, and a short fade-in on page load (off for people who ask for less motion). The health tiles now sit four across on a wide screen, two on a tablet, and one on a small phone, so there is no half-empty last row. The setup checklist became a slim card with a progress bar, only the steps still open in two columns, and the finished ones as one line.
+- The asset address carries the version, so a browser fetches the new stylesheet after an update.
+
 ## 0.0.62
 
 - **A simpler menu by default.** The side menu shows six pages (Overview, Findings and alerts, Systems, Today's brief, Sources, Settings). "Show all pages" at the bottom switches to the full list; the choice is remembered in the browser and applied before the page paints. The new **Settings** page lists every other page, grouped, with one line on what each is for, and stays highlighted while you are on any of them. Same pages and addresses; Ctrl K still reaches all of them.

@@ -6,15 +6,18 @@
   <div class="panel-head"><h2 id="setup-h">{{ 'Finish setting up' if data.setup_required_open else 'Optional extras' }}</h2>
     <span class="muted">{{ data.checklist|length - data.setup_open }} of {{ data.checklist|length }} done</span></div>
   <div class="panel-body">
-  <ol class="checklist">
-    {% for step in data.checklist %}
-    <li class="{{ 'done' if step.done }}">
-      <span class="check">{% if step.done %}{{ icon('check') }}{% endif %}</span>
-      <div class="grow"><a href="{{ step.href }}">{{ step.title }}</a>{% if step.optional and not step.done %} <span class="subtle">optional</span>{% endif %}
-        {% if step.hint and not step.done %}<div class="muted">{{ step.hint }}</div>{% endif %}</div>
+  {% set total = data.checklist|length %}{% set finished = total - data.setup_open %}
+  <div class="setup-progress setup-progress--w{{ (finished * 6 // total) if total else 0 }}" role="img" aria-label="{{ finished }} of {{ total }} steps done"><span></span></div>
+  <ol class="checklist checklist--todo">
+    {% for step in data.checklist if not step.done %}
+    <li>
+      <span class="check"></span>
+      <div class="grow"><a href="{{ step.href }}">{{ step.title }}</a>{% if step.optional %} <span class="subtle">optional</span>{% endif %}
+        {% if step.hint %}<div class="muted">{{ step.hint }}</div>{% endif %}</div>
     </li>
     {% endfor %}
   </ol>
+  {% if finished %}<div class="setup-done">{% for step in data.checklist if step.done %}<span>{{ icon('check') }} {{ step.title }}</span>{% endfor %}</div>{% endif %}
   </div>
 </section>
 {% endmacro %}
