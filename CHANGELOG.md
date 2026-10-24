@@ -9,6 +9,7 @@ tag that has no entry here. Images are tagged with the exact version; there is n
 
 - **A polish pass over the whole console** (CSS only, plus the Overview checklist; the tokens and both themes are unchanged). Soft depth on panels and tiles, a faint accent glow behind the page, tiles that lift and light their edge on hover, a coloured top edge and a coloured number on warning and failing tiles, calmer menu icons, a slightly raised primary button, and a short fade-in on page load (off for people who ask for less motion). The health tiles now sit four across on a wide screen, two on a tablet, and one on a small phone, so there is no half-empty last row. The setup checklist became a slim card with a progress bar, only the steps still open in two columns, and the finished ones as one line.
 - The asset address carries the version, so a browser fetches the new stylesheet after an update.
+- Fixed a date-dependent test (investigation notes expire after 14 days, and four tests ran their agent at a fixed 2026-10-09, so they began failing on 2026-10-23 and held the first 0.0.63 release back). No product change.
 
 ## 0.0.62
 

@@ -554,8 +554,9 @@ def test_the_weekly_tuner_is_queued_once_a_week_and_nothing_is_queued_while_off(
 
 
 def investigate(lab, story="f-absence"):
+    # Run "now": notes age out of the findings page after 14 days, so a fixed past date would be a time bomb.
     return go(lab, Model(calls(("get_status", {})), final("## Summary\nThe run was ok [ref:r1].\n## Evidence\n- Nothing else was found [ref:r1].")),
-              subject=story, name="investigator")  # fmt: skip
+              subject=story, name="investigator", now=datetime.now(UTC))  # fmt: skip
 
 
 def test_the_investigators_note_is_found_by_story_id_and_ages_out(lab):  # noqa: F811
