@@ -17,9 +17,9 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/herbiewalker/homelab-brief</Support>
   <Project>https://github.com/herbiewalker/homelab-brief</Project>
-  <Overview>Turns your syslog and homelab data into a daily brief, trend baselines, alerts, Home Assistant sensors, a REST API, Prometheus metrics, and an admin GUI. One container with its own LAN address that receives syslog on port 514. The analysis runs in the container; no AI or cloud service is needed. After the first start, open the admin page on the container's HTTPS address and follow the setup wizard.</Overview>
+  <Overview>Turns your syslog and homelab data into a daily brief, trend baselines, alerts, Home Assistant sensors, a REST API, Prometheus metrics, and an admin GUI. One container with its own LAN address that receives syslog on port 514. The analysis runs in the container; no AI or cloud service is needed. The WebUI button opens the public status page, which needs no sign-in and has an Admin sign in button; after the first start, sign in there and follow the setup wizard.</Overview>
   <Category>Network:Other Tools:</Category>
-  <WebUI>https://[IP]:[PORT:443]/admin</WebUI>
+  <WebUI>http://[IP]:[PORT:80]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/unraid-template.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/icon.png</Icon>
   <ExtraParams>--memory=768m</ExtraParams>

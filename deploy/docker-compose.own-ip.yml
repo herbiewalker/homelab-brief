@@ -22,7 +22,7 @@ services:
       # one-off backfill import (Task 7); remove after `brief import` completes
       - /mnt/user/<share>/syslog:/import:ro
     labels:
-      net.unraid.docker.webui: https://[IP]:[PORT:443]/admin  # the Unraid UI opens the admin page
+      net.unraid.docker.webui: http://[IP]:[PORT:80]/  # the Unraid UI opens the public status page, which links to the admin sign-in
       net.unraid.docker.managed: 'composeman'
       net.unraid.docker.icon: https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/icon.png
     mem_limit: 768m

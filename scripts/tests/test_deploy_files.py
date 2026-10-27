@@ -34,7 +34,9 @@ def test_template_follows_stable_or_a_pin_and_has_no_latest():
 def test_template_runs_on_br0_with_the_web_page_and_memory_limit():
     root = template()
     assert root.findtext("Network") == "br0"
-    assert root.findtext("WebUI") == "https://[IP]:[PORT:443]/admin"
+    assert (
+        root.findtext("WebUI") == "http://[IP]:[PORT:80]/"
+    )  # the public status page, which links to the sign-in
     assert "--memory=768m" in root.findtext("ExtraParams")
 
 
@@ -129,7 +131,7 @@ def test_the_quickstart_compose_is_self_contained_and_consistent():
         assert f"#   {var}" in text, f"{var} is not described in the file header"
     assert "env_file" not in service, "the quick start must work with no file other than itself"
     labels = service["labels"]
-    assert labels["net.unraid.docker.webui"].endswith("[PORT:443]/admin")
+    assert labels["net.unraid.docker.webui"] == "http://[IP]:[PORT:80]/"
     assert labels["net.unraid.docker.icon"].startswith("https://raw.githubusercontent.com/")
     # every variable it passes on is one the program reads
     assert {"MQTT_HOST", "MQTT_PORT", "MQTT_USER", "MQTT_PASSWORD", "APPRISE_URLS"} <= ENV_NAMES

@@ -17,8 +17,8 @@
   <a class="brandmark" href="/"><span class="logo">{{ icon('activity') }}</span><span>homelab-brief</span></a>
   <nav>
     <a href="/">Status</a>
-    {% if session %}<a href="/admin">Admin</a>{% endif %}
     <a href="{{ source_url }}" rel="noopener">Source</a>
+    {% if session %}<a href="/admin">Admin</a>{% elif admin_link %}<a class="btn btn--sm" href="/admin">{{ icon('user') }}<span>Admin sign in</span></a>{% endif %}
   </nav>
 </header>
 <main class="public">

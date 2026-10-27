@@ -81,7 +81,8 @@ def test_the_overview_is_a_console(lab):  # noqa: F811
 def test_the_public_status_page_has_the_banner_and_the_bars_and_no_script(lab):  # noqa: F811
     html = lab.http().get("/").text
     assert 'class="banner' in html and 'class="bar"' in html
-    assert "<script" not in html.lower() and "/admin" not in html
+    assert "<script" not in html.lower()
+    assert html.count('href="/admin"') == 1 and 'href="/admin/' not in html  # only the sign-in button
 
 
 def test_dark_is_the_default_theme_and_the_script_agrees():

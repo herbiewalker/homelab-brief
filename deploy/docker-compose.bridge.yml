@@ -23,7 +23,7 @@ services:
       - /mnt/cache/syslog-archive:/archive
       - /mnt/user/<share>/brief:/out
     labels:
-      net.unraid.docker.webui: https://[IP]:[PORT:443]/admin
+      net.unraid.docker.webui: http://[IP]:[PORT:80]/
       net.unraid.docker.managed: 'composeman'
       net.unraid.docker.icon: https://raw.githubusercontent.com/herbiewalker/homelab-brief/main/deploy/icon.png
     mem_limit: 768m

@@ -5,6 +5,10 @@ step (0.x.0) may change config files, and the upgrade step migrates them (see `d
 patch step (0.0.x) is a build of the next backlog task or a fix. The release workflow refuses to publish a
 tag that has no entry here. Images are tagged with the exact version; there is no `latest`.
 
+## 0.0.64
+
+- **The Docker tab's WebUI opens the public status page.** The template and all four compose files now point the WebUI entry at `http://[IP]:[PORT:80]/` (host mode: the published HTTP port) instead of straight at the admin sign-in. The status page needs no login, so one click from the container's icon shows how things are, and it carries an **Admin sign in** button (a plain `/admin` link; over HTTP the app already redirects to the HTTPS address and port). Existing template containers keep their old WebUI value until you edit the container (Docker tab, Edit, WebUI field) or re-add the template; Compose Manager stacks pick up the label on the next "Update stack" with the new file.
+
 ## 0.0.63
 
 - **A polish pass over the whole console** (CSS only, plus the Overview checklist; the tokens and both themes are unchanged). Soft depth on panels and tiles, a faint accent glow behind the page, tiles that lift and light their edge on hover, a coloured top edge and a coloured number on warning and failing tiles, calmer menu icons, a slightly raised primary button, and a short fade-in on page load (off for people who ask for less motion). The health tiles now sit four across on a wide screen, two on a tablet, and one on a small phone, so there is no half-empty last row. The setup checklist became a slim card with a progress bar, only the steps still open in two columns, and the finished ones as one line.

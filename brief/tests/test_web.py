@@ -94,7 +94,10 @@ def test_healthz_is_ok_when_the_worker_reported_recently(env):
 def test_the_status_page_works_without_login_and_needs_no_javascript(env):
     r = env.http().get("/")
     assert r.status_code == 200 and "homelab-brief" in r.text and "Learning, day 0" in r.text
-    assert "<script" not in r.text.lower() and "/admin" not in r.text
+    assert "<script" not in r.text.lower()
+    # the Docker tab's WebUI lands here, so the page offers one way in: a plain link, which the HTTP app redirects to HTTPS
+    assert r.text.count('href="/admin"') == 1 and "Admin sign in" in r.text
+    assert 'href="/admin/' not in r.text  # nothing else of the admin area is advertised
 
 
 def test_the_status_page_shows_counts(env):

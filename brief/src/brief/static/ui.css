@@ -275,6 +275,7 @@ dialog .dialog-foot { display: flex; justify-content: flex-end; gap: 0.6rem; pad
 .public-head nav { display: flex; gap: 1rem; align-items: center; }
 .public-head a { color: var(--muted); text-decoration: none; font-weight: 600; }
 .public-head a:hover { color: var(--fg); }
+.public-head a.btn, .public-head a.btn:hover { color: var(--accent-fg); }
 .auth { min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
 .auth .card { width: min(26rem, 100%); padding: 1.5rem; }
 

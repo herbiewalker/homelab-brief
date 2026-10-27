@@ -345,6 +345,7 @@ def create_app(
             uptime=_uptime(data["uptime_s"]),
             page=page,
             page_theme="auto",
+            admin_link=True,  # the Docker tab's WebUI lands here, so one click reaches the sign-in page
             **data,
         )
 
